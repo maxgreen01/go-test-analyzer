@@ -11,7 +11,7 @@ import (
 	"os"
 
 	"github.com/go-toolsmith/astcopy"
-	"github.com/maxgreen01/go-test-parser/pkg/asttools"
+	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 	"golang.org/x/tools/go/ast/astutil"
 )
 

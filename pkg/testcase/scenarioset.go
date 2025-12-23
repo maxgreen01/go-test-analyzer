@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/maxgreen01/go-test-parser/pkg/asttools"
+	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 )
 
 // Represents the properties of a table-driven test by storing information about the scenarios and their structure,

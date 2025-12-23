@@ -1,7 +1,7 @@
-# Makefile for go-test-parser cross-compilation
+# Makefile for go-test-analyzer cross-compilation
 
-MAIN_PACKAGE_PATH=./cmd/testparser
-BINARY_NAME=go-test-parser
+MAIN_PACKAGE_PATH=./cmd/analyzer
+BINARY_NAME=go-test-analyzer
 BUILD_DIR=./build
 
 .PHONY: all clean windows-amd64 linux-amd64 darwin-arm64

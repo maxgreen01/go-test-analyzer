@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/maxgreen01/go-test-parser/internal/config"
-	"github.com/maxgreen01/go-test-parser/internal/filewriter"
-	"github.com/maxgreen01/go-test-parser/internal/parsercommands"
-	"github.com/maxgreen01/go-test-parser/pkg/parser"
+	"github.com/maxgreen01/go-test-analyzer/internal/config"
+	"github.com/maxgreen01/go-test-analyzer/internal/filewriter"
+	"github.com/maxgreen01/go-test-analyzer/internal/parsercommands"
+	"github.com/maxgreen01/go-test-analyzer/pkg/parser"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/lmittmann/tint"
@@ -163,12 +163,12 @@ func applyGlobals(opts *config.GlobalOptions) {
 		}),
 	)
 
-	// Attempt to set up the log file at `output/testparser.log`, but don't crash if it fails
+	// Attempt to set up the log file at `output/analyzer.log`, but don't crash if it fails
 	outputDir, dirErr := filewriter.GetDefaultOutputDir()
 	if dirErr != nil {
 		fmt.Fprintf(os.Stderr, "Could not determine default output directory for logs: %v\n", dirErr)
 	} else {
-		logFilePath := filepath.Join(outputDir, "testparser.log") // todo maybe use a time-based filename so multiple logs can be saved
+		logFilePath := filepath.Join(outputDir, "analyzer.log") // todo maybe use a time-based filename so multiple logs can be saved
 		logFile, fileErr := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 
 		if fileErr != nil {

@@ -1,4 +1,4 @@
-module github.com/maxgreen01/go-test-parser
+module github.com/maxgreen01/go-test-analyzer
 
 go 1.24.5
 

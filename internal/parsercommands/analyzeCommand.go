@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/maxgreen01/go-test-parser/internal/config"
-	"github.com/maxgreen01/go-test-parser/internal/filewriter"
-	"github.com/maxgreen01/go-test-parser/pkg/parser"
-	"github.com/maxgreen01/go-test-parser/pkg/testcase"
+	"github.com/maxgreen01/go-test-analyzer/internal/config"
+	"github.com/maxgreen01/go-test-analyzer/internal/filewriter"
+	"github.com/maxgreen01/go-test-analyzer/pkg/parser"
+	"github.com/maxgreen01/go-test-analyzer/pkg/testcase"
 	"golang.org/x/tools/go/packages"
 
 	"github.com/jessevdk/go-flags"

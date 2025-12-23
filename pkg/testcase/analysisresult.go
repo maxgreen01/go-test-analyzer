@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/maxgreen01/go-test-parser/internal/filewriter"
+	"github.com/maxgreen01/go-test-analyzer/internal/filewriter"
 )
 
 // Represents the result of analyzing a TestCase, including information about its table-driven structure.

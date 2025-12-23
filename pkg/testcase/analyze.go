@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/maxgreen01/go-test-parser/pkg/asttools"
+	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 )
 
 // Attempts to extract the table-driven properties of a test case using information extracted from its parsed statements

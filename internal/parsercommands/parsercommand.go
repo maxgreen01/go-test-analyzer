@@ -1,8 +1,8 @@
 package parsercommands
 
 import (
-	"github.com/maxgreen01/go-test-parser/internal/config"
-	"github.com/maxgreen01/go-test-parser/pkg/parser"
+	"github.com/maxgreen01/go-test-analyzer/internal/config"
+	"github.com/maxgreen01/go-test-analyzer/pkg/parser"
 
 	"github.com/jessevdk/go-flags"
 )

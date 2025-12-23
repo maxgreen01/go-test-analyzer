@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/maxgreen01/go-test-parser/pkg/asttools"
+	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 )
 
 // Represents the result of a refactoring attempt on a test case.
