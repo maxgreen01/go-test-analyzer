@@ -4,6 +4,7 @@ Multi-stage tool for automatically detecting, analyzing, and refactoring test ca
 
 [![License](https://img.shields.io/github/license/maxgreen01/go-test-analyzer)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/maxgreen01/go-test-analyzer)](https://github.com/maxgreen01/go-test-analyzer/releases)
+[![DOI](https://zenodo.org/badge/994874951.svg)](https://doi.org/10.5281/zenodo.18177436)
 
 ## Features
 
