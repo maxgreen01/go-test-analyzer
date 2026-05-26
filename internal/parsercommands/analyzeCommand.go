@@ -49,7 +49,7 @@ var _ ParserCommand = (*AnalyzeCommand)(nil)
 // Register the command with the global flag parser
 func init() {
 	RegisterCommand(func(flagParser *flags.Parser, opts *config.GlobalOptions) {
-		flagParser.AddCommand("statistics", "Collect statistics about a Go project's tests", "", NewStatisticsCommand(opts))
+		flagParser.AddCommand("analyze", "Analyze a Go project's table-driven tests", "", NewAnalyzeCommand(opts))
 	})
 }
 

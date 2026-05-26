@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	slogmulti "github.com/samber/slog-multi"
 )
 
+var version = "undefined" // replaced at build time using Makefile linker flags
+
 // =========== Parse command-line flags and initialize the application ===========
 func main() {
 	// Create the flag parser itself
@@ -30,12 +33,19 @@ func main() {
 	for _, registerFunc := range parsercommands.CommandRegistry {
 		registerFunc(flagParser, &opts)
 	}
+	
+	// Manually add the version command
+	flagParser.AddCommand("version", "Show this application's version number", "", &VersionCommand{})
+
 
 	// Set up a hook to validate and apply global flags before executing any command.
 	// Also handles logic for after the command finishes executing using `defer`.
 	flagParser.CommandHandler = func(command flags.Commander, args []string) error {
 		if command == nil {
 			return nil
+		} else if _, ok := command.(*VersionCommand); ok {
+			// Don't parse flags for version command
+			return command.Execute(args)
 		}
 
 		// Validate and apply global flags
@@ -63,7 +73,7 @@ func main() {
 		return nil
 	}
 
-	// Actually run the flag parser and start the application
+	// Actually run the flag parser and start the application, or display the help menu
 	_, err := flagParser.Parse()
 	if err != nil {
 		// Exit successfully when printing the help menu, but with a failure code otherwise
@@ -184,3 +194,15 @@ func applyGlobals(opts *config.GlobalOptions) {
 		slogmulti.Fanout(handlers...),
 	))
 }
+
+// Define the version command
+type VersionCommand struct{}
+
+func (c *VersionCommand) Execute(_ []string) error {
+	fmt.Printf("go-test-analyzer %s\n", version)
+	fmt.Printf("- os/type: %s\n", runtime.GOOS)
+	fmt.Printf("- os/arch: %s\n", runtime.GOARCH)
+	fmt.Printf("- go/version: %s\n", runtime.Version())
+	return nil
+}
+	
