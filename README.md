@@ -20,6 +20,13 @@ Given an arbitrary Go project as input, the Go Test Analysis Engine...
 
 To ensure that this repository is permanently available, it is configured to automatically generate a new Zenodo DOI whenever a new release version is created. The most recent release version is always accessible at the link <https://doi.org/10.5281/zenodo.18177436>, which is also displayed as a badge at the top of this README. Archived copies of older release versions are also accessible through this link.
 
+Additionally, the Go Test Analysis Engine has been awarded ACM's `Artifacts Evaluated - Reusable` and  `Artifacts Available` badges after being reviewed in the ICSE 2026 [Artifact Evaluation](https://conf.researchr.org/track/icse-2026/icse-2026-artifact-evaluation) track. These badges were awarded based on our efforts to make this tool permanently accessible, clearly documented, easily executable, and highly modular. For more information about these badges, see the [ACM Artifact Review and Badging](https://www.acm.org/publications/policies/artifact-review-and-badging-current) page.
+
+<p align="center">
+    <img width="15%" alt="artifacts_evaluated_reusable_v1_1" src="https://github.com/user-attachments/assets/99a57e0d-753e-44bc-88fd-76578fbad5f4" hspace="20" />
+    <img width="15%" alt="artifacts_available_v1_1" src="https://github.com/user-attachments/assets/9c9ec967-9f8a-4c96-a75a-5c3641008c1d" hspace="20" />
+</p>
+
 ### ICSE 2026 NIER Paper
 
 This program was initially developed alongside the research paper titled "Characterizing and Refactoring Table-Driven Tests in Go" (<https://doi.org/10.1145/3786582.3786837>), which was published through the ICSE 2026 [New Ideas and Emerging Results (NIER)](https://conf.researchr.org/track/icse-2026/icse-2026-nier) track. Release [v1.2.1](https://github.com/maxgreen01/go-test-analyzer/releases/tag/v1.2.1) of this tool was used to produce the data described in this paper, which was consolidated using Google Sheets to obtain the final results.
