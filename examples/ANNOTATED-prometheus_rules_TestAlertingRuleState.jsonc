@@ -18,8 +18,7 @@
 // corresponding test is re-analyzed.
 // 
 // Fields that are based on an AST representation will not contain any of the comments from the corresponding
-// source code. If the test was refactored, these fields will be based on the refactored state of the function.
-// These details may be changed in a future version.
+// source code. This detail may be changed in a future version.
 // 
 {
   // The "TestCase" object contains identifying information about the test that this file represents.
@@ -36,7 +35,7 @@
     // The name of the overarching project that the test case is part of, as specified by the user.
     "project": "prometheus",
     
-    // The declaration of the test function, based on its AST representation.
+    // The original declaration of the test function, based on its AST representation.
     "funcDecl": "func TestAlertingRuleState(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tactive map[uint64]*Alert\n\t\twant   AlertState\n\t}{\n\t\t{\n\t\t\tname: \"MaxStateFiring\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StatePending},\n\t\t\t\t1: {State: StateFiring},\n\t\t\t},\n\t\t\twant: StateFiring,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStatePending\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StatePending},\n\t\t\t},\n\t\t\twant: StatePending,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStateInactive\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StateInactive},\n\t\t\t},\n\t\t\twant: StateInactive,\n\t\t},\n\t}\n\n\tfor i, test := range tests {\n\t\tt.Run(test.name, func(t *testing.T) {\n\t\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\t\trule.active = test.active\n\t\t\tgot := rule.State()\n\t\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t\t})\n\t}\n}"
   },
   

@@ -193,7 +193,7 @@ func FindStmtInBody(stmt ast.Stmt, body []ast.Stmt) (int, error) {
 	return -1, fmt.Errorf("could not find stmt in function body")
 }
 
-// Returns the i-th statement in the new body, where i is  the index of the provided statement within its own parent body.
+// Returns the i-th statement in the new body, where i is the index of the provided statement within its own parent body.
 // For example, if the given statement is at index 2 in its parent body, this returns the statement at index 2 in the new body.
 func GetStmtWithSameIndex(stmt ast.Stmt, parentBody, newBody []ast.Stmt) (ast.Stmt, error) {
 	index, err := FindStmtInBody(stmt, parentBody)

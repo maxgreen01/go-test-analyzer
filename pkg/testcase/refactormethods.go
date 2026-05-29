@@ -98,6 +98,13 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 	// all the files on the disk using the new refactored AST data
 	originalFileContents := make(map[string][]byte)
 	for _, refactoring := range rr.Refactorings {
+		// Whenever this function exits, restore the original AST File data (and any dependents) to ensure that refactorings
+		// don't interfere with each other. Even if the file contents are retained on the disk, we need to revert the AST data
+		// to keep tests independent. Note that the Parser finished generating the AST structures long before this point, so
+		// the data on the disk won't affect the underlying AST which is actually used for analysis. However, disk changes may
+		// affect test execution, especially if any of the previous refactoring attempts cause compilation issues.
+		defer refactoring.Cleanup()
+
 		filePath := refactoring.FilePath
 		if _, ok := originalFileContents[filePath]; ok {
 			// Already processed this file
@@ -141,16 +148,8 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 			// Write the original file contents back to the disk
 			if err := os.WriteFile(refactoring.FilePath, originalFileContents[refactoring.FilePath], 0644); err != nil {
 				slog.Error("Error restoring original test file contents after refactoring", "err", err, "test", tc)
-				return *rr
 			}
 		}
-
-		// Restore the original AST File data (and any dependents) to ensure that refactorings don't interfere with each other.
-		// Even if the file contents are retained on the disk, we need to revert the AST data to keep tests independent.
-		// Note that the Parser finished generating the AST structures long before this point, so the data on the disk won't
-		// affect the underlying AST which is actually used for analysis. However, disk changes may affect test execution,
-		// especially if any of the previous refactoring attempts cause compilation issues.
-		refactoring.Cleanup()
 	}
 
 	return *rr
@@ -162,8 +161,8 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 // These may assume that the AnalysisResult has already been populated with the necessary data via `Analyze()`.
 // Refactorings of helper functions are performed on *copies* of the original AST nodes to ensure that other
 // analysis results are not affected if the helper is used by any other tests. The cleanup of these copy changes
-// is handled by AttemptRefactoring so that they can be saved  Note that type information from
-// `go/types` is NOT available for these copies since the underlying pointer values are different than the originals.
+// is handled by AttemptRefactoring so that they can be saved. Note that type information from `go/types` is NOT
+// available for these copies since the underlying pointer values are different than the originals.
 //
 
 // TODO LATER - this AST copying behavior is only present when expanding helper statements, not necessarily when finding definitions or using the type system.
@@ -172,7 +171,7 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 //    However, this can cause trouble when using `keepRefactoredFiles` because tests that cause compile errors may affect the execution of other tests in the same file.
 
 // Refactors the test case to use subtests by wrapping the execution loop body in a call to `t.Run()`.
-// Also attempts to replace `continue` statements in the runner (except when inside another loop) with `return` to pass the test.
+// Also attempts to replace `continue` statements in the Runner (except when inside another loop) with `return` to pass the test.
 // Returns a one-element list containing the updated function if successful, as well as the status of the refactor
 // generation attempt and any error that may have occurred.
 func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGenerationStatus, error) {
@@ -190,17 +189,25 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	// the AST data it contains will be modified in-place during refactoring.
 	result := cloneHelperFunction(ss.Runner, ar)
 
-	// Detect the key/value variable names used by the loop (used to work with scenarios within the loop)
+	// Extract information from the Runner loop, including saving the original values where applicable so they can be restored later
+	var originalRunnerKeyName string
 	var loopKeyName string
 	var loopValueName string
+	var originalRunnerStatements []ast.Stmt
+	var runnerStatements []ast.Stmt
 	switch loop := ss.Runner.(type) {
 	case *ast.RangeStmt:
+		// Detect the key/value variable names used by the loop (used to work with scenarios within the loop)
 		if loop.Key == nil || loop.Value == nil {
 			slog.Warn("Cannot refactor test case with range loop with nil key or value variable", "key", loop.Key, "value", loop.Value, "test", tc)
 			return nil, RefactorGenerationStatusFail, nil
 		}
-		loopKeyName = loop.Key.(*ast.Ident).Name
+		originalRunnerKeyName = loop.Key.(*ast.Ident).Name
+		loopKeyName = originalRunnerKeyName
 		loopValueName = loop.Value.(*ast.Ident).Name
+
+		originalRunnerStatements = loop.Body.List
+		runnerStatements = astcopy.StmtList(originalRunnerStatements)
 
 	// todo LATER add support for `for-i` loops	(and modify assignment at end of func)
 	default:
@@ -244,7 +251,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 		scenarioNameExpr = asttools.NewSelectorExpr(scenarioVarName, nameField)
 	}
 
-	// Detect the name of the `*testing.T` parameter in the runner's function body, instead of hardcoding it to "t"
+	// Detect the name of the `*testing.T` parameter in the Runner's function body, instead of hardcoding it to "t"
 	funcDecl, _ := asttools.GetEnclosingFunction(ss.Runner.Pos(), tc.GetPackageFiles())
 	if funcDecl == nil || funcDecl.Type == nil {
 		return nil, RefactorGenerationStatusError, fmt.Errorf("cannot refactor test case with missing function declaration")
@@ -258,7 +265,6 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 
 	// ENHANCEMENT
 	// To hopefully avoid compilation errors, try to replace `continue` runnerStatements in the loop body with `return` to make the test pass.
-	runnerStatements := ss.GetRunnerStatements()
 	for _, stmt := range runnerStatements {
 		// Detect continue statements without a label, except when inside another loop
 		astutil.Apply(stmt, func(c *astutil.Cursor) bool {
@@ -311,6 +317,19 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 		},
 	) // end of constructing `t.Run()` call
 
+	// At this point, the refactored AST changes are mostly complete, but we haven't been applied yet
+
+	// Create a closure to restore the original Runner data once all refactoring is done
+	cleanupFunc := func() error {
+		slog.Debug("Restoring original scenario Runner", "test", tc)
+		switch loop := ss.Runner.(type) {
+		case *ast.RangeStmt:
+			loop.Body.List = originalRunnerStatements
+			loop.Key.(*ast.Ident).Name = originalRunnerKeyName
+		}
+		return nil
+	}
+
 	// Apply the refactoring changes to the underlying AST now that the refactoring logic is complete
 	switch loop := ss.Runner.(type) {
 	case *ast.RangeStmt:
@@ -325,14 +344,16 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 
 	// If `result` is non-nil, the statement was part of a helper function and the refactored data should already be
 	// contained within this struct. However, the string representation of the refactored function needs to be updated.
+	// Note that the new `cleanupFunc` has a smaller scope than the existing one inside `result` because it only restores
+	// the Runner data rather than the entire original function, so we can just rely on the existing one.
 	if result != nil {
 		result.UpdateStringRepresentation(tc.FileSet())
 		return []RefactoredFunction{*result}, RefactorGenerationStatusSuccess, nil
 	}
 
 	// Either the statement is not part of a helper function (or an error occurred while checking for that),
-	// so we assume that the refactoring happened inside the original test function and doesn't need any cleanup.
-	return []RefactoredFunction{*NewRefactoredFunction(tc.funcDecl, tc.file, nil, tc.FileSet())}, RefactorGenerationStatusSuccess, nil
+	// so we assume that the refactoring happened inside the original test function and doesn't need any separate AST cleanup.
+	return []RefactoredFunction{*NewRefactoredFunction(tc.funcDecl, tc.file, cleanupFunc, tc.FileSet())}, RefactorGenerationStatusSuccess, nil
 }
 
 //
@@ -341,8 +362,8 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 
 // If the provided statement is part of a helper function (i.e. not the test case function itself), this replaces
 // the surrounding helper function with a deep copy of itself in the included TestCase's AST file. It also updates
-// the AST references in the included ScenarioSet to match the new data. This returns a representation of the
-// refactored function, where the Refactored field is the unmodified copy of the original function declaration.
+// the AST references in the included ScenarioSet in-place to use the cloned data. This returns a representation of
+// the refactored function, where the Refactored field is the unmodified copy of the original function declaration.
 //
 // If the statement is not part of a helper function or is not part of the package, this does nothing.
 func cloneHelperFunction(stmt ast.Stmt, ar *AnalysisResult) *RefactoredFunction {
@@ -371,12 +392,12 @@ func cloneHelperFunction(stmt ast.Stmt, ar *AnalysisResult) *RefactoredFunction 
 	// Create a deep copy of the enclosing function to avoid modifying the original AST
 	copiedFunc := astcopy.FuncDecl(originalFunc)
 
-	// Replace the original function with the copy
+	// Replace the original function with the copy in the AST
 	if err := asttools.ReplaceFuncDecl(originalFunc, copiedFunc, enclosingFile); err != nil {
 		slog.Error("Failed to replace function declaration with its copy", "err", err, "test", tc)
 		return nil
 	}
-	// Create a closure to restore the original function declaration within the file
+	// Create a closure to restore the original AST function declaration within the file
 	restoreFuncDecl := func() error {
 		if err := asttools.ReplaceFuncDecl(copiedFunc, originalFunc, enclosingFile); err != nil {
 			return fmt.Errorf("restoring original function declaration: %w", err)
@@ -384,7 +405,7 @@ func cloneHelperFunction(stmt ast.Stmt, ar *AnalysisResult) *RefactoredFunction 
 		return nil
 	}
 
-	// Now that the copied data is in place, update the AST references in the ScenarioSet too
+	// Now that the copied data is in place, update the AST references in the ScenarioSet to use the corresponding copied statements
 	originalRunner := ss.Runner // Save a copy of the original reference so it can be restored later
 	copiedRunner, err := asttools.GetStmtWithSameIndex(ss.Runner, originalFunc.Body.List, copiedFunc.Body.List)
 	if err != nil {
@@ -399,6 +420,7 @@ func cloneHelperFunction(stmt ast.Stmt, ar *AnalysisResult) *RefactoredFunction 
 
 	// Create a closure to restore the original function declaration and all AST ScenarioSet references once all refactoring is done
 	cleanupFunc := func() error {
+		slog.Debug("Restoring original helper function declaration", "test", tc)
 		if err := restoreFuncDecl(); err != nil {
 			return err
 		}

@@ -180,7 +180,8 @@ func (rf *RefactoredFunction) UpdateStringRepresentation(fset *token.FileSet) {
 	rf.RefactoredString = asttools.NodeToString(rf.Refactored, fset)
 }
 
-// Cleans up the refactored function by restoring the original function declaration, if possible.
+// Cleans up the refactored function by restoring the original AST function declaration, if possible.
+// Does not affect the file on the disk.
 func (rf *RefactoredFunction) Cleanup() {
 	if rf.cleanup != nil {
 		if err := rf.cleanup(); err != nil {
