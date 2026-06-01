@@ -3,6 +3,7 @@ module github.com/maxgreen01/go-test-analyzer
 go 1.24.5
 
 require (
+	github.com/dave/dst v0.27.4
 	github.com/go-toolsmith/astcopy v1.1.0
 	github.com/go-toolsmith/astequal v1.2.0
 	github.com/jessevdk/go-flags v1.6.1

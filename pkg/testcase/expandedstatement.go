@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 	"golang.org/x/tools/go/ast/astutil"
 )
@@ -21,25 +22,22 @@ import (
 // If the statement is not a function call and does not involve any function calls, its `Children` field is nil.
 type ExpandedStatement struct {
 	// The original statement
-	Stmt ast.Stmt
+	Stmt dst.Stmt
 
 	// The expanded form of the called function's inner statements, or nil if the statement is not a function call
 	Children []*ExpandedStatement
-
-	// The FileSet used when creating this ExpandedStatement, used for stringifying the original statement
-	fset *token.FileSet
 }
 
 // Recursively create the fully expanded form of a function call statement, expanding depth first.
 // If `testOnly` is true, only expand statements that are defined in a file with a `_test.go` suffix.
 // Note that functions are only expanded when they're called, so function literals (e.g. inside `t.Run()`) are not expanded.
-func ExpandStatement(stmt ast.Stmt, tc *TestCase, testOnly bool) *ExpandedStatement {
+func ExpandStatement(stmt dst.Stmt, tc *TestCase, testOnly bool) *ExpandedStatement {
 	return expandStatementWithStack(stmt, tc, testOnly, nil)
 }
 
 // Helper for ExpandStatement that tracks the function call stack to avoid expanding recursive calls.
-// Note that the order of processing a statement's "children" is partially determined by the implementation of `ast.Inspect()`.
-func expandStatementWithStack(stmt ast.Stmt, tc *TestCase, testOnly bool, callStack []string) *ExpandedStatement {
+// Note that the order of processing a statement's "children" is partially determined by the implementation of `dst.Inspect()`.
+func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callStack []string) *ExpandedStatement {
 	if stmt == nil {
 		return nil
 	}
@@ -56,19 +54,18 @@ func expandStatementWithStack(stmt ast.Stmt, tc *TestCase, testOnly bool, callSt
 	// Create the "root" ExpandedStatement for the original statement
 	root := &ExpandedStatement{
 		Stmt: stmt,
-		fset: fset,
 	}
 
-	// Use ast.Inspect to walk all nodes in the statement, looking for function calls to expand.
+	// Use `dst.Inspect` to walk all nodes in the statement, looking for function calls to expand.
 	// Any time a function that can be expanded is found, it's treated as a new child of its parent statement.
 	// This means functions called in the parameters or body of a node will be treated as separate children, which
 	// will all be expanded as well. These non-body function calls are parsed and saved before a function's body statements.
-	ast.Inspect(stmt, func(n ast.Node) bool {
+	dst.Inspect(stmt, func(n dst.Node) bool {
 		if n == nil {
 			return false
 		}
 		// Look for function calls
-		callExpr, ok := n.(*ast.CallExpr)
+		callExpr, ok := n.(*dst.CallExpr)
 		if !ok {
 			// The only time we want to continue checking the node's children via `Inspect()` is if the node is NOT a function call.
 			// If the node is a function call, we instead want to manually visit the arguments and function definition to expand them properly.
@@ -79,10 +76,9 @@ func expandStatementWithStack(stmt ast.Stmt, tc *TestCase, testOnly bool, callSt
 		// which will then be used to expand its children before being saved back to the root statement.
 		// Don't create a new parent if the root is an expression statement, though, because the structs would be identical.
 		parent := root
-		if _, ok := parent.Stmt.(*ast.ExprStmt); !ok {
+		if _, ok := parent.Stmt.(*dst.ExprStmt); !ok {
 			parent = &ExpandedStatement{
-				Stmt: &ast.ExprStmt{X: callExpr},
-				fset: fset,
+				Stmt: &dst.ExprStmt{X: callExpr},
 			}
 			// Save a reference to the parent in the root statement, so all changes to the parent are also saved to the root
 			root.Children = append(root.Children, parent)
@@ -92,8 +88,8 @@ func expandStatementWithStack(stmt ast.Stmt, tc *TestCase, testOnly bool, callSt
 		for _, arg := range callExpr.Args {
 			// If the argument expression is a function call, treat it as a standalone statement and expand it.
 			// The callstack doesn't have to be adjusted here because the arg function is run in the same scope as the original statement.
-			if _, ok := arg.(*ast.CallExpr); ok {
-				argStmt := &ast.ExprStmt{X: arg}
+			if _, ok := arg.(*dst.CallExpr); ok {
+				argStmt := &dst.ExprStmt{X: arg}
 				parent.Children = append(parent.Children, expandStatementWithStack(argStmt, tc, testOnly, callStack))
 			}
 		}
@@ -101,7 +97,7 @@ func expandStatementWithStack(stmt ast.Stmt, tc *TestCase, testOnly bool, callSt
 		// Find the definition of the function being called
 		definition, err := FindDefinition(callExpr.Fun, tc, testOnly)
 		if err != nil {
-			slog.Error("Error finding definition for function call", "err", err, "position", fset.Position(callExpr.Pos()), "test", tc)
+			slog.Error("Error finding definition for function call", "err", err, "position", fset.Position(tc.DstToAst(callExpr).Pos()), "test", tc)
 			return false
 		}
 		if definition == nil {
@@ -111,13 +107,13 @@ func expandStatementWithStack(stmt ast.Stmt, tc *TestCase, testOnly bool, callSt
 
 		// Detect the function's name and inner statements
 		var funcName string
-		var innerStmts []ast.Stmt
+		var innerStmts []dst.Stmt
 		switch funcDef := definition.Node.(type) {
-		case *ast.FuncDecl:
+		case *dst.FuncDecl:
 			funcName = funcDef.Name.Name
 			innerStmts = funcDef.Body.List
-		case *ast.FuncLit:
-			funcName = fmt.Sprintf("funcLit@%s", fset.Position(funcDef.Pos())) // Use the position as a unique identifier
+		case *dst.FuncLit:
+			funcName = fmt.Sprintf("funcLit@%s", fset.Position(tc.DstToAst(funcDef).Pos())) // Use the position as a unique identifier
 			innerStmts = funcDef.Body.List
 
 		default:
@@ -140,47 +136,47 @@ func expandStatementWithStack(stmt ast.Stmt, tc *TestCase, testOnly bool, callSt
 		}
 
 		return false
-	}) // end of `ast.Inspect()`
+	}) // end of `dst.Inspect()`
 
 	return root
 }
 
 // Represents the definition of an expression as found by FindDefinition.
 type ExpressionDefinition struct {
-	// The AST node representing the actual expression definition
-	Node ast.Node
+	// The DST node representing the actual expression definition
+	Node dst.Node
 
-	// The AST file that contains the definition, or nil if it was not found
-	File *ast.File
+	// The DST file that contains the definition, or nil if it was not found
+	File *dst.File
 }
 
 // Memoization cache for FindDefinition to avoid redundant lookups.
 // Keys are strings formatted as "<position>-<project>-<package>-<testOnly>".
 var findDefinitionMemo = make(map[string]*ExpressionDefinition)
 
-// Return the AST definition and of the expression within the specified TestCase's package, if it exists.
-// Also returns the AST file that contains the definition if it is successfully found, or nil in all other cases.
+// Return the DST definition and of the expression within the specified TestCase's package, if it exists.
+// Also returns the DST file that contains the definition if it is successfully found, or nil in all other cases.
 // If the expression is not an identifier or selector expression, returns the original expression.
 // Returns nil for both return values (indicating that the definition was deliberately excluded) in the following cases:
 //   - The expression is not defined in the specified context package
 //   - If `testOnly` is true and the expression is not defined in a file with a `_test.go` suffix
-func FindDefinition(expr ast.Expr, tc *TestCase, testOnly bool) (*ExpressionDefinition, error) {
+func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefinition, error) {
 	if tc == nil {
 		return nil, fmt.Errorf("TestCase is nil")
 	}
 
-	var ident *ast.Ident
+	var ident *dst.Ident
 	switch x := expr.(type) {
-	case *ast.Ident:
+	case *dst.Ident:
 		ident = x
-	case *ast.SelectorExpr:
+	case *dst.SelectorExpr:
 		ident = x.Sel
 	default:
 		return &ExpressionDefinition{Node: expr}, nil // not an identifier or selector expression
 	}
 
 	// Don't process expressions that have been added manually (e.g. inside a helper function that has already been refactored)
-	if !ident.Pos().IsValid() {
+	if !tc.DstToAst(ident).Pos().IsValid() {
 		slog.Debug("Ignoring identifier with invalid position", "identifier", ident.Name, "testCase", tc)
 		return nil, nil
 	}
@@ -246,8 +242,8 @@ func FindDefinition(expr ast.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 
 	// The first node is expected to be the original identifier itself, so the second node should be the actual target definition
 	if _, ok := node.(*ast.Ident); ok && len(path) > 1 && path[1] != nil {
-		definition := &ExpressionDefinition{Node: path[1], File: definitionFile}
-		slog.Debug("Found definition for identifier", "identifier", ident.Name, "position", definition.Node.Pos(), "test", tc)
+		definition := &ExpressionDefinition{Node: tc.AstToDst(path[1]), File: tc.AstToDst(definitionFile).(*dst.File)}
+		slog.Debug("Found definition for identifier", "identifier", ident.Name, "position", tc.DstToAst(definition.Node).Pos(), "test", tc)
 
 		findDefinitionMemo[cacheKey] = definition // Store the definition in the memoization cache
 		return definition, nil
@@ -261,14 +257,14 @@ func FindDefinition(expr ast.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 //
 
 // Returns an iterator over all the statements contained within the ExpandedStatement
-func (es *ExpandedStatement) All() iter.Seq[ast.Stmt] {
-	return func(yield func(ast.Stmt) bool) {
+func (es *ExpandedStatement) All() iter.Seq[dst.Stmt] {
+	return func(yield func(dst.Stmt) bool) {
 		es.push(yield)
 	}
 }
 
 // Pushes all elements of the ExpandedStatement to the provided yield function in a pre-order manner
-func (es *ExpandedStatement) push(yield func(ast.Stmt) bool) bool {
+func (es *ExpandedStatement) push(yield func(dst.Stmt) bool) bool {
 	if es == nil {
 		return false
 	}
@@ -293,33 +289,28 @@ func (es *ExpandedStatement) String() string {
 	if es == nil {
 		return "ExpandedStatement{Stmt: nil}"
 	}
-	if es.fset == nil {
-		slog.Error("Cannot stringify ExpandedStatement because FileSet is nil", "expandedStatement", es)
-		return "ExpandedStatement{Stmt: nil}"
-	}
 	if es.Children == nil {
 		// If there are no children, just return the stringified statement
-		return fmt.Sprintf("ExpandedStatement{Stmt: %v}", asttools.NodeToString(es.Stmt, es.fset))
+		return fmt.Sprintf("ExpandedStatement{Stmt: %v}", asttools.NodeToString(es.Stmt))
 	}
 
 	children := make([]string, len(es.Children))
 	for i, child := range es.Children {
 		children[i] = child.String()
 	}
-	return fmt.Sprintf("ExpandedStatement{Stmt: %v, Children: [%v]}", asttools.NodeToString(es.Stmt, es.fset), strings.Join(children, ", "))
+	return fmt.Sprintf("ExpandedStatement{Stmt: %v, Children: [%v]}", asttools.NodeToString(es.Stmt), strings.Join(children, ", "))
 }
 
 // Helper struct for Marshaling and Unmarshaling JSON
 type expandedStatementJSON struct {
 	Stmt     string               `json:"stmt"`
 	Children []*ExpandedStatement `json:"children,omitempty"`
-	// fset is not marshaled
 }
 
 // Marshal a TestCase for JSON output
 func (es *ExpandedStatement) MarshalJSON() ([]byte, error) {
 	return json.Marshal(expandedStatementJSON{
-		Stmt:     asttools.NodeToString(es.Stmt, es.fset),
+		Stmt:     asttools.NodeToString(es.Stmt),
 		Children: es.Children,
 	})
 }
@@ -331,13 +322,13 @@ func (es *ExpandedStatement) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	var recoveredStmt ast.Stmt
+	var recoveredStmt dst.Stmt
 	expr, err := asttools.StringToNode(jsonData.Stmt)
 	if err != nil {
 		slog.Error("Failed to parse ExpandedStatement from JSON", "error", err)
 	} else {
 		// Only check the type if the string was parsed successfully
-		if stmt, ok := expr.(ast.Stmt); ok {
+		if stmt, ok := expr.(dst.Stmt); ok {
 			recoveredStmt = stmt
 		} else {
 			slog.Error("Failed to parse ExpandedStatement from JSON because it is not a valid statement", "string", jsonData.Stmt)

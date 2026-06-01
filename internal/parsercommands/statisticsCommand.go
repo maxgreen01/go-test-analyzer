@@ -3,16 +3,16 @@ package parsercommands
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 	"log/slog"
 	"path/filepath"
 	"strings"
 
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
 	"github.com/maxgreen01/go-test-analyzer/internal/config"
 	"github.com/maxgreen01/go-test-analyzer/internal/filewriter"
 	"github.com/maxgreen01/go-test-analyzer/pkg/parser"
 	"github.com/maxgreen01/go-test-analyzer/pkg/testcase"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -93,21 +93,24 @@ func (cmd *StatisticsCommand) Execute(args []string) error {
 }
 
 // Increment some numerical statistics about the project as a whole and its detected test cases
-func (cmd *StatisticsCommand) Visit(file *ast.File, fset *token.FileSet, pkg *packages.Package) {
+func (cmd *StatisticsCommand) Visit(file *dst.File, pkg *decorator.Package) {
+	fset := pkg.Decorator.Fset
+	astFile := pkg.Decorator.Ast.Nodes[file].(*ast.File)
+
 	projectName := filepath.Base(cmd.globals.ProjectDir)
 	packageName := file.Name.Name
-	fileName := fset.Position(file.FileStart).Filename
+	fileName := fset.Position(astFile.FileStart).Filename
 
 	// increment project-scale statistics
 	cmd.totalFileCount++
 	if strings.HasSuffix(fileName, "_test.go") {
 		cmd.testFileCount++
 	}
-	cmd.totalLines += fset.Position(file.End()).Line - fset.Position(file.FileStart).Line + 1
+	cmd.totalLines += fset.Position(astFile.End()).Line - fset.Position(astFile.FileStart).Line + 1
 
 	// Only iterate top level declarations
 	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
+		fn, ok := decl.(*dst.FuncDecl)
 		if !ok {
 			continue
 		}
@@ -176,7 +179,7 @@ func (cmd *StatisticsCommand) ReportResults() error {
 			"projectDir",
 			"testCases",
 			"testFiles",
-			"totalFiles",
+			"totalGoFiles",
 			"testLines",
 			"avgLinesPerTest",
 			"percentTestLines",

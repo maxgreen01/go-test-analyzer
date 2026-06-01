@@ -2,11 +2,10 @@ package testcase
 
 import (
 	"encoding/json"
-	"go/ast"
-	"go/token"
 	"log/slog"
 	"strings"
 
+	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 )
 
@@ -135,52 +134,47 @@ func (rs *RefactorGenerationStatus) UnmarshalJSON(data []byte) error {
 }
 
 // Represents function declaration that has been refactored.
-// Note that the AST file is not guaranteed to retain the modified function data after Cleanup is called,
-// but it should still be retained by the FuncDecl reference (and by the string forms of these AST elements).
+// Note that the DST file is not guaranteed to retain the modified function data after Cleanup is called,
+// but it should still be retained by the FuncDecl reference (and by the string forms of these DST elements).
 type RefactoredFunction struct {
-	Refactored       *ast.FuncDecl `json:"-"`          // The actual refactored function declaration
+	Refactored       *dst.FuncDecl `json:"-"`          // The actual refactored function declaration
 	RefactoredString string        `json:"refactored"` // The string representation of the refactored function declaration
 
-	File     *ast.File `json:"-"`        // The AST file where the refactored function is defined
+	File     *dst.File `json:"-"`        // The DST file where the refactored function is defined
 	FilePath string    `json:"filePath"` // The path to the file containing the refactored function
 
 	cleanup func() error // A function to restore the original function declaration if necessary
-	// todo CLEANUP maybe replace with storing the original AST function and file and performing the cleanup based on that
+	// todo CLEANUP maybe replace with storing the original DST function and file and performing the cleanup based on that
 }
 
-// Creates a new RefactoredFunction with the provided AST data.
-func NewRefactoredFunction(fn *ast.FuncDecl, file *ast.File, cleanupFunc func() error, fset *token.FileSet) *RefactoredFunction {
+// Creates a new RefactoredFunction with the provided DST data.
+func NewRefactoredFunction(fn *dst.FuncDecl, file *dst.File, filePath string, cleanupFunc func() error) *RefactoredFunction {
 	if fn == nil || file == nil {
 		slog.Error("Cannot create RefactoredFunction with nil syntax data", "funcDecl", fn, "file", file)
-		return nil
-	}
-	if fset == nil {
-		slog.Error("Cannot create RefactoredFunction with nil FileSet", "funcDecl", fn, "file", file)
 		return nil
 	}
 
 	return &RefactoredFunction{
 		Refactored:       fn,
-		RefactoredString: asttools.NodeToString(fn, fset),
+		RefactoredString: asttools.NodeToString(fn),
 
 		File:     file,
-		FilePath: fset.Position(file.FileStart).Filename,
+		FilePath: filePath,
 
 		cleanup: cleanupFunc,
 	}
 }
 
-// Performs an in-place update of the string representation of the refactored AST function declaration
-// already stored in the RefactoredFunction, using the provided FileSet.
-func (rf *RefactoredFunction) UpdateStringRepresentation(fset *token.FileSet) {
-	if rf.Refactored == nil || rf.File == nil || fset == nil {
+// Performs an in-place update of the string representation of the refactored DST function declaration.
+func (rf *RefactoredFunction) UpdateStringRepresentation() {
+	if rf.Refactored == nil || rf.File == nil {
 		slog.Error("Cannot update RefactoredFunction strings with nil syntax data", "refactored", rf.Refactored, "file", rf.File)
 		return
 	}
-	rf.RefactoredString = asttools.NodeToString(rf.Refactored, fset)
+	rf.RefactoredString = asttools.NodeToString(rf.Refactored)
 }
 
-// Cleans up the refactored function by restoring the original AST function declaration, if possible.
+// Cleans up the refactored function by restoring the original DST function declaration, if possible.
 // Does not affect the file on the disk.
 func (rf *RefactoredFunction) Cleanup() {
 	if rf.cleanup != nil {
@@ -190,4 +184,4 @@ func (rf *RefactoredFunction) Cleanup() {
 	}
 }
 
-// todo LATER - maybe add a way to unmarshal the original Refactored AST field
+// todo LATER - maybe add a way to unmarshal the original Refactored DST field

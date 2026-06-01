@@ -2,17 +2,16 @@ package parsercommands
 
 import (
 	"fmt"
-	"go/ast"
-	"go/token"
 	"log/slog"
 	"path/filepath"
 	"strings"
 
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
 	"github.com/maxgreen01/go-test-analyzer/internal/config"
 	"github.com/maxgreen01/go-test-analyzer/internal/filewriter"
 	"github.com/maxgreen01/go-test-analyzer/pkg/parser"
 	"github.com/maxgreen01/go-test-analyzer/pkg/testcase"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -99,14 +98,14 @@ func (cmd *AnalyzeCommand) Execute(args []string) error {
 }
 
 // Extract test cases from the given file, analyze them, and potentially refactor them before saving the results to JSON files.
-func (cmd *AnalyzeCommand) Visit(file *ast.File, fset *token.FileSet, pkg *packages.Package) {
+func (cmd *AnalyzeCommand) Visit(file *dst.File, pkg *decorator.Package) {
 	projectName := filepath.Base(cmd.globals.ProjectDir)
 	// packageName := file.Name.Name
-	// filePath := fset.Position(file.FileStart).Filename
+	// filePath := pkg.Decorator.Fset.Position(file.FileStart).Filename
 
 	// Only iterate top level declarations
 	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
+		fn, ok := decl.(*dst.FuncDecl)
 		if !ok {
 			continue
 		}

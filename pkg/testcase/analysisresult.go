@@ -2,11 +2,11 @@ package testcase
 
 import (
 	"fmt"
-	"go/ast"
 	"log/slog"
 	"strconv"
 	"strings"
 
+	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/internal/filewriter"
 )
 
@@ -54,8 +54,8 @@ func Analyze(tc *TestCase) *AnalysisResult {
 	// Populate table-driven test data
 	result.ScenarioSet = IdentifyScenarioSet(tc, result.ParsedStatements)
 
-	// Extract imported packages from the file's AST
-	var imports []*ast.ImportSpec
+	// Extract imported packages from the file's DST
+	var imports []*dst.ImportSpec
 	if tc.GetFile() != nil {
 		imports = tc.GetFile().Imports
 		for _, imp := range imports {

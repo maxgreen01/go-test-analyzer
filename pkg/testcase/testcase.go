@@ -14,8 +14,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
-	"golang.org/x/tools/go/packages"
 )
 
 // Represents an individual test case defined at the top level of a Go source file.
@@ -27,14 +28,14 @@ type TestCase struct {
 	ProjectName string // the name of the overarching project that the test case is part of
 
 	// Raw syntax data
-	funcDecl *ast.FuncDecl     // the AST definition of the test case function itself
-	file     *ast.File         // the AST file where the test case is defined
-	pkgInfo  *packages.Package // the actual AST information about the test's package, including AST data, types, etc.
+	funcDecl *dst.FuncDecl      // the DST definition of the test case function itself
+	file     *dst.File          // the DST file where the test case is defined
+	pkgInfo  *decorator.Package // the underlying information about the test's package, including DST data, types, etc.
 }
 
 // Create a new TestCase struct for storage and analysis
 // todo return error value more clearly either by returning nil or an error type
-func CreateTestCase(funcDecl *ast.FuncDecl, file *ast.File, pkg *packages.Package, project string) TestCase {
+func CreateTestCase(funcDecl *dst.FuncDecl, file *dst.File, pkg *decorator.Package, project string) TestCase {
 	if funcDecl == nil || file == nil || pkg == nil {
 		slog.Error("Cannot create TestCase with nil syntax data", "funcDecl", funcDecl, "file", file, "pkg", pkg, "project", project)
 		return TestCase{}
@@ -44,7 +45,7 @@ func CreateTestCase(funcDecl *ast.FuncDecl, file *ast.File, pkg *packages.Packag
 	return TestCase{
 		TestName:    funcDecl.Name.Name,
 		PackageName: file.Name.Name, // todo CLEANUP this should probably be pkg.PkgPath for extra precision
-		FilePath:    pkg.Fset.Position(file.FileStart).Filename,
+		FilePath:    pkg.Fset.Position(pkg.Decorator.Ast.Nodes[file].(*ast.File).FileStart).Filename,
 		ProjectName: project,
 
 		funcDecl: funcDecl,
@@ -64,7 +65,7 @@ func CreateTestCase(funcDecl *ast.FuncDecl, file *ast.File, pkg *packages.Packag
 // - The function does not have any receiver (i.e., it is not a method)
 // - The function does not have any generic type parameters
 // - The function does not return any values
-func IsValidTestCase(funcDecl *ast.FuncDecl) (valid bool, badFormat bool) {
+func IsValidTestCase(funcDecl *dst.FuncDecl) (valid bool, badFormat bool) {
 	if funcDecl == nil || funcDecl.Name == nil {
 		return false, false
 	}
@@ -100,27 +101,27 @@ func IsValidTestCase(funcDecl *ast.FuncDecl) (valid bool, badFormat bool) {
 	paramType := funcType.Params.List[0].Type
 
 	// safely extract all components of the parameter type, expecting something like `*testing.T`
-	starExpr, ok := paramType.(*ast.StarExpr)
+	paramStarExpr, ok := paramType.(*dst.StarExpr)
 	if !ok {
 		// slog.Debug("\tfunction has non-pointer param type", "name", name, "paramType", reflect.TypeOf(paramType))
 		return false, false
 	}
-	selectorExpr, ok := starExpr.X.(*ast.SelectorExpr)
+	paramSelectorExpr, ok := paramStarExpr.X.(*dst.SelectorExpr)
 	if !ok {
-		// slog.Debug("\tfunction has non-selector param type", "name", name, "paramType", reflect.TypeOf(starExpr.X))
+		// slog.Debug("\tfunction has non-selector param type", "name", name, "paramType", reflect.TypeOf(paramStarExpr.X))
 		return false, false
 	}
-	paramPackageIdent, ok := selectorExpr.X.(*ast.Ident)
+	paramSelectorIdent, ok := paramSelectorExpr.X.(*dst.Ident)
 	if !ok {
-		// slog.Debug("\tfunction has non-ident param package", "name", name, "paramType", reflect.TypeOf(selectorExpr.X))
+		// slog.Debug("\tfunction has non-ident selector field type", "name", name, "paramType", reflect.TypeOf(paramSelectorExpr.X))
 		return false, false
 	}
 
 	// check that the parameter type is exactly `*testing.T`
 	// TODO allow this to accept other param types for Fuzz/Benchmark tests (and maybe testing.TB)
 	// TODO maybe allow this case with `badFormat`?
-	if paramPackageIdent.Name != "testing" || selectorExpr.Sel.Name != "T" {
-		// slog.Debug("\tfunction has invalid param type", "name", name, "paramType", reflect.TypeOf(paramType))
+	if paramSelectorIdent.Name != "testing" || paramSelectorExpr.Sel.Name != "T" {
+		// slog.Debug("\tfunction has incorrect param type", "name", name, "selectorExpr", paramSelectorExpr, "field", paramSelectorIdent)
 		return false, false
 	}
 
@@ -154,10 +155,11 @@ func (tc *TestCase) GetPackageFiles() []*ast.File {
 	if tc.pkgInfo == nil {
 		return nil
 	}
-	return tc.pkgInfo.Syntax
+	return tc.pkgInfo.Package.Syntax
 }
 
-// Get the entire import path of the test case's package
+// Get the entire import path of the test case's package, as used when importing the package,
+// e.g. "github.com/user/repo/pkg/config"
 func (tc *TestCase) GetImportPath() string {
 	if tc.pkgInfo == nil {
 		return ""
@@ -167,6 +169,7 @@ func (tc *TestCase) GetImportPath() string {
 
 // Get the "repository root path" part of the test case's package import path.
 // This is the part of the import path before the third slash, e.g. "github.com/user/repo"
+// Note: this is somewhat brittle, and might not work well for all package paths.
 func (tc *TestCase) GetImportPathRoot() string {
 	if tc.pkgInfo == nil {
 		return ""
@@ -186,11 +189,11 @@ func (tc *TestCase) GetImportPathRoot() string {
 	return importPath
 }
 
-// Get the AST function declaration for the test case
-func (tc *TestCase) GetFuncDecl() *ast.FuncDecl { return tc.funcDecl }
+// Get the DST function declaration for the test case
+func (tc *TestCase) GetFuncDecl() *dst.FuncDecl { return tc.funcDecl }
 
 // Return the list of statements in this test case
-func (tc *TestCase) GetStatements() []ast.Stmt {
+func (tc *TestCase) GetStatements() []dst.Stmt {
 	if tc.funcDecl == nil || tc.funcDecl.Body == nil {
 		slog.Error("Cannot get statements from test case because funcDecl or its body is nil", "testCase", tc)
 		return nil
@@ -211,16 +214,17 @@ func (tc *TestCase) NumLines() int {
 		slog.Error("Cannot determine number of lines in test case because FuncDecl or FileSet is nil", "testCase", tc)
 		return 0
 	}
-	start := fset.Position(tc.funcDecl.Pos())
-	end := fset.Position(tc.funcDecl.End())
+	astFunc := tc.DstToAst(tc.funcDecl)
+	start := fset.Position(astFunc.Pos())
+	end := fset.Position(astFunc.End())
 	return end.Line - start.Line + 1
 }
 
-// Get the AST file where the test case is defined
-func (tc *TestCase) GetFile() *ast.File { return tc.file }
+// Get the DST file where the test case is defined
+func (tc *TestCase) GetFile() *dst.File { return tc.file }
 
 // Get the container for all raw information about the test case's package
-func (tc *TestCase) GetPackageInfo() *packages.Package { return tc.pkgInfo }
+func (tc *TestCase) GetPackageInfo() *decorator.Package { return tc.pkgInfo }
 
 //
 // ========== Action Methods ==========
@@ -228,22 +232,34 @@ func (tc *TestCase) GetPackageInfo() *packages.Package { return tc.pkgInfo }
 
 // Convenience method for getting the type of an expression (including identifiers) within the current TestCase's project.
 // Returns `nil` if the type information for the project is not available, or if the expression is not found.
-func (tc *TestCase) TypeOf(expr ast.Expr) types.Type {
+func (tc *TestCase) TypeOf(expr dst.Expr) types.Type {
 	typeInfo := tc.TypeInfo()
-	if typeInfo == nil || expr == nil {
+	astExpr := tc.DstToAst(expr).(ast.Expr)
+	if typeInfo == nil || astExpr == nil {
 		return nil
 	}
-	return typeInfo.TypeOf(expr)
+	return typeInfo.TypeOf(astExpr)
 }
 
 // Convenience method for getting the Object corresponding to an identifier within the current TestCase's project.
 // Returns `nil` if the type information for the project is not available, or if the identifier is not found.
-func (tc *TestCase) ObjectOf(ident *ast.Ident) types.Object {
+func (tc *TestCase) ObjectOf(ident *dst.Ident) types.Object {
 	typeInfo := tc.TypeInfo()
-	if typeInfo == nil || ident == nil {
+	astIdent := tc.DstToAst(ident).(*ast.Ident)
+	if typeInfo == nil || astIdent == nil {
 		return nil
 	}
-	return typeInfo.ObjectOf(ident)
+	return typeInfo.ObjectOf(astIdent)
+}
+
+// Map an AST node to its corresponding DST (decorated) node to access better comment functionality.
+func (tc *TestCase) AstToDst(astNode ast.Node) dst.Node {
+	return tc.pkgInfo.Decorator.Dst.Nodes[astNode]
+}
+
+// Map an AST node to its corresponding DST (decorated) node to access type information.
+func (tc *TestCase) DstToAst(dstNode dst.Node) ast.Node {
+	return tc.pkgInfo.Decorator.Ast.Nodes[dstNode]
 }
 
 //
@@ -398,7 +414,7 @@ func (tc *TestCase) MarshalJSON() ([]byte, error) {
 		FilePath:    tc.FilePath,
 		ProjectName: tc.ProjectName,
 
-		FuncDecl: asttools.NodeToString(tc.funcDecl, tc.FileSet()),
+		FuncDecl: asttools.NodeToString(tc.funcDecl),
 		// Remaining syntax data is not marshaled
 	})
 }
@@ -410,14 +426,14 @@ func (tc *TestCase) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// Try to decode AST fields
-	var funcDecl *ast.FuncDecl
+	// Try to decode DST fields
+	var funcDecl *dst.FuncDecl
 	expr, err := asttools.StringToNode(jsonData.FuncDecl)
 	if err != nil {
 		return fmt.Errorf("parsing TestCase FuncDecl from JSON: %w", err)
 	} else {
 		// Only check the type if the string was parsed successfully
-		if decl, ok := expr.(*ast.FuncDecl); ok {
+		if decl, ok := expr.(*dst.FuncDecl); ok {
 			funcDecl = decl
 		} else {
 			return fmt.Errorf("TestCase FuncDecl is not a valid function declaration: %q", jsonData.FuncDecl)

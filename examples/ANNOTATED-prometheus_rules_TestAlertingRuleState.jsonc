@@ -17,9 +17,6 @@
 // Each of these JSON files represents a test at the time that it was analyzed, and are not modified unless the
 // corresponding test is re-analyzed.
 // 
-// Fields that are based on an AST representation will not contain any of the comments from the corresponding
-// source code. This detail may be changed in a future version.
-// 
 {
   // The "TestCase" object contains identifying information about the test that this file represents.
   "TestCase": {

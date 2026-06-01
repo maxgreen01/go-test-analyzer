@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 )
 
@@ -22,9 +23,9 @@ type ScenarioSet struct {
 	ScenarioType types.Type // the definition of the `struct` type that individual scenarios are based on
 
 	DataStructure ScenarioDataStructure // describes the type of data structure used to store scenarios
-	Scenarios     []ast.Expr            // the individual scenarios themselves //todo LATER convert to type `[]Scenario`
+	Scenarios     []dst.Expr            // the individual scenarios themselves //todo LATER convert to type `[]Scenario`
 
-	Runner ast.Stmt // the actual code that runs the subtest (which is expected to be either a `ForStmt` or a `RangeStmt`)
+	Runner dst.Stmt // the actual code that runs the subtest (which is expected to be either a `ForStmt` or a `RangeStmt`)
 
 	// Derived analysis results
 	NameField         string   // the name of the field representing each scenario's name, or "map key" if the map key is used as the name
@@ -90,7 +91,7 @@ func (ss *ScenarioSet) Analyze() {
 
 	// todo LATER consider expanding the statements inside the runner loop, just like with TestCase statements
 	//     since TestCase already expands all statements, we can probably store a copy of the corresponding statement without recomputing
-	//     This would also probably have to be looped into the refactoring code to replace AST data with a clone
+	//     This would also probably have to be looped into the refactoring code to replace DST data with a clone
 }
 
 // Returns the name of the field representing the name of each scenario
@@ -109,7 +110,7 @@ func (ss *ScenarioSet) detectNameField() string {
 	if ok, callExpr := ss.detectSubtest(); ok {
 		// Get the first argument of the `t.Run()` call
 		if len(callExpr.Args) > 0 {
-			if selExpr, ok := callExpr.Args[0].(*ast.SelectorExpr); ok {
+			if selExpr, ok := callExpr.Args[0].(*dst.SelectorExpr); ok {
 				// todo CLEANUP replace this with using the type system to check if the owner is the scenario struct, and the name is a field of it
 
 				// Check if the identifier is a field of the scenario struct
@@ -172,11 +173,12 @@ func (ss *ScenarioSet) detectFunctionFields() bool {
 }
 
 // Returns a bool indicating whether `t.Run()` is called inside the loop body, as well as a reference to the `t.Run()` statement
-func (ss *ScenarioSet) detectSubtest() (bool, *ast.CallExpr) {
+func (ss *ScenarioSet) detectSubtest() (bool, *dst.CallExpr) {
+	tc := ss.TestCase
 	// Detect the name of the `testing.T` parameter instead of hardcoding "t"
-	tVarName, err := asttools.GetParamNameByType(ss.TestCase.funcDecl, &ast.StarExpr{X: asttools.NewSelectorExpr("testing", "T")})
+	tVarName, err := asttools.GetParamNameByType(tc.DstToAst(tc.funcDecl).(*ast.FuncDecl), &ast.StarExpr{X: asttools.NewSelectorExprAST("testing", "T")})
 	if err != nil {
-		slog.Warn("Cannot detect `*testing.T` parameter in test case", "err", err, "test", ss.TestCase)
+		slog.Warn("Cannot detect `*testing.T` parameter in test case", "err", err, "test", tc)
 		return false, nil
 	}
 
@@ -207,16 +209,16 @@ func (ss *ScenarioSet) GetFields() iter.Seq[*types.Var] {
 }
 
 // Returns the statements that make up the loop body
-func (ss *ScenarioSet) GetRunnerStatements() []ast.Stmt {
+func (ss *ScenarioSet) GetRunnerStatements() []dst.Stmt {
 	if ss.Runner == nil {
 		return nil
 	}
 
-	var body *ast.BlockStmt
+	var body *dst.BlockStmt
 	switch loop := ss.Runner.(type) {
-	case *ast.RangeStmt:
+	case *dst.RangeStmt:
 		body = loop.Body
-	case *ast.ForStmt:
+	case *dst.ForStmt:
 		body = loop.Body
 	}
 	if body == nil {
@@ -246,7 +248,7 @@ func (ss *ScenarioSet) IsTableDriven() bool {
 //
 
 // Helper struct for Marshaling and Unmarshaling JSON.
-// Transforms all `ast` nodes to their string representations.
+// Transforms all DST nodes to their string representations.
 type scenarioSetJSON struct {
 	// Parent TestCase is deliberately not included
 
@@ -278,10 +280,9 @@ func (ss *ScenarioSet) MarshalJSON() ([]byte, error) {
 
 	// Marshal individual Scenario data
 	// todo LATER remove when implement Marshal in Scenario
-	fset := ss.TestCase.FileSet()
 	scenarioStrs := make([]string, len(ss.Scenarios))
 	for i, node := range ss.Scenarios {
-		scenarioStrs[i] = asttools.NodeToString(node, fset)
+		scenarioStrs[i] = asttools.NodeToString(node)
 	}
 
 	return json.Marshal(scenarioSetJSON{
@@ -290,7 +291,7 @@ func (ss *ScenarioSet) MarshalJSON() ([]byte, error) {
 		DataStructure: ss.DataStructure,
 		Scenarios:     scenarioStrs,
 
-		Runner: asttools.NodeToString(ss.Runner, fset),
+		Runner: asttools.NodeToString(ss.Runner),
 
 		NameField:         ss.NameField,
 		ExpectedFields:    ss.ExpectedFields,

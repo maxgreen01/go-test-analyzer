@@ -1,12 +1,12 @@
 package testcase
 
 import (
-	"go/ast"
 	"go/token"
 	"go/types"
 	"log/slog"
 	"slices"
 
+	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 )
 
@@ -40,7 +40,7 @@ outerStmtLoop:
 		if ss.Runner == nil {
 			stmt := expanded.Stmt
 			// Detect the loop itself
-			if rangeStmt, ok := stmt.(*ast.RangeStmt); ok {
+			if rangeStmt, ok := stmt.(*dst.RangeStmt); ok {
 				slog.Debug("Found range statement in test case", "testCase", tc.TestName)
 
 				// Make sure the loop ranges over a valid data structure, and save it if so
@@ -53,7 +53,7 @@ outerStmtLoop:
 				}
 
 				// Check if the scenario data structure is defined directly in the range statement
-				if _, ok := rangeStmt.X.(*ast.CompositeLit); ok {
+				if _, ok := rangeStmt.X.(*dst.CompositeLit); ok {
 					scenariosDefinedInLoop := ss.IdentifyScenarios(rangeStmt.X, tc)
 					if scenariosDefinedInLoop {
 						slog.Debug("Found scenario definition directly in the range statement", "testCase", tc, "scenarios", len(ss.Scenarios))
@@ -66,7 +66,7 @@ outerStmtLoop:
 			}
 
 			// todo LATER add support for `for-i` loops
-			//  else if forStmt, ok := stmt.(*ast.ForStmt); ok {
+			//  else if forStmt, ok := stmt.(*dst.ForStmt); ok {
 			// 	slog.Debug("Found loop statement in test case", "test", t.Name)
 			// 	t.TableDrivenType += ", with for loop"
 			// 	detectTRun(forStmt.Body)
@@ -79,7 +79,7 @@ outerStmtLoop:
 			// Search for variable assignments matching the detected scenario data structure, with the goal of finding the scenario definitions
 			if ss.Scenarios == nil && ss.ScenarioType != nil {
 				switch assignment := stmt.(type) {
-				case *ast.AssignStmt:
+				case *dst.AssignStmt:
 					// Statements like `scenarios := []Scenario{...}`
 					for _, expr := range assignment.Rhs {
 						found := ss.IdentifyScenarios(expr, tc)
@@ -88,13 +88,13 @@ outerStmtLoop:
 							continue outerStmtLoop // Move to the next statement
 						}
 					}
-				case *ast.DeclStmt:
+				case *dst.DeclStmt:
 					// Statements like `var scenarios = []Scenario{...}`
 					// todo CLEANUP mostly the same code as checking in file decls below
-					if genDecl, ok := assignment.Decl.(*ast.GenDecl); ok && genDecl.Tok == token.VAR {
+					if genDecl, ok := assignment.Decl.(*dst.GenDecl); ok && genDecl.Tok == token.VAR {
 						// Loop over the right-hand side expressions of each variable declaration
 						for _, spec := range genDecl.Specs {
-							if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+							if valueSpec, ok := spec.(*dst.ValueSpec); ok {
 								for _, expr := range valueSpec.Values {
 									found := ss.IdentifyScenarios(expr, tc)
 									if found {
@@ -119,13 +119,13 @@ outerStmtLoop:
 		} else {
 		declLoop:
 			for _, decl := range tc.GetFile().Decls {
-				if genDecl, ok := decl.(*ast.GenDecl); ok {
+				if genDecl, ok := decl.(*dst.GenDecl); ok {
 					if genDecl.Tok != token.VAR {
 						continue declLoop // Only check variable declarations
 					}
 					// Loop over the right-hand side expressions of each variable declaration
 					for _, spec := range genDecl.Specs {
-						if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+						if valueSpec, ok := spec.(*dst.ValueSpec); ok {
 							for _, expr := range valueSpec.Values {
 								found := ss.IdentifyScenarios(expr, tc)
 								if found {
@@ -195,14 +195,14 @@ func (ss *ScenarioSet) detectScenarioDataStructure(typ types.Type) (ScenarioData
 // Checks whether an expression has the same underlying type as the ScenarioType, and if so, saves the scenarios from the expression.
 // Returns whether the scenarios were saved successfully. Always returns `false` if the `ScenarioSet.DataStructure` is unknown.
 // See https://go.dev/ref/spec#Type_identity for details of the `types.Identical` comparison method.
-func (ss *ScenarioSet) IdentifyScenarios(expr ast.Expr, tc *TestCase) bool {
+func (ss *ScenarioSet) IdentifyScenarios(expr dst.Expr, tc *TestCase) bool {
 	if tc == nil {
 		slog.Error("Cannot identify Scenarios in nil TestCase")
 		return false
 	}
 
 	// Both []struct and map are defined using a CompositeLit, so make sure this matches
-	if compositeLit, ok := expr.(*ast.CompositeLit); ok {
+	if compositeLit, ok := expr.(*dst.CompositeLit); ok {
 		if len(compositeLit.Elts) == 0 {
 			return false
 		}
@@ -221,10 +221,10 @@ func (ss *ScenarioSet) IdentifyScenarios(expr ast.Expr, tc *TestCase) bool {
 
 		case ScenarioMapDS:
 			// Scenarios are stored as the values of the `KeyValueExpr` elements
-			kvExpr, ok := compositeLit.Elts[0].(*ast.KeyValueExpr)
+			kvExpr, ok := compositeLit.Elts[0].(*dst.KeyValueExpr)
 			if ok && types.Identical(tc.TypeOf(kvExpr.Value).Underlying(), ss.ScenarioType) {
 				for _, elt := range compositeLit.Elts {
-					if kvExpr, ok := elt.(*ast.KeyValueExpr); ok {
+					if kvExpr, ok := elt.(*dst.KeyValueExpr); ok {
 						ss.Scenarios = append(ss.Scenarios, kvExpr)
 					}
 				}

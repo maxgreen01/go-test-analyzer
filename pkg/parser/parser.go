@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/packages"
 )
@@ -24,7 +26,7 @@ type Task interface {
 	Name() string
 
 	// Function called on every Go source file in the project, which may modify local state to save results
-	Visit(file *ast.File, fset *token.FileSet, pkg *packages.Package)
+	Visit(file *dst.File, pkg *decorator.Package)
 
 	// Create a new instance of the task with the same initial state and flags.
 	// Used to ensure that each parsed directory can have an independent output if `splitByDir` is true.
@@ -187,8 +189,34 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 			}
 		}
 
-		// ========== Iterate over all files in the package ==========
-		for _, file := range pkg.Syntax {
+		// Decorate all the Go files in the package without import resolution (for simplicity with printing),
+		// based on `decorator.Load()` internals
+		decoratedPkg := &decorator.Package{
+			Package:   pkg,
+			Decorator: decorator.NewDecorator(pkg.Fset),
+		}
+		// Ignore preprocessed cgo files
+		goFiles := make(map[string]bool, len(pkg.GoFiles))
+		for _, fpath := range pkg.GoFiles {
+			goFiles[fpath] = true
+		}
+		// Decorate the files
+		for _, f := range pkg.Syntax {
+			fpath := pkg.Fset.File(f.Pos()).Name()
+			if !goFiles[fpath] {
+				continue
+			}
+			file, err := decoratedPkg.Decorator.DecorateFile(f)
+			if err != nil {
+				slog.Error("Error decorating file:", "error", err, "file", fpath)
+				errFiles[fpath] = struct{}{}
+				continue
+			}
+			decoratedPkg.Syntax = append(decoratedPkg.Syntax, file)
+		}
+
+		// ========== Iterate over all decorated files in the package and perform the Task ==========
+		for _, file := range decoratedPkg.Syntax {
 			// Check for cancellation before processing each file
 			select {
 			case <-ctx.Done():
@@ -196,7 +224,8 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 			default:
 			}
 
-			filePath := fset.Position(file.FileStart).Filename
+			astFile := decoratedPkg.Decorator.Ast.Nodes[file].(*ast.File)
+			filePath := fset.Position(astFile.FileStart).Filename
 
 			// Skip files in `vendor/` directory
 			if strings.Contains(filePath, filepath.Join("vendor", "")) {
@@ -212,7 +241,7 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 
 			// Actually process the file
 			// slog.Debug("Processing file", "package", pkg.Name, "file", filePath)
-			task.Visit(file, fset, pkg)
+			task.Visit(file, decoratedPkg)
 		}
 	}
 

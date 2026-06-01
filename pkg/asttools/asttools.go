@@ -1,6 +1,6 @@
-package asttools
+// A collection of general-purpose utility functions for working with AST and DST nodes
 
-// A collection of general-purpose AST-related utility functions
+package asttools
 
 import (
 	"bytes"
@@ -8,13 +8,15 @@ import (
 	"go/ast"
 	"go/format"
 	"go/parser"
-	"go/printer"
 	"go/token"
 	"go/types"
 	"log/slog"
 	"os"
 	"reflect"
+	"strings"
 
+	"github.com/dave/dst"
+	"github.com/dave/dst/decorator"
 	"github.com/go-toolsmith/astequal"
 	"golang.org/x/tools/go/ast/astutil"
 )
@@ -23,45 +25,160 @@ import (
 // ========== Conversion Functions ==========
 //
 
-// Defines a printer config for converting AST nodes to string representations
-var printerCfg = &printer.Config{
-	Mode:     printer.UseSpaces | printer.TabIndent,
-	Tabwidth: 4,
-}
-
-// Converts an AST node to a string representation using `go/printer`, or return an error string if formatting fails
+// Converts a DST node to a string representation, or returns an empty string if formatting fails
 // todo CLEANUP should return actual errors
-func NodeToString(node ast.Node, fset *token.FileSet) string {
+func NodeToString(node dst.Node) string {
 	if node == nil || reflect.ValueOf(node).IsNil() {
 		return ""
 	}
-	if fset == nil {
-		slog.Error("Failed to format AST node because FileSet is nil", "nodeType", fmt.Sprintf("%T", node))
+
+	// Marker decorations to identify the node being processed if it has to be wrapped before printing
+	const startMarker = "/* <<<NODE_START>>> */"
+	const endMarker = "/* <<<NODE_END>>> */"
+
+	// If the node is already a file, it can be printed directly without extra steps
+	dstFile, isFile := node.(*dst.File)
+
+	// If the node is NOT a file, format the DST data by wrapping it in a fake file
+	if !isFile {
+		// Clone before modifying to avoid modifying the original DST node
+		node = dst.Clone(node)
+
+		// Add markers to the DST node so we can extract the relevant portion of the formatted string later
+		node.Decorations().Start.Prepend("\n") // ensure the actual node is on its own line to keep tabs consistent
+		node.Decorations().Start.Prepend(startMarker)
+		node.Decorations().End.Append(endMarker)
+
+		// Place the node inside a fake file depending on its type
+		var fakeDecl dst.Decl
+		switch n := node.(type) {
+		case dst.Decl:
+			// Put the decl directly into the file
+			fakeDecl = n
+
+		case dst.Stmt:
+			// Put the statement inside a fake function
+			fakeDecl = &dst.FuncDecl{
+				Name: dst.NewIdent("_"),
+				Type: &dst.FuncType{
+					Params: &dst.FieldList{},
+				},
+				Body: &dst.BlockStmt{
+					List: []dst.Stmt{n},
+				},
+			}
+
+		case dst.Expr:
+			// Hard case: put the expression inside a function as the RHS of an assignment.
+			// If it's a CompositeLit or KeyValueExpr, wrap it in `FakeType{}` to avoid parser issues.
+			switch n.(type) {
+			case *dst.CompositeLit, *dst.KeyValueExpr:
+				wrapper := &dst.CompositeLit{
+					Type: dst.NewIdent("_"),
+					Elts: []dst.Expr{n},
+				}
+				n = wrapper
+			}
+
+			fakeDecl = &dst.FuncDecl{
+				Name: dst.NewIdent("_"),
+				Type: &dst.FuncType{
+					Params: &dst.FieldList{},
+				},
+				Body: &dst.BlockStmt{
+					List: []dst.Stmt{
+						&dst.AssignStmt{
+							Lhs: []dst.Expr{dst.NewIdent("_")},
+							Tok: token.DEFINE,
+							Rhs: []dst.Expr{n},
+						},
+					},
+				},
+			}
+		default:
+			slog.Error("Cannot format unsupported DST node type", "nodeType", fmt.Sprintf("%T", node))
+			return ""
+		}
+
+		dstFile = &dst.File{
+			Name:  dst.NewIdent("_"),
+			Decls: []dst.Decl{fakeDecl},
+		}
+	}
+
+	// Restore the DST file to an AST file
+	restorer := decorator.NewRestorer()
+	restoredFile, err := restorer.RestoreFile(dstFile)
+	if err != nil {
+		slog.Error("Failed to restore AST node", "error", err, "nodeType", fmt.Sprintf("%T", node))
 		return ""
 	}
 
 	var buf bytes.Buffer
-	err := printerCfg.Fprint(&buf, fset, node)
-	if err != nil {
+	if err := format.Node(&buf, restorer.Fset, restoredFile); err != nil {
+		// Note: could try restoring again using an import resolver, but this adds complexity and could rename tests incorrectly
 		slog.Error("Failed to format AST node", "error", err, "nodeType", fmt.Sprintf("%T", node))
+		slog.Debug("formatting failure", "astDump", ast.Fprint(&buf, restorer.Fset, restoredFile, nil))
 		return ""
 	}
-	return buf.String()
+	printed := buf.Bytes()
+
+	// If the node is a file, we can return the entire formatted string without worrying about extracting the relevant portion
+	if isFile {
+		return string(printed)
+	}
+
+	// Extract the relevant portion of the formatted string between the markers
+	startIndex := bytes.Index(printed, []byte(startMarker))
+	endIndex := bytes.LastIndex(printed, []byte(endMarker))
+	if startIndex == -1 || endIndex == -1 || startIndex >= endIndex {
+		slog.Error("Failed to extract relevant portion of formatted AST node", "nodeType", fmt.Sprintf("%T", node), "startIndex", startIndex, "endIndex", endIndex, "printed", string(printed))
+		return ""
+	}
+	extracted := printed[startIndex+len(startMarker) : endIndex]
+
+	// Strip leading tabs from all lines, then remove any remaining extra whitespace
+	return strings.TrimSpace(normalizeTabs(string(extracted)))
 }
 
-// Fake package and function declarations are used when parsing strings into AST nodes
+// Remove any leading tabs that are present in all lines of a multi-line string, e.g. the lingering artifacts of the fake function wrapper
+func normalizeTabs(s string) string {
+	lines := strings.Split(s, "\n")
+	// Keep track of the number of tabs that are present in all non-empty lines
+	minTabs := -1
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue // Ignore empty lines
+		}
+		n := len(line) - len(strings.TrimLeft(line, "\t")) // Count leading tabs
+		if minTabs == -1 || n < minTabs {
+			minTabs = n
+		}
+	}
+	if minTabs <= 0 {
+		return s
+	}
+	prefix := strings.Repeat("\t", minTabs)
+	for i, line := range lines {
+		lines[i] = strings.TrimPrefix(line, prefix)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// Fake package and function declarations are used when parsing strings into DST nodes
 const (
 	_fakePackage = "package _"
 	_fakeFunc    = "func _() "
 )
 
-// Parses a string (usually from JSON) into the corresponding AST expression.
+// Parses a string (usually from JSON) into the corresponding DST expression.
 // This function tries to parse the string as a declaration, statement, or expression in that order.
-func StringToNode(str string) (ast.Node, error) {
+// TODO DST - might need to use an existing decorator here to avoid discarding the fset
+func StringToNode(str string) (dst.Node, error) {
 	// First try parsing the string as a declaration by treating the string as a Go source file
 	fakeFset := token.NewFileSet()
 	fileStr := _fakePackage + "\n" + str
-	file, err := parser.ParseFile(fakeFset, "", fileStr, parser.ParseComments)
+	file, err := decorator.ParseFile(fakeFset, "", fileStr, parser.ParseComments)
 	if err == nil {
 		// Extract and return the first declaration in the file
 		if len(file.Decls) > 0 {
@@ -71,12 +188,12 @@ func StringToNode(str string) (ast.Node, error) {
 	}
 
 	// Try parsing the string as a statement by wrapping the string in a function
-	funcStr := _fakeFunc + "\n" + _fakeFunc + "{\n" + str + "\n}"
-	file, err = parser.ParseFile(fakeFset, "", funcStr, parser.ParseComments)
+	funcStr := _fakePackage + "\n" + _fakeFunc + "{\n" + str + "\n}"
+	file, err = decorator.ParseFile(fakeFset, "", funcStr, parser.ParseComments)
 	if err == nil {
 		// Extract and return the first statement in the function body
 		if len(file.Decls) > 0 {
-			if funcDecl, ok := file.Decls[0].(*ast.FuncDecl); ok && len(funcDecl.Body.List) > 0 {
+			if funcDecl, ok := file.Decls[0].(*dst.FuncDecl); ok && len(funcDecl.Body.List) > 0 {
 				return funcDecl.Body.List[0], nil
 			}
 			slog.Debug("Parsed fake function has no statements; now trying to parse as expression", "file", funcStr)
@@ -91,9 +208,13 @@ func StringToNode(str string) (ast.Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing node string %q: %w", str, err)
 	}
+	dstNode, err := decorator.Decorate(fakeFset, expr)
+	if err != nil {
+		return nil, fmt.Errorf("converting node string to DST %q: %w", str, err)
+	}
 
 	// The string is a valid expression
-	return expr, nil
+	return dstNode, nil
 }
 
 //
@@ -101,10 +222,10 @@ func StringToNode(str string) (ast.Node, error) {
 //
 
 // Returns a boolean indicating whether a statement is a function call expression of the form `owner.name(...)`,
-// as well as a reference to the `ast.CallExpr` if the statement matches.
-func IsSelectorFuncCall(stmt ast.Stmt, owner, name string) (bool, *ast.CallExpr) {
-	if exprStmt, ok := stmt.(*ast.ExprStmt); ok {
-		if callExpr, ok := exprStmt.X.(*ast.CallExpr); ok {
+// as well as a reference to the `dst.CallExpr` if the statement matches.
+func IsSelectorFuncCall(stmt dst.Stmt, owner, name string) (bool, *dst.CallExpr) {
+	if exprStmt, ok := stmt.(*dst.ExprStmt); ok {
+		if callExpr, ok := exprStmt.X.(*dst.CallExpr); ok {
 			if MatchSelectorExpr(callExpr.Fun, owner, name) {
 				return true, callExpr
 			}
@@ -114,16 +235,16 @@ func IsSelectorFuncCall(stmt ast.Stmt, owner, name string) (bool, *ast.CallExpr)
 }
 
 // Returns a boolean indicating whether a selector expression has the form `owner.name`.
-func MatchSelectorExpr(expr ast.Expr, owner, name string) bool {
-	if selExpr, ok := expr.(*ast.SelectorExpr); ok {
-		if ident, ok := selExpr.X.(*ast.Ident); ok && ident.Name == owner && selExpr.Sel.Name == name {
+func MatchSelectorExpr(expr dst.Expr, owner, name string) bool {
+	if selExpr, ok := expr.(*dst.SelectorExpr); ok {
+		if ident, ok := selExpr.X.(*dst.Ident); ok && ident.Name == owner && selExpr.Sel.Name == name {
 			return true
 		}
 	}
 	return false
 }
 
-// Returns the file containing the given position in the provided package files.
+// Returns the AST file containing the given position in the provided package files.
 // Returns nil if none of the provided files contain the position.
 func GetEnclosingFile(pos token.Pos, packageFiles []*ast.File) *ast.File {
 	for _, file := range packageFiles {
@@ -134,7 +255,7 @@ func GetEnclosingFile(pos token.Pos, packageFiles []*ast.File) *ast.File {
 	return nil
 }
 
-// Returns the function declaration (and corresponding file) enclosing the given position in the provided package files.
+// Returns the AST function declaration (and corresponding file) enclosing the given position in the provided package files.
 // Returns nil if no function declaration is found, or if none of the provided files contain the position.
 func GetEnclosingFunction(pos token.Pos, packageFiles []*ast.File) (*ast.FuncDecl, *ast.File) {
 	file := GetEnclosingFile(pos, packageFiles)
@@ -239,18 +360,26 @@ func GetParamNameByType(funcDecl *ast.FuncDecl, paramTypes ...ast.Expr) (string,
 // ========== Node Creation Functions ==========
 //
 
-// Creates a selector expression of the form `owner.name`.
-func NewSelectorExpr(owner, name string) ast.Expr {
+// Creates an AST selector expression of the form `owner.name`.
+func NewSelectorExprAST(owner, name string) ast.Expr {
 	return &ast.SelectorExpr{
 		X:   ast.NewIdent(owner),
 		Sel: ast.NewIdent(name),
 	}
 }
 
-// Creates a call expression statement using the provided function and arguments.
-func NewCallExprStmt(fun ast.Expr, args []ast.Expr) *ast.ExprStmt {
-	return &ast.ExprStmt{
-		X: &ast.CallExpr{
+// Creates a DST selector expression of the form `owner.name`.
+func NewSelectorExprDST(owner, name string) dst.Expr {
+	return &dst.SelectorExpr{
+		X:   dst.NewIdent(owner),
+		Sel: dst.NewIdent(name),
+	}
+}
+
+// Creates a DST call expression statement using the provided function and arguments.
+func NewCallExprStmtDST(fun dst.Expr, args []dst.Expr) *dst.ExprStmt {
+	return &dst.ExprStmt{
+		X: &dst.CallExpr{
 			Fun:  fun,
 			Args: args,
 		},
@@ -261,27 +390,24 @@ func NewCallExprStmt(fun ast.Expr, args []ast.Expr) *ast.ExprStmt {
 // ========== Output Functions ==========
 //
 
-// Saves the contents of the specified AST file to the disk using the specified path, after
-// formatting the AST data with `go/format` using the provided FileSet. Any existing file
-// at the specified path will be overwritten.
-func SaveFileContents(path string, newFile *ast.File, fset *token.FileSet) error {
+// Saves the contents of the specified DST file to the disk using the specified path,
+// overwriting any existing data at the specified path.
+func SaveFileContents(path string, newFile *dst.File) error {
 	if newFile == nil {
-		return fmt.Errorf("cannot replace file contents with nil AST file")
-	}
-	if fset == nil {
-		return fmt.Errorf("cannot replace file contents because FileSet is nil")
+		return fmt.Errorf("cannot replace file contents with nil DST file")
 	}
 
-	// Format the new AST data
-	var buffer bytes.Buffer
-	if err := format.Node(&buffer, fset, newFile); err != nil {
-		return fmt.Errorf("formatting new file contents %q: %w", path, err)
+	// Format the new DST data
+	formattedStr := NodeToString(newFile)
+	if formattedStr == "" {
+		return fmt.Errorf("formatting new file contents for %q", path)
 	}
 
 	// Write to the file
-	if err := os.WriteFile(path, buffer.Bytes(), 0644); err != nil {
-		return fmt.Errorf("writing to file %q: %w", path, err)
+	if err := os.WriteFile(path, []byte(formattedStr), 0644); err != nil {
+		return fmt.Errorf("writing new file contents to %q: %w", path, err)
 	}
+
 	slog.Debug("Successfully replaced the contents of file", "file", path)
 	return nil
 }
