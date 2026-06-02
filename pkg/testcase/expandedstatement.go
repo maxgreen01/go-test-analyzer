@@ -97,7 +97,7 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 		// Find the definition of the function being called
 		definition, err := FindDefinition(callExpr.Fun, tc, testOnly)
 		if err != nil {
-			slog.Error("Error finding definition for function call", "err", err, "position", fset.Position(tc.DstToAst(callExpr).Pos()), "test", tc)
+			slog.Error("Error finding definition for function call", "err", err, "position", fset.Position(tc.DstStartPos(callExpr)), "test", tc)
 			return false
 		}
 		if definition == nil {
@@ -113,7 +113,7 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 			funcName = funcDef.Name.Name
 			innerStmts = funcDef.Body.List
 		case *dst.FuncLit:
-			funcName = fmt.Sprintf("funcLit@%s", fset.Position(tc.DstToAst(funcDef).Pos())) // Use the position as a unique identifier
+			funcName = fmt.Sprintf("funcLit@%s", fset.Position(tc.DstStartPos(funcDef))) // Use the position as a unique identifier
 			innerStmts = funcDef.Body.List
 
 		default:
@@ -176,7 +176,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 	}
 
 	// Don't process expressions that have been added manually (e.g. inside a helper function that has already been refactored)
-	if !tc.DstToAst(ident).Pos().IsValid() {
+	if !tc.DstStartPos(ident).IsValid() {
 		slog.Debug("Ignoring identifier with invalid position", "identifier", ident.Name, "testCase", tc)
 		return nil, nil
 	}
@@ -243,7 +243,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 	// The first node is expected to be the original identifier itself, so the second node should be the actual target definition
 	if _, ok := node.(*ast.Ident); ok && len(path) > 1 && path[1] != nil {
 		definition := &ExpressionDefinition{Node: tc.AstToDst(path[1]), File: tc.AstToDst(definitionFile).(*dst.File)}
-		slog.Debug("Found definition for identifier", "identifier", ident.Name, "position", tc.DstToAst(definition.Node).Pos(), "test", tc)
+		slog.Debug("Found definition for identifier", "identifier", ident.Name, "position", tc.DstStartPos(definition.Node), "test", tc)
 
 		findDefinitionMemo[cacheKey] = definition // Store the definition in the memoization cache
 		return definition, nil

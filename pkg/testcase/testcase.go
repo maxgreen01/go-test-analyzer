@@ -257,9 +257,15 @@ func (tc *TestCase) AstToDst(astNode ast.Node) dst.Node {
 	return tc.pkgInfo.Decorator.Dst.Nodes[astNode]
 }
 
-// Map an AST node to its corresponding DST (decorated) node to access type information.
+// Map a DST node to its corresponding AST node to access type information.
 func (tc *TestCase) DstToAst(dstNode dst.Node) ast.Node {
 	return tc.pkgInfo.Decorator.Ast.Nodes[dstNode]
+}
+
+// Obtain the start position of a DST node by mapping it to its corresponding AST node.
+// Equivalent to `tc.DstToAst(dstNode).Pos()`.
+func (tc *TestCase) DstStartPos(dstNode dst.Node) token.Pos {
+	return tc.DstToAst(dstNode).Pos()
 }
 
 //

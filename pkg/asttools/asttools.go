@@ -17,7 +17,7 @@ import (
 
 	"github.com/dave/dst"
 	"github.com/dave/dst/decorator"
-	"github.com/go-toolsmith/astequal"
+	"github.com/maxgreen01/go-test-analyzer/pkg/dstequal"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -276,7 +276,7 @@ func GetEnclosingFunction(pos token.Pos, packageFiles []*ast.File) (*ast.FuncDec
 // without modifying either of the FuncDecls themselves. The function must be a top-level declaration in the file.
 // Note that the contents of the functions are not compared, only their names.
 // Returns an error if the replacement was not successful.
-func ReplaceFuncDecl(old, new *ast.FuncDecl, file *ast.File) error {
+func ReplaceFuncDecl(old, new *dst.FuncDecl, file *dst.File) error {
 	if file == nil {
 		return fmt.Errorf("cannot replace function declaration in nil package")
 	}
@@ -289,7 +289,7 @@ func ReplaceFuncDecl(old, new *ast.FuncDecl, file *ast.File) error {
 
 	for i, decl := range file.Decls {
 		// Match function declarations by name so their contents don't have to match
-		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == old.Name.Name {
+		if fn, ok := decl.(*dst.FuncDecl); ok && fn.Name.Name == old.Name.Name {
 			// Replace the reference to the old function declaration with the new one
 			file.Decls[i] = new
 			return nil
@@ -301,13 +301,13 @@ func ReplaceFuncDecl(old, new *ast.FuncDecl, file *ast.File) error {
 
 // Returns the index of the given statement within a function body, or an error if the statement is not found.
 // The contents of the statement (but not necessarily its underlying pointers) must exactly match a statement in the provided body.
-func FindStmtInBody(stmt ast.Stmt, body []ast.Stmt) (int, error) {
+func FindStmtInBody(stmt dst.Stmt, body []dst.Stmt) (int, error) {
 	if stmt == nil {
 		return -1, fmt.Errorf("cannot find nil stmt in function body")
 	}
 	for i, s := range body {
 		// Deep compare based on contents
-		if astequal.Stmt(stmt, s) {
+		if dstequal.Stmt(stmt, s) {
 			return i, nil
 		}
 	}
@@ -316,7 +316,7 @@ func FindStmtInBody(stmt ast.Stmt, body []ast.Stmt) (int, error) {
 
 // Returns the i-th statement in the new body, where i is the index of the provided statement within its own parent body.
 // For example, if the given statement is at index 2 in its parent body, this returns the statement at index 2 in the new body.
-func GetStmtWithSameIndex(stmt ast.Stmt, parentBody, newBody []ast.Stmt) (ast.Stmt, error) {
+func GetStmtWithSameIndex(stmt dst.Stmt, parentBody, newBody []dst.Stmt) (dst.Stmt, error) {
 	index, err := FindStmtInBody(stmt, parentBody)
 	if err != nil {
 		return nil, fmt.Errorf("finding statement in parent body: %w", err)
@@ -329,7 +329,7 @@ func GetStmtWithSameIndex(stmt ast.Stmt, parentBody, newBody []ast.Stmt) (ast.St
 
 // Returns the name of the first detected parameter in the function declaration that exactly matches any of the
 // provided parameter types. If no matching parameter is found, returns an error.
-func GetParamNameByType(funcDecl *ast.FuncDecl, paramTypes ...ast.Expr) (string, error) {
+func GetParamNameByType(funcDecl *dst.FuncDecl, paramTypes ...dst.Expr) (string, error) {
 	if funcDecl == nil || funcDecl.Type == nil {
 		return "", fmt.Errorf("cannot detect parameter name for uninitialized function declaration")
 	}
@@ -343,7 +343,7 @@ func GetParamNameByType(funcDecl *ast.FuncDecl, paramTypes ...ast.Expr) (string,
 		}
 		// Check for any of the provided parameter types
 		for _, paramType := range paramTypes {
-			if !astequal.Expr(param.Type, paramType) {
+			if !dstequal.Expr(param.Type, paramType) {
 				continue
 			}
 			if len(param.Names) == 0 {
@@ -360,16 +360,8 @@ func GetParamNameByType(funcDecl *ast.FuncDecl, paramTypes ...ast.Expr) (string,
 // ========== Node Creation Functions ==========
 //
 
-// Creates an AST selector expression of the form `owner.name`.
-func NewSelectorExprAST(owner, name string) ast.Expr {
-	return &ast.SelectorExpr{
-		X:   ast.NewIdent(owner),
-		Sel: ast.NewIdent(name),
-	}
-}
-
 // Creates a DST selector expression of the form `owner.name`.
-func NewSelectorExprDST(owner, name string) dst.Expr {
+func NewSelectorExpr(owner, name string) dst.Expr {
 	return &dst.SelectorExpr{
 		X:   dst.NewIdent(owner),
 		Sel: dst.NewIdent(name),
@@ -377,7 +369,7 @@ func NewSelectorExprDST(owner, name string) dst.Expr {
 }
 
 // Creates a DST call expression statement using the provided function and arguments.
-func NewCallExprStmtDST(fun dst.Expr, args []dst.Expr) *dst.ExprStmt {
+func NewCallExprStmt(fun dst.Expr, args []dst.Expr) *dst.ExprStmt {
 	return &dst.ExprStmt{
 		X: &dst.CallExpr{
 			Fun:  fun,

@@ -4,16 +4,13 @@ package testcase
 
 import (
 	"fmt"
-	"go/ast"
 	"go/token"
 	"go/types"
 	"log/slog"
 	"os"
 
 	"github.com/dave/dst"
-	"github.com/dave/dst/decorator"
 	"github.com/dave/dst/dstutil"
-	"github.com/go-toolsmith/astcopy"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 )
 
@@ -247,16 +244,16 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 		// Detect the name of the variable representing each scenario in the loop
 		scenarioVarName := loopValueName // e.g. `tt` in `for _, tt := range scenarios`
 
-		scenarioNameExpr = asttools.NewSelectorExprDST(scenarioVarName, nameField)
+		scenarioNameExpr = asttools.NewSelectorExpr(scenarioVarName, nameField)
 	}
 
 	// Detect the name of the `*testing.T` parameter in the Runner's function body, instead of hardcoding it to "t"
-	funcDecl, _ := asttools.GetEnclosingFunction(tc.DstToAst(ss.Runner).Pos(), tc.GetPackageFiles())
+	funcDecl, _ := asttools.GetEnclosingFunction(tc.DstStartPos(ss.Runner), tc.GetPackageFiles())
 	if funcDecl == nil || funcDecl.Type == nil {
 		return nil, RefactorGenerationStatusError, fmt.Errorf("cannot refactor test case with missing function declaration")
 	}
 	// Look for either `*testing.T` or `*require.TestingT`
-	tVarName, err := asttools.GetParamNameByType(funcDecl, &ast.StarExpr{X: asttools.NewSelectorExprAST("testing", "T")}, &ast.StarExpr{X: asttools.NewSelectorExprAST("require", "TestingT")})
+	tVarName, err := asttools.GetParamNameByType(tc.AstToDst(funcDecl).(*dst.FuncDecl), &dst.StarExpr{X: asttools.NewSelectorExpr("testing", "T")}, &dst.StarExpr{X: asttools.NewSelectorExpr("require", "TestingT")})
 	if err != nil {
 		slog.Warn("Cannot refactor test case because a `*testing.T` parameter was not detected", "function", funcDecl.Name.Name, "test", tc)
 		return nil, RefactorGenerationStatusNoTester, nil
@@ -285,8 +282,8 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	}
 
 	// Construct the actual `t.Run()` call statement using all the data we have so far
-	tRunCall := asttools.NewCallExprStmtDST(
-		asttools.NewSelectorExprDST(tVarName, "Run"),
+	tRunCall := asttools.NewCallExprStmt(
+		asttools.NewSelectorExpr(tVarName, "Run"),
 		[]dst.Expr{
 			// Scenario name, like `tt.Name`
 			scenarioNameExpr,
@@ -302,7 +299,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 									dst.NewIdent(tVarName),
 								},
 								Type: &dst.StarExpr{
-									X: asttools.NewSelectorExprDST("testing", "T"),
+									X: asttools.NewSelectorExpr("testing", "T"),
 								},
 							},
 						},
@@ -370,15 +367,23 @@ func cloneHelperFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunction 
 	tc := ar.TestCase
 	ss := ar.ScenarioSet
 
-	originalFunc, enclosingFile := asttools.GetEnclosingFunction(tc.DstToAst(stmt).Pos(), tc.GetPackageFiles())
+	originalAstFunc, enclosingAstFile := asttools.GetEnclosingFunction(tc.DstStartPos(stmt), tc.GetPackageFiles())
 
-	if originalFunc == nil || enclosingFile == nil {
+	if originalAstFunc == nil || enclosingAstFile == nil {
 		slog.Warn("Tried processing a statement that is not part of a function in the package", "statement", stmt, "test", tc)
 		return nil
 	}
 	fset := tc.FileSet()
 	if fset == nil {
-		slog.Warn("Cannot determine path to file enclosing a helper function because FileSet is nil", "function", originalFunc.Name.Name, "test", tc)
+		slog.Warn("Cannot determine path to file enclosing a helper function because FileSet is nil", "function", originalAstFunc.Name.Name, "test", tc)
+		return nil
+	}
+
+	// Convert data to DST before proceeding
+	originalFunc, okFunc := tc.AstToDst(originalAstFunc).(*dst.FuncDecl)
+	enclosingFile, okFile := tc.AstToDst(enclosingAstFile).(*dst.File)
+	if !okFunc || !okFile {
+		slog.Warn("Could not convert surrounding AST nodes to DST", "statement", stmt, "test", tc)
 		return nil
 	}
 
@@ -389,15 +394,15 @@ func cloneHelperFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunction 
 	}
 	slog.Debug("Statement is part of a helper function", "statement", stmt, "function", originalFunc.Name.Name, "test", tc)
 
-	// Create a deep copy of the enclosing function to avoid modifying the original AST
-	copiedFunc := astcopy.FuncDecl(originalFunc)
+	// Create a deep copy of the enclosing function to avoid modifying the original DST data
+	copiedFunc := dst.Clone(originalFunc).(*dst.FuncDecl)
 
-	// Replace the original function with the copy in the AST
+	// Replace the original function declaration with its copy within the DST file
 	if err := asttools.ReplaceFuncDecl(originalFunc, copiedFunc, enclosingFile); err != nil {
 		slog.Error("Failed to replace function declaration with its copy", "err", err, "test", tc)
 		return nil
 	}
-	// Create a closure to restore the original AST function declaration within the file
+	// Create a closure to restore the original function declaration within the DST file
 	restoreFuncDecl := func() error {
 		if err := asttools.ReplaceFuncDecl(copiedFunc, originalFunc, enclosingFile); err != nil {
 			return fmt.Errorf("restoring original function declaration: %w", err)
@@ -405,49 +410,18 @@ func cloneHelperFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunction 
 		return nil
 	}
 
-	// Now that the copied data is in place, update the DST references in the ScenarioSet to use the corresponding copied statements
+	// Now that the copied data is spliced into the file, update the DST references in the ScenarioSet to use the corresponding copied statements
 	originalRunner := ss.Runner // Save a copy of the original reference so it can be restored later
-	copiedRunner, err := asttools.GetStmtWithSameIndex(tc.DstToAst(ss.Runner).(ast.Stmt), originalFunc.Body.List, copiedFunc.Body.List)
+	copiedRunner, err := asttools.GetStmtWithSameIndex(ss.Runner, originalFunc.Body.List, copiedFunc.Body.List)
 	if err != nil {
 		slog.Error("Failed to update ScenarioSet runner statement reference", "err", err, "function", originalFunc.Name.Name, "test", tc)
-		// If something went wrong, restore the original function declaration within the file
+		// If something went wrong, we need to restore the original function declaration to bring everything back to the original state
 		if err := restoreFuncDecl(); err != nil {
 			slog.Error("Failed to restore original function declaration", "err", err)
 		}
 		return nil
 	}
-
-	// Decorate copied data before proceeding
-	// TODO CLEANUP this part is super repetitive with the restore func calls
-	decoratedCopiedRunner, err := decorator.Decorate(fset, copiedRunner)
-	if err != nil {
-		slog.Error("Failed to decorate copied runner statement", "err", err, "function", originalFunc.Name.Name, "test", tc)
-		// If something went wrong, restore the original function declaration within the file
-		if err := restoreFuncDecl(); err != nil {
-			slog.Error("Failed to restore original function declaration", "err", err)
-		}
-		return nil
-	}
-	ss.Runner = decoratedCopiedRunner.(dst.Stmt)
-
-	decoratedCopiedFunc, err := decorator.Decorate(fset, copiedFunc)
-	if err != nil {
-		slog.Error("Failed to decorate copied function declaration", "err", err, "function", originalFunc.Name.Name, "test", tc)
-		// If something went wrong, restore the original function declaration within the file
-		if err := restoreFuncDecl(); err != nil {
-			slog.Error("Failed to restore original function declaration", "err", err)
-		}
-		return nil
-	}
-	decoratedEnclosingFile, err := decorator.DecorateFile(fset, enclosingFile)
-	if err != nil {
-		slog.Error("Failed to decorate copied function declaration", "err", err, "function", originalFunc.Name.Name, "test", tc)
-		// If something went wrong, restore the original function declaration within the file
-		if err := restoreFuncDecl(); err != nil {
-			slog.Error("Failed to restore original function declaration", "err", err)
-		}
-		return nil
-	}
+	ss.Runner = copiedRunner
 
 	// Create a closure to restore the original function declaration and all DST ScenarioSet references once all refactoring is done
 	cleanupFunc := func() error {
@@ -459,5 +433,5 @@ func cloneHelperFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunction 
 		return nil
 	}
 
-	return NewRefactoredFunction(decoratedCopiedFunc.(*dst.FuncDecl), decoratedEnclosingFile, fset.Position(enclosingFile.FileStart).Filename, cleanupFunc)
+	return NewRefactoredFunction(copiedFunc, enclosingFile, fset.Position(enclosingAstFile.FileStart).Filename, cleanupFunc)
 }

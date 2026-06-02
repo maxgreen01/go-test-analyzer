@@ -2,7 +2,6 @@ package testcase
 
 import (
 	"encoding/json"
-	"go/ast"
 	"go/types"
 	"iter"
 	"log/slog"
@@ -176,7 +175,7 @@ func (ss *ScenarioSet) detectFunctionFields() bool {
 func (ss *ScenarioSet) detectSubtest() (bool, *dst.CallExpr) {
 	tc := ss.TestCase
 	// Detect the name of the `testing.T` parameter instead of hardcoding "t"
-	tVarName, err := asttools.GetParamNameByType(tc.DstToAst(tc.funcDecl).(*ast.FuncDecl), &ast.StarExpr{X: asttools.NewSelectorExprAST("testing", "T")})
+	tVarName, err := asttools.GetParamNameByType(tc.funcDecl, &dst.StarExpr{X: asttools.NewSelectorExpr("testing", "T")})
 	if err != nil {
 		slog.Warn("Cannot detect `*testing.T` parameter in test case", "err", err, "test", tc)
 		return false, nil
