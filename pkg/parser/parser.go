@@ -2,10 +2,12 @@
 package parser
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"log/slog"
 	"os"
@@ -152,10 +154,22 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 		Dir:   dir,
 		Fset:  fset,
 		Tests: true, // Load test files as well
+		ParseFile: func(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
+			// Remove Windows-style line endings (\r\n) after reading each file but before actually parsing.
+			// This is necessary because the decorator expects UNIX-style line endings (\n) when detecting newlines.
+			// Without this, the decorator may not properly detect empty lines between nodes.
+			// See https://github.com/dave/dst/blob/master/decorator/decorator-fragment.go#L143-L149 for the relevant implementation.
+			src = bytes.ReplaceAll(src, []byte("\r\n"), []byte("\n"))
+			// Parse the modified file data like usual.
+			// The parser mode is based on the internals of `package.newLoader()`, and we can also skip object resolution for efficiency.
+			return parser.ParseFile(fset, filename, src, parser.AllErrors|parser.ParseComments|parser.SkipObjectResolution)
+		},
 	}
 
 	// Construct a pattern to load all packages in the specified directory and its subdirectories,
-	// first removing all trailing forward slashes or backslashes to ensure a valid pattern
+	// first removing all trailing forward slashes or backslashes to ensure a valid pattern.
+	// We specifically avoid using `decorator.Load()` here because it enforces import resolution,
+	// which greatly complicates the logic for converting nodes back to strings.
 	pattern := strings.TrimRight(dir, "/\\") + "/..."
 	pkgs, err := packages.Load(cfg, pattern)
 	if err != nil {

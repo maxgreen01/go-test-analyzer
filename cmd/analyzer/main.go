@@ -33,10 +33,9 @@ func main() {
 	for _, registerFunc := range parsercommands.CommandRegistry {
 		registerFunc(flagParser, &opts)
 	}
-	
+
 	// Manually add the version command
 	flagParser.AddCommand("version", "Show this application's version number", "", &VersionCommand{})
-
 
 	// Set up a hook to validate and apply global flags before executing any command.
 	// Also handles logic for after the command finishes executing using `defer`.
@@ -205,4 +204,3 @@ func (c *VersionCommand) Execute(_ []string) error {
 	fmt.Printf("- go/version: %s\n", runtime.Version())
 	return nil
 }
-	
