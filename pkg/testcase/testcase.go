@@ -10,7 +10,6 @@ import (
 	"go/token"
 	"go/types"
 	"log/slog"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -266,124 +265,6 @@ func (tc *TestCase) DstToAst(dstNode dst.Node) ast.Node {
 // Equivalent to `tc.DstToAst(dstNode).Pos()`.
 func (tc *TestCase) DstStartPos(dstNode dst.Node) token.Pos {
 	return tc.DstToAst(dstNode).Pos()
-}
-
-//
-// ========== Test Execution ==========
-//
-
-// Represents the result of a test execution, as run by the `go test` command.
-type TestExecutionResult int
-
-const (
-	TestExecutionResultNotRun           TestExecutionResult = iota // The test was not executed
-	TestExecutionResultCompilationError                            // The test failed to compile
-	TestExecutionResultSkip                                        // The test was skipped
-	TestExecutionResultFail                                        // The test failed
-	TestExecutionResultPass                                        // The test passed successfully
-)
-
-func (ter TestExecutionResult) String() string {
-	switch ter {
-	case TestExecutionResultNotRun:
-		return "notRun"
-	case TestExecutionResultCompilationError:
-		return "compilationError"
-	case TestExecutionResultSkip:
-		return "skip"
-	case TestExecutionResultFail:
-		return "fail"
-	case TestExecutionResultPass:
-		return "pass"
-	default:
-		return "unknown"
-	}
-}
-
-func (ter TestExecutionResult) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ter.String())
-}
-
-func (ter *TestExecutionResult) UnmarshalJSON(data []byte) error {
-	var str string
-	if err := json.Unmarshal(data, &str); err != nil {
-		return err
-	}
-	switch strings.ToLower(str) {
-	case "notRun":
-		*ter = TestExecutionResultNotRun
-	case "compilationError":
-		*ter = TestExecutionResultCompilationError
-	case "skip":
-		*ter = TestExecutionResultSkip
-	case "fail":
-		*ter = TestExecutionResultFail
-	case "pass":
-		*ter = TestExecutionResultPass
-	default:
-		slog.Warn("Unknown test execution result", "result", str)
-		*ter = TestExecutionResultNotRun
-	}
-	return nil
-}
-
-// Execute a test based on the contents of its corresponding file in the file system using `go test`, and return the results.
-// Returns an error if the test fails for any reason.
-func (tc *TestCase) Execute() (TestExecutionResult, error) {
-	if tc.FilePath == "" || tc.TestName == "" {
-		return TestExecutionResultNotRun, fmt.Errorf("missing FilePath or TestName in TestCase: %v", tc)
-	}
-
-	slog.Debug("Executing test case", "file", tc.FilePath, "test", tc)
-
-	// Build the go test command
-	testPattern := fmt.Sprintf("^%s$", tc.TestName)
-	cmd := []string{"go", "test", "-run", testPattern, "-v"}
-	c := exec.Command(cmd[0], cmd[1:]...)
-	c.Dir = filepath.Dir(tc.FilePath) // Use the directory of the test file as the working directory
-
-	// Execute the command and save the output
-	// FIXME maybe make this concurrent somehow?
-	outBytes, err := c.Output()
-	output := string(outBytes)
-
-	if err != nil {
-		// Extract any relevant information from stderr
-		var stderr string = "[no stderr output]"
-		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
-			stderr = string(ee.Stderr)
-		}
-
-		// Check for compilation error
-		if strings.Contains(output, "[build failed]") {
-			return TestExecutionResultCompilationError, fmt.Errorf("compilation error: %s", stderr)
-		}
-		// Check for test failure
-		if strings.Contains(output, "--- FAIL") {
-			return TestExecutionResultFail, fmt.Errorf("test failed: %s", stderr)
-		}
-		// Unknown error
-		return TestExecutionResultFail, fmt.Errorf("unknown error: %s", stderr)
-	}
-
-	// Check for invalid test name
-	if strings.Contains(output, "no tests to run") {
-		return TestExecutionResultNotRun, fmt.Errorf("no tests to run for pattern %q in file %q", testPattern, tc.FilePath)
-	}
-
-	// Check for test being skipped deliberately
-	if strings.Contains(output, "--- SKIP") {
-		return TestExecutionResultSkip, nil
-	}
-
-	// Check for test pass
-	// This is basically the default option, but we check the output string anyway
-	if strings.Contains(output, "--- PASS") {
-		return TestExecutionResultPass, nil
-	}
-
-	// Fallback: unknown result
-	return TestExecutionResultFail, fmt.Errorf("unknown test result: %s", output)
 }
 
 //

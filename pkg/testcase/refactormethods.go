@@ -80,9 +80,9 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 	originalExecResult, err := tc.Execute()
 	if err != nil {
 		if originalExecResult == TestExecutionResultFail {
-			slog.Info("Test case execution failed normally before refactoring", "err", err, "test", tc)
+			slog.Info("Test case execution failed before refactoring", "err", err, "test", tc)
 		} else {
-			slog.Error("Error executing test case before refactoring", "err", err, "test", tc)
+			slog.Warn("Error executing test case before refactoring", "err", err, "test", tc)
 		}
 	}
 	rr.OriginalExecutionResult = originalExecResult
@@ -126,14 +126,14 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 	refactoredExecResult, err := tc.Execute()
 	if err != nil {
 		if refactoredExecResult == TestExecutionResultFail {
-			slog.Info("Test case execution failed normally after refactoring", "err", err, "test", tc)
+			slog.Info("Test case execution failed expectedly after refactoring", "err", err, "test", tc)
 		} else {
-			slog.Error("Error executing test case after refactoring", "err", err, "test", tc)
+			slog.Warn("Error executing test case after refactoring", "err", err, "test", tc)
 		}
 	}
 	rr.RefactoredExecutionResult = refactoredExecResult
 	if rr.OriginalExecutionResult != rr.RefactoredExecutionResult {
-		slog.Warn("Refactored test case execution results do not match original results", "original", rr.OriginalExecutionResult, "refactored", rr.RefactoredExecutionResult, "test", tc)
+		slog.Error("Refactored test case execution results do not match original results", "original", rr.OriginalExecutionResult, "refactored", rr.RefactoredExecutionResult, "test", tc)
 	}
 
 	// Restore the original file contents on the disk to ensure that refactorings don't interfere with each other
@@ -370,7 +370,7 @@ func cloneHelperFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunction 
 	originalAstFunc, enclosingAstFile := asttools.GetEnclosingFunction(tc.DstStartPos(stmt), tc.GetPackageFiles())
 
 	if originalAstFunc == nil || enclosingAstFile == nil {
-		slog.Warn("Tried processing a statement that is not part of a function in the package", "statement", stmt, "test", tc)
+		slog.Warn("Tried processing a statement that is not part of a function in the package", "statement", fmt.Sprintf("%T", stmt), "test", tc)
 		return nil
 	}
 	fset := tc.FileSet()
@@ -383,16 +383,16 @@ func cloneHelperFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunction 
 	originalFunc, okFunc := tc.AstToDst(originalAstFunc).(*dst.FuncDecl)
 	enclosingFile, okFile := tc.AstToDst(enclosingAstFile).(*dst.File)
 	if !okFunc || !okFile {
-		slog.Warn("Could not convert surrounding AST nodes to DST", "statement", stmt, "test", tc)
+		slog.Warn("Could not convert surrounding AST nodes to DST", "statement", fmt.Sprintf("%T", stmt), "test", tc)
 		return nil
 	}
 
 	if originalFunc.Name.Name == tc.funcDecl.Name.Name && enclosingFile.Name.Name == tc.PackageName {
 		// Statement is part of the test case function itself, so no need to clone it
-		slog.Debug("Statement is part of the test case function itself", "statement", stmt, "function", originalFunc.Name.Name, "test", tc)
+		slog.Debug("Statement is part of the test case function itself", "statement", fmt.Sprintf("%T", stmt), "function", originalFunc.Name.Name, "test", tc)
 		return nil
 	}
-	slog.Debug("Statement is part of a helper function", "statement", stmt, "function", originalFunc.Name.Name, "test", tc)
+	slog.Debug("Statement is part of a helper function", "statement", fmt.Sprintf("%T", stmt), "function", originalFunc.Name.Name, "test", tc)
 
 	// Create a deep copy of the enclosing function to avoid modifying the original DST data
 	copiedFunc := dst.Clone(originalFunc).(*dst.FuncDecl)
