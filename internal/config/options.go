@@ -8,5 +8,6 @@ type GlobalOptions struct {
 	SplitByDir   bool   `long:"splitByDir" description:"Whether to parse each top-level directory separately (ignoring top-level Go files)"`
 	Threads      int    `long:"threads" description:"The number of concurrent threads to use for parsing (only when splitting by directory)" default:"4"`
 
-	LogLevel string `long:"logLevel" short:"l" description:"The minimum severity of log message that should be displayed" choice:"debug" choice:"info" choice:"warn" choice:"error" default:"info"`
+	LogLevel      string `long:"logLevel" short:"l" description:"The minimum severity of log message that should be displayed" choice:"debug" choice:"info" choice:"warn" choice:"error" default:"info"`
+	TimestampLogs bool   `long:"timestamp-logs" description:"Whether to include the current timestamp (YYYYMMDD-HHMMSS) in the log file name"`
 }

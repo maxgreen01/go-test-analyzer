@@ -79,7 +79,7 @@ func (cmd *StatisticsCommand) SetProjectDir(dir string) {
 // THIS SHOULD ONLY BE CALLED ONCE PER PROGRAM EXECUTION.
 func (cmd *StatisticsCommand) Execute(args []string) error {
 	if cmd.globals.OutputPath == "" {
-		cmd.globals.OutputPath = "statistics_report.csv"
+		cmd.globals.OutputPath = fmt.Sprintf("%s-statistics-report.csv", filepath.Base(cmd.globals.ProjectDir))
 	}
 	// Initialize the output writer with the specified output path
 	writer, err := filewriter.NewFileWriter(cmd.globals.OutputPath, cmd.globals.AppendOutput)

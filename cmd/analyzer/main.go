@@ -47,14 +47,33 @@ func main() {
 			return command.Execute(args)
 		}
 
-		// Validate and apply global flags
-		applyGlobals(&opts)
-
 		task, ok := command.(parser.Task)
 		if !ok {
 			slog.Error("Command does not implement the Task interface")
 			os.Exit(1)
 		}
+
+		// Validate and apply global flags
+		applyGlobals(&opts)
+
+		// Print the current configuration options for the command being executed by iterating through
+		// the active `flags.Command` struct (different than the `flags.Commander` interface) and
+		// saving the command-line option values at each step.
+		optionValues := []any{"version", version, "command", task.Name()}
+		activeCmd := flagParser.Command
+		for activeCmd != nil {
+			for _, group := range append(activeCmd.Groups(), activeCmd.Group) {
+				if group.ShortDescription == "" || group.ShortDescription == "Help Options" {
+					continue // Skip "fake" groups
+				}
+				for _, option := range group.Options() {
+					optionValues = append(optionValues, option.LongNameWithNamespace(), option.Value())
+				}
+			}
+			activeCmd = activeCmd.Active // Move to the next nested command, if any
+		}
+
+		slog.Info("Starting go-test-analyzer", optionValues...)
 
 		// Set up timer hook
 		startTime := time.Now()
@@ -95,41 +114,34 @@ func applyGlobals(opts *config.GlobalOptions) {
 		fmt.Fprintf(os.Stderr, "You must provide a path to a Go project (e.g., ./myproject)!\n")
 		os.Exit(1)
 	}
-	absPath, err := filepath.Abs(opts.ProjectDir)
+	absProjectPath, err := filepath.Abs(opts.ProjectDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error resolving absolute path to Go project %q: %v\n", opts.ProjectDir, err)
 		os.Exit(1)
 	}
-	info, err := os.Stat(absPath)
+	info, err := os.Stat(absProjectPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error accessing project path %q: %v\n", absPath, err)
+		fmt.Fprintf(os.Stderr, "Error accessing project path %q: %v\n", absProjectPath, err)
 		os.Exit(1)
 	}
 	if !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "Provided project path %q is not a directory!\n", absPath)
+		fmt.Fprintf(os.Stderr, "Provided project path %q is not a directory!\n", absProjectPath)
 		os.Exit(1)
 	}
-	opts.ProjectDir = absPath
+	opts.ProjectDir = absProjectPath
 
-	// Validate log level. Allowed options are handled by the `choice` tag in the struct definition.
-	opts.LogLevel = strings.ToLower(strings.TrimSpace(opts.LogLevel))
-
-	// Validate and resolve the output path, if specified. Additional validation and processing is done by FileWriter.
+	// Trim the output path, if provided. Additional validation and processing is done by FileWriter.
+	// The default value should be set within each command to ensure proper functionality with `splitByDir`.
 	opts.OutputPath = strings.Trim(opts.OutputPath, "\t\n\v\f\r \"") // Trim whitespace and quotes
-	if opts.OutputPath != "" {
-		absPath, err := filepath.Abs(opts.OutputPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error resolving absolute path for output file %q: %v\n", opts.OutputPath, err)
-			os.Exit(1)
-		}
-		opts.OutputPath = absPath
-	}
 
 	// Validate the number of threads used if splitting by directory
 	if opts.Threads < 1 {
 		fmt.Fprintf(os.Stderr, "Invalid number of threads %d specified, must be at least 1\n", opts.Threads)
 		os.Exit(1)
 	}
+
+	// Validate log level. Allowed options are handled by the `choice` tag in the struct definition.
+	opts.LogLevel = strings.ToLower(strings.TrimSpace(opts.LogLevel))
 
 	// Map log level string value to a `slog.Level`
 	var level slog.Level
@@ -151,7 +163,8 @@ func applyGlobals(opts *config.GlobalOptions) {
 	//
 	// =========== Set up the logger for program-wide use ===========
 	//
-	// Aim to distribute logs to both `stderr` and a log file
+	// Aim to distribute logs to both `stderr` and a log file.
+	// Note that logs are written to `stderr` instead of `stdout` to separate them from the main output of the program.
 
 	var handlers []slog.Handler
 
@@ -172,12 +185,21 @@ func applyGlobals(opts *config.GlobalOptions) {
 		}),
 	)
 
-	// Attempt to set up the log file at `output/analyzer.log`, but don't crash if it fails
+	// Attempt to set up the log file at `logs/analyzer.log` (or `logs/analyzer-<timestamp>.log`) relative to the default output directory.
+	// Don't crash if setup fails because the program will still print logs to `stderr`.
 	outputDir, dirErr := filewriter.GetDefaultOutputDir()
 	if dirErr != nil {
 		fmt.Fprintf(os.Stderr, "Could not determine default output directory for logs: %v\n", dirErr)
 	} else {
-		logFilePath := filepath.Join(outputDir, "analyzer.log") // todo maybe use a time-based filename so multiple logs can be saved
+		logFileName := "analyzer.log"
+		if opts.TimestampLogs {
+			// Format the current time as YYYYMMDD-HHMMSS to avoid overwriting previous logs
+			logFileName = fmt.Sprintf("analyzer-%s.log", time.Now().Format("20060102-150405"))
+		}
+		logFilePath := filepath.Join(outputDir, "logs", logFileName)
+		if err := os.MkdirAll(filepath.Dir(logFilePath), 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "Could not create log directory %q: %v\n", filepath.Dir(logFilePath), err)
+		}
 		logFile, fileErr := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 
 		if fileErr != nil {
