@@ -110,14 +110,14 @@ func NodeToString(node dst.Node) string {
 	restorer := decorator.NewRestorer()
 	restoredFile, err := restorer.RestoreFile(dstFile)
 	if err != nil {
-		slog.Error("Failed to restore AST node", "error", err, "nodeType", fmt.Sprintf("%T", node))
+		slog.Error("Failed to restore AST node", "err", err, "nodeType", fmt.Sprintf("%T", node))
 		return ""
 	}
 
 	var buf bytes.Buffer
 	if err := format.Node(&buf, restorer.Fset, restoredFile); err != nil {
 		// Note: could try restoring again using an import resolver, but this adds complexity and could rename tests incorrectly
-		slog.Error("Failed to format AST node", "error", err, "nodeType", fmt.Sprintf("%T", node))
+		slog.Error("Failed to format AST node", "err", err, "nodeType", fmt.Sprintf("%T", node))
 		slog.Debug("formatting failure", "astDump", ast.Fprint(&buf, restorer.Fset, restoredFile, nil))
 		return ""
 	}

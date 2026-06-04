@@ -204,7 +204,7 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 		errFiles := make(map[string]struct{}, len(pkgErrs))
 		for _, e := range pkgErrs {
 			// Print every error in the package
-			slog.Error("Error in package:", "error", e.Msg, "package", pkg.Name, "position", e.Pos)
+			slog.Error("Error in package:", "err", e.Msg, "package", pkg.Name, "position", e.Pos)
 
 			colonIdx := strings.Index(e.Pos, ":")
 			if colonIdx > 0 {
@@ -232,7 +232,7 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 			}
 			file, err := decoratedPkg.Decorator.DecorateFile(f)
 			if err != nil {
-				slog.Error("Error decorating file:", "error", err, "file", fpath)
+				slog.Error("Error decorating file:", "err", err, "file", fpath)
 				errFiles[fpath] = struct{}{}
 				continue
 			}

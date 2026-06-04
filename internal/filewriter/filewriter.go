@@ -96,7 +96,7 @@ func (writer *FileWriter) SetPath(path string) error {
 	writer.path = path
 	writer.format = DetectFormat(path)
 	if writer.format == FormatUnknown {
-		return fmt.Errorf("unsupported output file format (file %q)", path)
+		return fmt.Errorf("unsupported output file format %q (file %q)", strings.ToLower(filepath.Ext(path)), path)
 	}
 
 	// Override certain options based on the file format

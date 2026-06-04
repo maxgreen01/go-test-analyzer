@@ -325,7 +325,7 @@ func (es *ExpandedStatement) UnmarshalJSON(data []byte) error {
 	var recoveredStmt dst.Stmt
 	expr, err := asttools.StringToNode(jsonData.Stmt)
 	if err != nil {
-		slog.Error("Failed to parse ExpandedStatement from JSON", "error", err)
+		slog.Error("Failed to parse ExpandedStatement from JSON", "err", err)
 	} else {
 		// Only check the type if the string was parsed successfully
 		if stmt, ok := expr.(dst.Stmt); ok {

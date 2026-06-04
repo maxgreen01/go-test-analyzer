@@ -177,7 +177,7 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 
 	// Fallback: unknown result
 	if err != nil {
-		return TestExecutionResultFail, fmt.Errorf("unknown error: %w", err)
+		return TestExecutionResultFail, fmt.Errorf("unknown test error: %w", err)
 	}
 	return TestExecutionResultUnknown, fmt.Errorf("unknown test result: %s", string(jsonBytes))
 }

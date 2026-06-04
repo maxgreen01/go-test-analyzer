@@ -255,7 +255,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	// Look for either `*testing.T` or `*require.TestingT`
 	tVarName, err := asttools.GetParamNameByType(tc.AstToDst(funcDecl).(*dst.FuncDecl), &dst.StarExpr{X: asttools.NewSelectorExpr("testing", "T")}, &dst.StarExpr{X: asttools.NewSelectorExpr("require", "TestingT")})
 	if err != nil {
-		slog.Warn("Cannot refactor test case because a `*testing.T` parameter was not detected", "function", funcDecl.Name.Name, "test", tc)
+		slog.Warn("Cannot refactor test case because a `*testing.T` parameter was not detected", "err", err, "function", funcDecl.Name.Name, "test", tc)
 		return nil, RefactorGenerationStatusNoTester, nil
 	}
 
