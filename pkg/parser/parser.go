@@ -16,6 +16,7 @@ import (
 
 	"github.com/dave/dst"
 	"github.com/dave/dst/decorator"
+	"github.com/maxgreen01/go-test-analyzer/internal/config"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/tools/go/packages"
 )
@@ -26,6 +27,9 @@ import (
 type Task interface {
 	// Return the lowercase name of the task
 	Name() string
+
+	// Return the global configuration options for this task
+	Config() *config.GlobalOptions
 
 	// Function called on every Go source file in the project, which may modify local state to save results
 	Visit(file *dst.File, pkg *decorator.Package)
@@ -47,13 +51,15 @@ type Task interface {
 
 // Runs the specified task on all Go source files in the given directory.
 // If `splitByDir` is true, parses each top-level directory in the specified directory separately (ignoring top-level Go files).
-// todo maybe update the Task interface to include a method for getting flags (to avoid passing so many boilerplate params)
-func Parse(t Task, rootDir string, splitByDir bool, threads int) error {
-	if rootDir == "" {
-		return errors.New("empty root directory provided")
-	}
+func Parse(t Task) error {
 	if t == nil {
 		return errors.New("nil task provided")
+	}
+	cfg := t.Config()
+
+	rootDir := cfg.ProjectDir
+	if rootDir == "" {
+		return errors.New("empty root directory provided")
 	}
 
 	fmt.Println()
@@ -61,7 +67,7 @@ func Parse(t Task, rootDir string, splitByDir bool, threads int) error {
 	fmt.Println()
 
 	// Run the parser either on the entire directory at once, or on each top-level sub-directory separately
-	if splitByDir {
+	if cfg.SplitByDir {
 		// Parse each top-level directory separately
 		slog.Info("Parsing each top-level directory separately")
 
@@ -75,8 +81,8 @@ func Parse(t Task, rootDir string, splitByDir bool, threads int) error {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		g, gctx := errgroup.WithContext(ctx)
-		g.SetLimit(threads) // Limit the number of concurrent goroutines to avoid overwhelming the system
-		slog.Info("Using " + fmt.Sprint(threads) + " threads for parsing")
+		g.SetLimit(cfg.Threads) // Limit the number of concurrent goroutines to avoid overwhelming the system
+		slog.Info("Using " + fmt.Sprint(cfg.Threads) + " threads for parsing")
 
 		for _, entry := range entries {
 			if entry.IsDir() {
@@ -143,6 +149,7 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 	}
 
 	task.SetProjectDir(dir)
+	taskCfg := task.Config()
 
 	fmt.Println()
 	fmt.Println()
@@ -150,10 +157,13 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
-		Mode:  packages.LoadAllSyntax | packages.NeedForTest,
-		Dir:   dir,
-		Fset:  fset,
-		Tests: true, // Load test files as well
+		Mode:       packages.LoadAllSyntax | packages.NeedForTest,
+		Context:    ctx,
+		Dir:        dir,
+		Env:        append(os.Environ(), taskCfg.BuildEnv...),
+		BuildFlags: taskCfg.BuildFlags,
+		Fset:       fset,
+		Tests:      true, // Load test files as well
 		ParseFile: func(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
 			// Remove Windows-style line endings (\r\n) after reading each file but before actually parsing.
 			// This is necessary because the decorator expects UNIX-style line endings (\n) when detecting newlines.
@@ -170,7 +180,7 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 	// first removing all trailing forward slashes or backslashes to ensure a valid pattern.
 	// We specifically avoid using `decorator.Load()` here because it enforces import resolution,
 	// which greatly complicates the logic for converting nodes back to strings.
-	pattern := strings.TrimRight(dir, "/\\") + "/..."
+	pattern := "pattern=" + strings.TrimRight(dir, "/\\") + "/..."
 	pkgs, err := packages.Load(cfg, pattern)
 	if err != nil {
 		return fmt.Errorf("loading packages in directory %q: %w", dir, err)
@@ -242,7 +252,7 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 			filePath := fset.Position(astFile.FileStart).Filename
 
 			// Skip files in `vendor/` directory
-			if strings.Contains(filePath, filepath.Join("vendor", "")) {
+			if strings.HasPrefix(filePath, filepath.Join(dir, "vendor", "")) {
 				slog.Debug("Skipping vendored file", "file", filePath)
 				continue
 			}

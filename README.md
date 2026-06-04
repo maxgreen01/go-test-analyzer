@@ -95,6 +95,8 @@ For a list of all supported commands, see the [Commands](#commands) section.
 
 For a list of global command-line options, see the [Application Options](#application-options) section. Also see the Command Options subsection of each command's documentation to view their specific options.
 
+This program is primarily intended to be used with Go projects that use [Go modules](https://go.dev/blog/using-go-modules) and can be built using the standard `go build` tool. To pass custom command-line options or environment variables to the build tool, see the `--build-flags` and `--build-env` options in the [Application Options](#application-options) section. For more information on using this program on projects that use alternative build systems, see the relevant [Go documentation](https://pkg.go.dev/golang.org/x/tools/go/packages#hdr-The_driver_protocol).
+
 ### Building from Source
 
 If an executable binary for your operating system or architecture is not provided, you can build one yourself from the project source using the Makefile.
@@ -134,13 +136,15 @@ Below is a list of the command-line options supported by the application:
 
 | Option              | Description                                                                            | Default Value                    | Example Argument                                     |
 | ------------------- | -------------------------------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------- |
-| `--project` / `-p`  | Path to the Go project directory to be analyzed                                        | Required                         | `C:/programs/my-go-project`, `./other-project`       |
-| `--output` / `-o`   | Path to report output file                                                             | `<project>-<command>-report.csv` | `./output/my-project-report.csv`, `stats-report.txt` |
-| `--append`          | Whether to append to the output file instead of overwriting it                         | `false`                          | N/a                                                  |
-| `--splitByDir`      | Whether to analyze each top-level directory separately                                 | `false`                          | N/a                                                  |
+| `--project` / `-p`  | Path to the Go project directory to be analyzed                                        | Required                         | `C:/work/my-go-project`, `./other-project`           |
+| `--output` / `-o`   | Path to save the command's output report as a file                                     | `<project>-<command>-report.csv` | `./output/my-project-report.csv`, `stats-report.txt` |
+| `--append`          | Whether to append to the output file instead of overwriting it                         | `false`                          | N/A                                                  |
+| `--splitByDir`      | Whether to analyze each top-level directory separately                                 | `false`                          | N/A                                                  |
 | `--threads`         | The number of concurrent threads to use for parsing (only when splitting by directory) | `4`                              | `2`, `8`                                             |
 | `--logLevel` / `-l` | The minimum severity of log message that should be displayed                           | `info`                           | `debug`, `info`, `warn`, `error` (exhaustive)        |
-| `--timestamp-logs`  | Whether to include the current timestamp (YYYYMMDD-HHMMSS) in the log file name        | `false`                          | N/a                                                  |
+| `--timestamp-logs`  | Whether to include the current timestamp (YYYYMMDD-HHMMSS) in the log file name        | `false`                          | N/A                                                  |
+| `--build-flags`      | Command-line options to pass to the underlying build tool                             | `[]`                             | `"-tags=unit,integration"`, `"-mod=readonly"`, `-x`  |
+| `--build-env`        | Environment variables to pass to the underlying build tool, in KEY=VALUE format       | `[]`                             | `"GOOS=linux"`, `"GOARCH=amd64"`                     |
 
 To access the help menu and see all available options, run:
 
@@ -156,9 +160,12 @@ To view any command-specific options in addition to the global ones, run:
 
 ### Global Option Details
 
-By default, the application writes output files and logs inside an `output/` folder in the same directory as the executable file. This base location is determined at runtime and falls back to the current working directory if necessary.
+By default, the application writes output files and logs inside an `output/` folder in the same directory as the executable file. This base location is determined at runtime and falls back to the current working directory if necessary. For example, if the executable is located at `C:/programs/go-test-analyzer`, the default output directory will be `C:/programs/go-test-analyzer/output/`.
 
+**--output**: Saves the command's output report to the specified file path. If the file already exists, it will be overwritten unless the `--append` option is enabled. If the specified path does not include a directory (e.g. `report.csv`), the file will be saved in the default output directory.
 **--timestamp-logs**: Logs from the most recent execution are written to `output/logs/analyzer.log` by default. If `--timestamp-logs` is enabled, the log file is named like `analyzer-YYYYMMDD-HHMMSS.log` based on the current timestamp. This option is disabled by default to prevent creating a large number of log files, but it can be useful for keeping logs from multiple runs without manually renaming them.
+**--build-flags**: Specifies command-line options to pass to the underlying build tool while parsing Go packages. Can be specified multiple times to pass multiple options. Options that require an argument should usually be specified in `-option=value` format (e.g. `--build-flags="-tags=unit,integration"`). Not following this format may lead to errors like "flag provided but not defined".
+**--build-env**: Specifies environment variables to pass to the underlying build tool while parsing Go packages. Must be specified in `KEY=VALUE` format, and can be specified multiple times to pass multiple environment variables. Should typically be quoted to prevent the shell from interpreting the `=` character (e.g. `--build-env="GOOS=linux"`).
 
 ## Commands
 
@@ -195,7 +202,7 @@ The following command-line options are only supported by the `analyze` command.
 | Option                    | Description                                                                                                         | Default Value | Example Argument               |
 |---------------------------|---------------------------------------------------------------------------------------------------------------------|---------------|--------------------------------|
 | `--refactor`              | The type of refactoring to perform on the detected test cases. See below for additional details                     | `none`        | `none`, `subtest` (exhaustive) |
-| `--keep-refactored-files` | Whether to retain the results of refactored test cases by NOT restoring the original source files after refactoring | `false`       | N/a                            |
+| `--keep-refactored-files` | Whether to retain the results of refactored test cases by NOT restoring the original source files after refactoring | `false`       | N/A                            |
 
 The `refactor` option indicates which type of refactoring should be performed on certain detected test cases. After refactoring, the refactored function is saved as a field in the JSON output file for each affected test case. Note that the refactoring may modify helper functions defined in the same package, but these are not reflected in the JSON output. The allowed refactoring strategies are described as follows:
 

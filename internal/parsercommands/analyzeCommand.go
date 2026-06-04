@@ -72,6 +72,11 @@ func (cmd *AnalyzeCommand) Clone() parser.Task {
 	}
 }
 
+// Return the global configuration options
+func (cmd *AnalyzeCommand) Config() *config.GlobalOptions {
+	return cmd.globals
+}
+
 // Set the project directory for this task.
 func (cmd *AnalyzeCommand) SetProjectDir(dir string) {
 	cmd.globals.ProjectDir = dir
@@ -94,7 +99,7 @@ func (cmd *AnalyzeCommand) Execute(args []string) error {
 	cmd.RefactorStrategy = strings.ToLower(strings.TrimSpace(cmd.RefactorStrategy))
 
 	// Actually run the task by starting the parser
-	return parser.Parse(cmd, cmd.globals.ProjectDir, cmd.globals.SplitByDir, cmd.globals.Threads)
+	return parser.Parse(cmd)
 }
 
 // Extract test cases from the given file, analyze them, and potentially refactor them before saving the results to JSON files.

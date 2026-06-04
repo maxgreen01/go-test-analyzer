@@ -136,12 +136,36 @@ func applyGlobals(opts *config.GlobalOptions) {
 
 	// Validate the number of threads used if splitting by directory
 	if opts.Threads < 1 {
-		fmt.Fprintf(os.Stderr, "Invalid number of threads %d specified, must be at least 1\n", opts.Threads)
+		fmt.Fprintf(os.Stderr, "Invalid number of threads %d, must be at least 1\n", opts.Threads)
 		os.Exit(1)
 	}
 
 	// Validate log level. Allowed options are handled by the `choice` tag in the struct definition.
 	opts.LogLevel = strings.ToLower(strings.TrimSpace(opts.LogLevel))
+
+	// Process and validate command-line options for the build tool
+	var cleanFlags []string
+	for _, f := range opts.BuildFlags {
+		f = strings.TrimSpace(f)
+		if !strings.HasPrefix(f, "-") {
+			fmt.Fprintf(os.Stderr, "Invalid build flag %q, must start with a hyphen\n", f)
+			os.Exit(1)
+		}
+		cleanFlags = append(cleanFlags, f)
+	}
+	opts.BuildFlags = cleanFlags
+
+	// Process and validate environment variables for the build tool
+	var cleanEnv []string
+	for _, e := range opts.BuildEnv {
+		e = strings.TrimSpace(e)
+		if !strings.Contains(e, "=") {
+			fmt.Fprintf(os.Stderr, "Invalid build environment variable %q, must be in KEY=VALUE format\n", e)
+			os.Exit(1)
+		}
+		cleanEnv = append(cleanEnv, e)
+	}
+	opts.BuildEnv = cleanEnv
 
 	// Map log level string value to a `slog.Level`
 	var level slog.Level

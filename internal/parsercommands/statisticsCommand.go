@@ -70,6 +70,11 @@ func (cmd *StatisticsCommand) Clone() parser.Task {
 	}
 }
 
+// Return the global configuration options
+func (cmd *StatisticsCommand) Config() *config.GlobalOptions {
+	return cmd.globals
+}
+
 // Set the project directory for this task.
 func (cmd *StatisticsCommand) SetProjectDir(dir string) {
 	cmd.globals.ProjectDir = dir
@@ -89,7 +94,7 @@ func (cmd *StatisticsCommand) Execute(args []string) error {
 	cmd.output = writer
 
 	// Actually run the task by starting the parser
-	return parser.Parse(cmd, cmd.globals.ProjectDir, cmd.globals.SplitByDir, cmd.globals.Threads)
+	return parser.Parse(cmd)
 }
 
 // Increment some numerical statistics about the project as a whole and its detected test cases
