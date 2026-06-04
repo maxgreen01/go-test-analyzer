@@ -35,7 +35,7 @@ type Task interface {
 	Visit(file *dst.File, pkg *decorator.Package)
 
 	// Create a new instance of the task with the same initial state and flags.
-	// Used to ensure that each parsed directory can have an independent output if `splitByDir` is true.
+	// Used to ensure that each parsed directory can have an independent output if `split-by-dir` is true.
 	Clone() Task
 
 	// Set the project directory for this task. Often used after Clone to set the directory for the new instance.
@@ -50,7 +50,7 @@ type Task interface {
 }
 
 // Runs the specified task on all Go source files in the given directory.
-// If `splitByDir` is true, parses each top-level directory in the specified directory separately (ignoring top-level Go files).
+// If `split-by-dir` is true, parses each top-level directory in the specified directory separately (ignoring top-level Go files).
 func Parse(t Task) error {
 	if t == nil {
 		return errors.New("nil task provided")
@@ -139,7 +139,7 @@ func Parse(t Task) error {
 
 // Iterates over all Go source files in the specified directory and runs the provided task on each file.
 // After processing all files, calls the task's ReportResults method to output any accumulated results.
-// todo MAYBE make this multithreaded even without `splitByDir` somehow
+// todo MAYBE make this multithreaded even without `split-by-dir` somehow
 func parseDir(ctx context.Context, task Task, dir string) error {
 	// Check for cancellation before starting
 	select {

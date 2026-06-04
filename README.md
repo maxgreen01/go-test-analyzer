@@ -134,17 +134,17 @@ GOOS=freebsd GOARCH=amd64 make  # Cross-compile for FreeBSD on AMD64 architectur
 
 Below is a list of the command-line options supported by the application:
 
-| Option              | Description                                                                            | Default Value                    | Example Argument                                     |
-| ------------------- | -------------------------------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------- |
-| `--project` / `-p`  | Path to the Go project directory to be analyzed                                        | Required                         | `C:/work/my-go-project`, `./other-project`           |
-| `--output` / `-o`   | Path to save the command's output report as a file                                     | `<project>-<command>-report.csv` | `./output/my-project-report.csv`, `stats-report.txt` |
-| `--append`          | Whether to append to the output file instead of overwriting it                         | `false`                          | N/A                                                  |
-| `--splitByDir`      | Whether to analyze each top-level directory separately                                 | `false`                          | N/A                                                  |
-| `--threads`         | The number of concurrent threads to use for parsing (only when splitting by directory) | `4`                              | `2`, `8`                                             |
-| `--logLevel` / `-l` | The minimum severity of log message that should be displayed                           | `info`                           | `debug`, `info`, `warn`, `error` (exhaustive)        |
-| `--timestamp-logs`  | Whether to include the current timestamp (YYYYMMDD-HHMMSS) in the log file name        | `false`                          | N/A                                                  |
-| `--build-flags`      | Command-line options to pass to the underlying build tool                             | `[]`                             | `"-tags=unit,integration"`, `"-mod=readonly"`, `-x`  |
-| `--build-env`        | Environment variables to pass to the underlying build tool, in KEY=VALUE format       | `[]`                             | `"GOOS=linux"`, `"GOARCH=amd64"`                     |
+| Option               | Description                                                                            | Default Value                    | Example Argument                                     |
+| -------------------- | -------------------------------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------- |
+| `--project` / `-p`   | Path to the Go project directory to be analyzed                                        | Required                         | `C:/work/my-go-project`, `./other-project`           |
+| `--output` / `-o`    | Path to save the command's output report as a file                                     | `<project>-<command>-report.csv` | `./output/my-project-report.csv`, `stats-report.txt` |
+| `--append`           | Whether to append to the output file instead of overwriting it                         | `false`                          | N/A                                                  |
+| `--split-by-dir`     | Whether to analyze each top-level directory separately                                 | `false`                          | N/A                                                  |
+| `--threads`          | The number of concurrent threads to use for parsing (only when splitting by directory) | `4`                              | `2`, `8`                                             |
+| `--log-level` / `-l` | The minimum severity of log message that should be displayed                           | `info`                           | `debug`, `info`, `warn`, `error` (exhaustive)        |
+| `--timestamp-logs`   | Whether to include the current timestamp (YYYYMMDD-HHMMSS) in the log file name        | `false`                          | N/A                                                  |
+| `--build-flags`      | Command-line options to pass to the underlying build tool                              | `[]`                             | `"-tags=unit,integration"`, `"-mod=readonly"`, `-x`  |
+| `--build-env`        | Environment variables to pass to the underlying build tool, in KEY=VALUE format        | `[]`                             | `"GOOS=linux"`, `"GOARCH=amd64"`                     |
 
 To access the help menu and see all available options, run:
 
@@ -173,7 +173,7 @@ By default, the application writes output files and logs inside an `output/` fol
 
 The `statistics` command analyzes the Go test files in the specified project directory and generates various statistics related to the project's test cases. This includes metrics such as the total number of test cases, number of test files, average test length, and the percentage of the project comprised of test code (by lines).
 
-Supports output to either `.txt` or `.csv` files. Output is especially well-suited for a `.csv` file if using the `splitByDir` option.
+Supports output to either `.txt` or `.csv` files. Output is especially well-suited for a `.csv` file if using the `split-by-dir` option.
 
 Example:
 

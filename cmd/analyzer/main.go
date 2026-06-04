@@ -131,7 +131,7 @@ func applyGlobals(opts *config.GlobalOptions) {
 	opts.ProjectDir = absProjectPath
 
 	// Trim the output path, if provided. Additional validation and processing is done by FileWriter.
-	// The default value should be set within each command to ensure proper functionality with `splitByDir`.
+	// The default value should be set within each command to ensure proper functionality with `split-by-dir`.
 	opts.OutputPath = strings.Trim(opts.OutputPath, "\t\n\v\f\r \"") // Trim whitespace and quotes
 
 	// Validate the number of threads used if splitting by directory
@@ -140,7 +140,7 @@ func applyGlobals(opts *config.GlobalOptions) {
 		os.Exit(1)
 	}
 
-	// Validate log level. Allowed options are handled by the `choice` tag in the struct definition.
+	// Process log level. Allowed options are handled by the `choice` tag in the struct definition.
 	opts.LogLevel = strings.ToLower(strings.TrimSpace(opts.LogLevel))
 
 	// Process and validate command-line options for the build tool
@@ -179,8 +179,8 @@ func applyGlobals(opts *config.GlobalOptions) {
 	case "error":
 		level = slog.LevelError
 	default:
-		// Should never happen because `LogLevel` options should be validated already
-		fmt.Fprintf(os.Stderr, "Invalid logLevel %q", opts.LogLevel)
+		// Should never happen because log level options should be validated already
+		fmt.Fprintf(os.Stderr, "Invalid log level %q", opts.LogLevel)
 		os.Exit(1)
 	}
 
