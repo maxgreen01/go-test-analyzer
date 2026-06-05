@@ -131,8 +131,21 @@ func applyGlobals(opts *config.GlobalOptions) {
 	opts.ProjectDir = absProjectPath
 
 	// Trim the output path, if provided. Additional validation and processing is done by FileWriter.
-	// The default value should be set within each command to ensure proper functionality with `split-by-dir`.
+	// The default value may be set within each command to ensure proper functionality with `split-by-dir`.
 	opts.OutputPath = strings.Trim(opts.OutputPath, "\t\n\v\f\r \"") // Trim whitespace and quotes
+
+	// In the specific case where `split-by-dir` is enabled, a specific output file is provided, and `append` is disabled, we need to truncate the file originally
+	// (as the user expects), but implicitly enable appending during the command execution so the results don't overwrite each other.
+	if opts.SplitByDir && opts.OutputPath != "" && !opts.AppendOutput {
+		// Set up a temporary FileWriter instance to truncate the file
+		writer, err := filewriter.NewFileWriter(opts.OutputPath, false)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error truncating output file %q: %v\n", opts.OutputPath, err)
+			os.Exit(1)
+		}
+		writer.Close()
+		opts.AppendOutput = true
+	}
 
 	// Validate the number of threads used if splitting by directory
 	if opts.Threads < 1 {

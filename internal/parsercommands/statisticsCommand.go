@@ -60,7 +60,7 @@ func (cmd *StatisticsCommand) Name() string {
 }
 
 // Create a new instance of the StatisticsCommand with the same initial state and flags, COPYING `globals`.
-// Note that `output` is shared by reference so `FileWriter` instances can be shared, but it is usually nil until `Execute()`.
+// Note that `output` is copied as a pointer so `FileWriter` instances can be shared, but it is usually nil until `Execute()`.
 func (cmd *StatisticsCommand) Clone() parser.Task {
 	globals := *cmd.globals
 	return &StatisticsCommand{
@@ -75,14 +75,8 @@ func (cmd *StatisticsCommand) Config() *config.GlobalOptions {
 	return cmd.globals
 }
 
-// Set the project directory for this task.
-func (cmd *StatisticsCommand) SetProjectDir(dir string) {
-	cmd.globals.ProjectDir = dir
-}
-
-// Validate the values of this Command's flags, then run the task itself.
-// THIS SHOULD ONLY BE CALLED ONCE PER PROGRAM EXECUTION.
-func (cmd *StatisticsCommand) Execute(args []string) error {
+// Set the default output path if one is not provided, and initialize the output FileWriter instance
+func (cmd *StatisticsCommand) setupOutputWriter() error {
 	if cmd.globals.OutputPath == "" {
 		cmd.globals.OutputPath = fmt.Sprintf("%s-statistics-report.csv", filepath.Base(cmd.globals.ProjectDir))
 	}
@@ -92,6 +86,32 @@ func (cmd *StatisticsCommand) Execute(args []string) error {
 		return err
 	}
 	cmd.output = writer
+	return nil
+}
+
+// Set the project directory for this task,
+// and initialize a new output FileWriter if the OutputPath needs to be set based on the new dir.
+func (cmd *StatisticsCommand) SetProjectDir(dir string) error {
+	cmd.globals.ProjectDir = dir
+	
+	// If splitting by dir and no output path was provided, each Task uses a different output file.
+	// In this case, initialize the output writer now based on the new project dir.
+	if cmd.globals.SplitByDir && cmd.globals.OutputPath == "" {
+		return cmd.setupOutputWriter()
+	}
+	return nil
+}
+
+// Validate the values of this Command's flags, then run the task itself.
+// THIS SHOULD ONLY BE CALLED ONCE PER PROGRAM EXECUTION.
+func (cmd *StatisticsCommand) Execute(args []string) error {
+	// If there's only one output file needed (either not splitting, or splitting with a provided output path), set up the output writer now.
+	// Otherwise (if splitting with multiple output files), wait until `SetProjectDir()` to do this.
+	if !cmd.globals.SplitByDir || cmd.globals.OutputPath != "" {
+		if err := cmd.setupOutputWriter(); err != nil {
+			return err
+		}
+	}
 
 	// Actually run the task by starting the parser
 	return parser.Parse(cmd)

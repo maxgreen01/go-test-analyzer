@@ -39,7 +39,7 @@ type Task interface {
 	Clone() Task
 
 	// Set the project directory for this task. Often used after Clone to set the directory for the new instance.
-	SetProjectDir(dir string)
+	SetProjectDir(dir string) error
 
 	// Function called after all files in the specified project directory have been processed
 	ReportResults() error
@@ -90,7 +90,8 @@ func Parse(t Task) error {
 
 				// Start a new goroutine for each subdirectory
 				g.Go(func() error {
-					// Clone the Task instance so each parsing run has a distinct output but uses the same underlying resources
+					// Clone the Task instance so each parsing run has a distinct output but uses the same underlying resources.
+					// If the Task instances will be sharing an output file, make sure it's set up before calling this!
 					newTask := t.Clone()
 
 					// Check for cancellation before doing any work
@@ -148,7 +149,9 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 	default:
 	}
 
-	task.SetProjectDir(dir)
+	if err := task.SetProjectDir(dir); err != nil {
+		return err
+	}
 	taskCfg := task.Config()
 
 	fmt.Println()

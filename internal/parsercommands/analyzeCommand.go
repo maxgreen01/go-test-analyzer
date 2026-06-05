@@ -62,7 +62,7 @@ func (cmd *AnalyzeCommand) Name() string {
 }
 
 // Create a new instance of the AnalyzeCommand with the same initial state and flags, COPYING `globals`.
-// Note that `output` is shared by reference so `FileWriter` instances can be shared, but it is usually nil until `Execute()`.
+// Note that `output` is copied as a pointer so `FileWriter` instances can be shared, but it is usually nil until `Execute()`.
 func (cmd *AnalyzeCommand) Clone() parser.Task {
 	globals := *cmd.globals
 	return &AnalyzeCommand{
@@ -77,14 +77,8 @@ func (cmd *AnalyzeCommand) Config() *config.GlobalOptions {
 	return cmd.globals
 }
 
-// Set the project directory for this task.
-func (cmd *AnalyzeCommand) SetProjectDir(dir string) {
-	cmd.globals.ProjectDir = dir
-}
-
-// Validate the values of this Command's flags, then run the task itself
-// THIS SHOULD ONLY BE CALLED ONCE PER PROGRAM EXECUTION.
-func (cmd *AnalyzeCommand) Execute(args []string) error {
+// Set the default output path if one is not provided, and initialize the output FileWriter instance
+func (cmd *AnalyzeCommand) setupOutputWriter() error {
 	if cmd.globals.OutputPath == "" {
 		cmd.globals.OutputPath = fmt.Sprintf("%s-analyze-report.csv", filepath.Base(cmd.globals.ProjectDir))
 	}
@@ -94,11 +88,36 @@ func (cmd *AnalyzeCommand) Execute(args []string) error {
 		return err
 	}
 	cmd.output = writer
+	return nil
+}
 
-	// Validate refactoring strategy. Allowed options are handled by the `choice` tag in the struct definition.
+// Set the project directory for this task,
+// and initialize a new output FileWriter if the OutputPath needs to be set based on the new dir.
+func (cmd *AnalyzeCommand) SetProjectDir(dir string) error {
+	cmd.globals.ProjectDir = dir
+	
+	// If splitting by dir and no output path was provided, each Task uses a different output file.
+	// In this case, initialize the output writer now based on the new project dir.
+	if cmd.globals.SplitByDir && cmd.globals.OutputPath == "" {
+		return cmd.setupOutputWriter()
+	}
+	return nil
+}
+
+// Validate the values of this Command's flags, then run the task itself.
+// THIS SHOULD ONLY BE CALLED ONCE PER PROGRAM EXECUTION.
+func (cmd *AnalyzeCommand) Execute(args []string) error {
+	// If there's only one output file needed (either not splitting, or splitting with a provided output path), set up the output writer now.
+	// Otherwise (if splitting with multiple output files), wait until `SetProjectDir()` to do this.
+	if !cmd.globals.SplitByDir || cmd.globals.OutputPath != "" {
+		if err := cmd.setupOutputWriter(); err != nil {
+			return err
+		}
+	}
+
+	// Process refactoring strategy. Allowed options are handled by the `choice` tag in the struct definition.
 	cmd.RefactorStrategy = strings.ToLower(strings.TrimSpace(cmd.RefactorStrategy))
 
-	// Actually run the task by starting the parser
 	return parser.Parse(cmd)
 }
 
@@ -193,6 +212,7 @@ func (cmd *AnalyzeCommand) ReportResults() error {
 
 	// Print the report to the terminal
 	slog.Info("Finished running analysis task on project \"" + cmd.globals.ProjectDir + "\"")
+	slog.Info("Writing results to \"" + cmd.output.GetPath() + "\"")
 	fmt.Print(strings.Join(reportLines, "") + "\n")
 
 	// Append results to output file (text or CSV)
