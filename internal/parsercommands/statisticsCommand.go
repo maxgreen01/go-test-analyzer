@@ -191,6 +191,7 @@ func (cmd *StatisticsCommand) ReportResults() error {
 
 	// Print the report to the terminal
 	slog.Info("Finished running statistics task on project \"" + cmd.globals.ProjectDir + "\"")
+	slog.Info("Writing results to \"" + cmd.output.GetPath() + "\"")
 	fmt.Print(strings.Join(reportLines, "") + "\n")
 
 	// Append results to output file (text or CSV)

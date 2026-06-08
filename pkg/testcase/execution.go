@@ -20,8 +20,8 @@ import (
 type TestExecutionResult int
 
 const (
-	TestExecutionResultUnknown          TestExecutionResult = iota // The test result could not be determined
-	TestExecutionResultNotRun                                      // The test was not executed
+	TestExecutionResultNotRun           TestExecutionResult = iota // The test was not executed
+	TestExecutionResultUnknown                                     // The test result could not be determined
 	TestExecutionResultCompilationError                            // The test failed to compile
 	TestExecutionResultSkip                                        // The test was skipped
 	TestExecutionResultFail                                        // The test failed
@@ -98,6 +98,7 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 	if importPath == "" {
 		return TestExecutionResultNotRun, fmt.Errorf("missing ImportPath in TestCase: %v", tc)
 	}
+	importPath = strings.TrimSuffix(importPath, "_test") // `go test` fails to compile because of a missing module unless we remove the `_test` suffix
 
 	slog.Debug("Executing test case", "file", tc.FilePath, "test", tc)
 
@@ -113,7 +114,7 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 
 	// Parse the JSON output and determine the test result
 	var evt executionEvent
-	var prevEvt executionEvent
+	var prevEvts []executionEvent
 	subtestResults := make(map[string]string) // Map between subtest name and corresponding result ("pass", "fail", "skip")
 	dec := json.NewDecoder(bytes.NewReader(jsonBytes))
 	for {
@@ -128,10 +129,14 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 
 		// Check for compilation error
 		if evt.Action == "build-fail" {
-			// peek backward to get the build error output
+			// Find the first non-empty line of test output otherwise
 			errorStr := "[no output]"
-			if prevEvt.Action == "output" {
-				errorStr = strings.TrimSpace(prevEvt.Output)
+			for _, e := range prevEvts {
+				// Heuristic: lines starting with "# " are likely to be headers for the package, which are less informative
+				if (e.Action == "output" || e.Action == "build-output") && !strings.HasPrefix(e.Output, "# ") {
+					errorStr = strings.TrimSpace(e.Output)
+					break
+				}
 			}
 			return TestExecutionResultCompilationError, fmt.Errorf("compilation error: %s", errorStr)
 		}
@@ -141,9 +146,10 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 			return TestExecutionResultUnknown, fmt.Errorf("no tests to run for pattern %q in file %q", testPattern, tc.FilePath)
 		}
 
-		// A test finished running
+		// A test (or subtest) finished running
 		if evt.Action == "pass" || evt.Action == "fail" || evt.Action == "skip" {
 			// Check the result of the overall test
+			failed := false
 			if evt.Test == tc.TestName {
 				switch evt.Action {
 				case "pass":
@@ -156,13 +162,25 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 					return TestExecutionResultSkip, nil
 
 				case "fail":
-					// Print the failing subtests if applicable
-					if len(subtestResults) > 0 {
-						return TestExecutionResultFail, fmt.Errorf("test failed with subtests: %v", formatSubtestResults(subtestResults))
-					}
-					return TestExecutionResultFail, fmt.Errorf("test failed")
-
+					failed = true // Actual logic executed below
 				}
+			}
+
+			// If the entire package failed before running the test itself, still log this as a failure
+			if failed || (evt.Action == "fail" && evt.Test == "") {
+				// Include the failing subtests if possible
+				if len(subtestResults) > 0 {
+					return TestExecutionResultFail, fmt.Errorf("test failed with subtests: %v", formatSubtestResults(subtestResults))
+				}
+				// Find the first non-empty line of test output otherwise
+				errorStr := "[no output]"
+				for _, e := range prevEvts {
+					if e.Action == "output" {
+						errorStr = strings.TrimSpace(e.Output)
+						break
+					}
+				}
+				return TestExecutionResultFail, fmt.Errorf("test failed: %s", errorStr)
 			}
 
 			// Track subtest results
@@ -172,7 +190,7 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 		}
 
 		// Parse the next event
-		prevEvt = evt
+		prevEvts = append(prevEvts, evt)
 	}
 
 	// Fallback: unknown result

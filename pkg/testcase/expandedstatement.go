@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
@@ -111,9 +112,17 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 		switch funcDef := definition.Node.(type) {
 		case *dst.FuncDecl:
 			funcName = funcDef.Name.Name
+			if funcDef.Body == nil {
+				slog.Debug("Skipping expansion of function with nil body", "function", funcName, "test", tc)
+				return false
+			}
 			innerStmts = funcDef.Body.List
 		case *dst.FuncLit:
 			funcName = fmt.Sprintf("funcLit@%s", fset.Position(tc.DstStartPos(funcDef))) // Use the position as a unique identifier
+			if funcDef.Body == nil {
+				slog.Debug("Skipping expansion of function with nil body", "function", funcName, "test", tc)
+				return false
+			}
 			innerStmts = funcDef.Body.List
 
 		default:
@@ -152,7 +161,9 @@ type ExpressionDefinition struct {
 
 // Memoization cache for FindDefinition to avoid redundant lookups.
 // Keys are strings formatted as "<position>-<project>-<package>-<testOnly>".
-var findDefinitionMemo = make(map[string]*ExpressionDefinition)
+// Values are pointers to ExpressionDefinition structs.
+// This is the concurrent-safe version of a `map[string]*ExpressionDefinition`
+var findDefinitionMemo sync.Map
 
 // Return the DST definition and of the expression within the specified TestCase's package, if it exists.
 // Also returns the DST file that contains the definition if it is successfully found, or nil in all other cases.
@@ -203,9 +214,12 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 
 	// Check the memoization cache to see if the definition has already been found
 	cacheKey := fmt.Sprintf("%d-%s-%s-%v", pos, tc.PackageName, tc.ProjectName, testOnly)
-	if cached, ok := findDefinitionMemo[cacheKey]; ok {
+	if cached, ok := findDefinitionMemo.Load(cacheKey); ok {
 		// Definition already found, so return it
-		return cached, nil
+		if definition, ok := cached.(*ExpressionDefinition); ok {
+			return definition, nil
+		}
+		return nil, nil
 	}
 
 	// Find the AST file containing the object
@@ -223,7 +237,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 		if !strings.HasSuffix(fset.Position(definitionFile.FileStart).Filename, "_test.go") {
 			// Definition not in a test file
 			slog.Debug("Ignoring identifier definition found outside a test file", "identifier", ident.Name, "test", tc)
-			findDefinitionMemo[cacheKey] = nil // Store the result in the memoization cache
+			findDefinitionMemo.Store(cacheKey, nil) // Store the result in the memoization cache
 			return nil, nil
 		}
 	}
@@ -245,7 +259,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 		definition := &ExpressionDefinition{Node: tc.AstToDst(path[1]), File: tc.AstToDst(definitionFile).(*dst.File)}
 		slog.Debug("Found definition for identifier", "identifier", ident.Name, "position", tc.DstStartPos(definition.Node), "test", tc)
 
-		findDefinitionMemo[cacheKey] = definition // Store the definition in the memoization cache
+		findDefinitionMemo.Store(cacheKey, definition) // Store the definition in the memoization cache
 		return definition, nil
 	}
 

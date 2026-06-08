@@ -130,9 +130,18 @@ func applyGlobals(opts *config.GlobalOptions) {
 	}
 	opts.ProjectDir = absProjectPath
 
-	// Trim the output path, if provided. Additional validation and processing is done by FileWriter.
+	// Validate and resolve the output path, if provided. This ensures that any provided path that includes a directory is resolved relative
+	// to the current working directory instead of the default output path. Additional validation and processing is done by FileWriter.
 	// The default value may be set within each command to ensure proper functionality with `split-by-dir`.
 	opts.OutputPath = strings.Trim(opts.OutputPath, "\t\n\v\f\r \"") // Trim whitespace and quotes
+	if opts.OutputPath != "" && strings.HasPrefix(opts.OutputPath, ".") {
+		absOutputPath, err := filepath.Abs(opts.OutputPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error resolving absolute path for output file %q: %v\n", opts.OutputPath, err)
+			os.Exit(1)
+		}
+		opts.OutputPath = absOutputPath
+	}
 
 	// In the specific case where `split-by-dir` is enabled, a specific output file is provided, and `append` is disabled, we need to truncate the file originally
 	// (as the user expects), but implicitly enable appending during the command execution so the results don't overwrite each other.
