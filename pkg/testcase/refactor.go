@@ -142,13 +142,14 @@ type RefactoredFunction struct {
 
 	File     *dst.File `json:"-"`        // The DST file where the refactored function is defined
 	FilePath string    `json:"filePath"` // The path to the file containing the refactored function
+	IsHelper bool      `json:"isHelper"` // Whether this function is a helper function rather than the test function itself
 
 	cleanup func() error // A function to restore the original function declaration if necessary
 	// todo CLEANUP maybe replace with storing the original DST function and file and performing the cleanup based on that
 }
 
 // Creates a new RefactoredFunction with the provided DST data.
-func NewRefactoredFunction(fn *dst.FuncDecl, file *dst.File, filePath string, cleanupFunc func() error) *RefactoredFunction {
+func NewRefactoredFunction(fn *dst.FuncDecl, file *dst.File, filePath string, isHelper bool, cleanupFunc func() error) *RefactoredFunction {
 	if fn == nil || file == nil {
 		slog.Error("Cannot create RefactoredFunction with nil syntax data", "funcDecl", fn, "file", file)
 		return nil
@@ -160,6 +161,7 @@ func NewRefactoredFunction(fn *dst.FuncDecl, file *dst.File, filePath string, cl
 
 		File:     file,
 		FilePath: filePath,
+		IsHelper: isHelper,
 
 		cleanup: cleanupFunc,
 	}

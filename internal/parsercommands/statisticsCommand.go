@@ -93,7 +93,7 @@ func (cmd *StatisticsCommand) setupOutputWriter() error {
 // and initialize a new output FileWriter if the OutputPath needs to be set based on the new dir.
 func (cmd *StatisticsCommand) SetProjectDir(dir string) error {
 	cmd.globals.ProjectDir = dir
-	
+
 	// If splitting by dir and no output path was provided, each Task uses a different output file.
 	// In this case, initialize the output writer now based on the new project dir.
 	if cmd.globals.SplitByDir && cmd.globals.OutputPath == "" {

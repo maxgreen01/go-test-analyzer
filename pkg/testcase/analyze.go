@@ -147,6 +147,7 @@ outerStmtLoop:
 
 // Detects the type of data structure used to store scenarios in a table-driven test as well as
 // the underlying type (usually a struct) used to define scenarios, then saves both to the `ScenarioSet`.
+// If scenarios are defined using pointers, the base (unpointer-ed) type of the will be saved as the `ScenarioType`.
 // Also checks if the key of a map structure is used to define scenario names.
 //
 // Returns the ScenarioDataStructure value for this type and the underlying type used to define scenarios,
@@ -214,7 +215,7 @@ func (ss *ScenarioSet) IdentifyScenarios(expr dst.Expr, tc *TestCase) bool {
 		case ScenarioStructListDS:
 			// Scenarios are directly stored as the elements of the slice
 			typ := tc.TypeOf(compositeLit.Elts[0])
-			if typ != nil && types.Identical(typ.Underlying(), ss.ScenarioType) {
+			if typ != nil && types.Identical(asttools.Unpointer(typ).Underlying(), ss.ScenarioType) {
 				ss.Scenarios = compositeLit.Elts
 				return true
 			}
@@ -222,7 +223,7 @@ func (ss *ScenarioSet) IdentifyScenarios(expr dst.Expr, tc *TestCase) bool {
 		case ScenarioMapDS:
 			// Scenarios are stored as the values of the `KeyValueExpr` elements
 			kvExpr, ok := compositeLit.Elts[0].(*dst.KeyValueExpr)
-			if ok && types.Identical(tc.TypeOf(kvExpr.Value).Underlying(), ss.ScenarioType) {
+			if ok && types.Identical(asttools.Unpointer(tc.TypeOf(kvExpr.Value)).Underlying(), ss.ScenarioType) {
 				for _, elt := range compositeLit.Elts {
 					if kvExpr, ok := elt.(*dst.KeyValueExpr); ok {
 						ss.Scenarios = append(ss.Scenarios, kvExpr)

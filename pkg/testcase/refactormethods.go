@@ -22,7 +22,7 @@ import (
 func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefactoredFiles bool) RefactorResult {
 	if ar == nil {
 		slog.Error("Attempted to refactor a nil AnalysisResult", "strategy", strategy)
-		return RefactorResult{Strategy: strategy, GenerationStatus: RefactorGenerationStatusFail}
+		return RefactorResult{Strategy: strategy, GenerationStatus: RefactorGenerationStatusError}
 	}
 
 	// Create the RefactorResult return object and store it in the AnalysisResult
@@ -37,7 +37,7 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 	tc := ar.TestCase
 	if tc == nil {
 		slog.Error("Attempted to refactor a nil TestCase", "strategy", strategy)
-		rr.GenerationStatus = RefactorGenerationStatusFail
+		rr.GenerationStatus = RefactorGenerationStatusError
 		return *rr
 	}
 
@@ -52,12 +52,11 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 
 		// Perform the actual refactoring
 		refactored, status, err := ar.refactorToSubtests()
+		rr.GenerationStatus = status
 		if err != nil {
 			slog.Error("Error refactoring test case to use subtests", "err", err, "test", tc)
-			rr.GenerationStatus = RefactorGenerationStatusFail
 			return *rr
 		}
-		rr.GenerationStatus = status
 		rr.Refactorings = refactored
 		// Only move on to execute the test if the refactor generation step was actually successful
 		if status != RefactorGenerationStatusSuccess {
@@ -92,11 +91,13 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 	originalFileContents := make(map[string][]byte)
 	for _, refactoring := range rr.Refactorings {
 		// Whenever this function exits, restore the original AST File data (and any dependents) to ensure that refactorings
-		// don't interfere with each other. Even if the file contents are retained on the disk, we need to revert the AST data
-		// to keep tests independent. Note that the Parser finished generating the AST structures long before this point, so
-		// the data on the disk won't affect the underlying AST which is actually used for analysis. However, disk changes may
-		// affect test execution, especially if any of the previous refactoring attempts cause compilation issues.
-		defer refactoring.Cleanup()
+		// don't interfere with each other. If the user requested to keep the refactored changes, skip the AST cleanup for the
+		// test functions themselves so that their changes accumulate and do not get overwritten when subsequent tests in the
+		// same file are saved. Always clean up helper functions to avoid interference if the helper is used in multiple tests.
+		// The actual file contents is restored later in this function.
+		if !keepRefactoredFiles || refactoring.IsHelper {
+			defer refactoring.Cleanup()
+		}
 
 		filePath := refactoring.FilePath
 		if _, ok := originalFileContents[filePath]; ok {
@@ -136,9 +137,12 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 		slog.Error("Refactored test case execution results do not match original results", "original", rr.OriginalExecutionResult, "refactored", rr.RefactoredExecutionResult, "test", tc)
 	}
 
-	// Restore the original file contents on the disk to ensure that refactorings don't interfere with each other
-	for _, refactoring := range rr.Refactorings {
-		if !keepRefactoredFiles {
+	// Restore the original file contents on the disk to avoid refactorings interfering with each other.
+	// Note that the Parser finished generating the AST structures long before this point, so the data on the disk won't
+	// directly affect the underlying AST which is actually used for analysis. However, disk changes may affect test
+	// execution, especially if any of the previous refactoring attempts cause compilation errors.
+	if !keepRefactoredFiles {
+		for _, refactoring := range rr.Refactorings {
 			// Write the original file contents back to the disk
 			if err := os.WriteFile(refactoring.FilePath, originalFileContents[refactoring.FilePath], 0644); err != nil {
 				slog.Error("Error restoring original test file contents after refactoring", "err", err, "test", tc)
@@ -349,7 +353,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 
 	// Either the statement is not part of a helper function (or an error occurred while checking for that),
 	// so we assume that the refactoring happened inside the original test function and doesn't need any separate DST cleanup.
-	return []RefactoredFunction{*NewRefactoredFunction(tc.funcDecl, tc.file, tc.FilePath, cleanupFunc)}, RefactorGenerationStatusSuccess, nil
+	return []RefactoredFunction{*NewRefactoredFunction(tc.funcDecl, tc.file, tc.FilePath, false, cleanupFunc)}, RefactorGenerationStatusSuccess, nil
 }
 
 //
@@ -433,5 +437,5 @@ func cloneHelperFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunction 
 		return nil
 	}
 
-	return NewRefactoredFunction(copiedFunc, enclosingFile, fset.Position(enclosingAstFile.FileStart).Filename, cleanupFunc)
+	return NewRefactoredFunction(copiedFunc, enclosingFile, fset.Position(enclosingAstFile.FileStart).Filename, true, cleanupFunc)
 }

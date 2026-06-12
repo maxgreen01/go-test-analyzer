@@ -1,4 +1,4 @@
-# Makefile for go-test-analyzer cross-compilation
+# Makefile for go-test-analyzer
 
 BINARY_NAME := go-test-analyzer
 BUILD_DIR := ./build

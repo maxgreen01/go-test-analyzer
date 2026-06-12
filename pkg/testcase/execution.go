@@ -132,7 +132,7 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 			// Find the first non-empty line of test output otherwise
 			errorStr := "[no output]"
 			for _, e := range prevEvts {
-				// Heuristic: lines starting with "# " are likely to be headers for the package, which are less informative
+				// Heuristic: lines starting with "# " are likely to be headers for the package being compiled, which are less informative
 				if (e.Action == "output" || e.Action == "build-output") && !strings.HasPrefix(e.Output, "# ") {
 					errorStr = strings.TrimSpace(e.Output)
 					break
@@ -175,7 +175,8 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 				// Find the first non-empty line of test output otherwise
 				errorStr := "[no output]"
 				for _, e := range prevEvts {
-					if e.Action == "output" {
+					// Heuristic: lines starting with "---" or "===" are likely to be headers for the test being run, which are less informative
+					if e.Action == "output" && !strings.HasPrefix(e.Output, "---") && !strings.HasPrefix(e.Output, "===") {
 						errorStr = strings.TrimSpace(e.Output)
 						break
 					}
