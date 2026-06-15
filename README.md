@@ -218,7 +218,7 @@ For example:
 
 ```bash
 $ ./go-test-analyzer version
-go-test-analyzer v1.2.1
+go-test-analyzer v1.2.2
 - os/type: windows
 - os/arch: amd64
 - go/version: go1.24.5

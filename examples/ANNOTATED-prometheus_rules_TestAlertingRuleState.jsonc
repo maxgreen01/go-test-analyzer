@@ -3,7 +3,7 @@
 // command. Each JSON file contains detailed information about the corresponding test, its table-driven features,
 // and the result of refactoring and executing it, if applicable.
 // 
-// *** This example is updated as of v1.2.1 of the Go Test Analysis Engine. ***
+// *** This example is updated as of v1.2.2 of the Go Test Analysis Engine. ***
 // 
 // 
 // 
@@ -33,7 +33,7 @@
     "project": "prometheus",
     
     // The original declaration of the test function, based on its AST representation.
-    "funcDecl": "func TestAlertingRuleState(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tactive map[uint64]*Alert\n\t\twant   AlertState\n\t}{\n\t\t{\n\t\t\tname: \"MaxStateFiring\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StatePending},\n\t\t\t\t1: {State: StateFiring},\n\t\t\t},\n\t\t\twant: StateFiring,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStatePending\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StatePending},\n\t\t\t},\n\t\t\twant: StatePending,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStateInactive\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StateInactive},\n\t\t\t},\n\t\t\twant: StateInactive,\n\t\t},\n\t}\n\n\tfor i, test := range tests {\n\t\tt.Run(test.name, func(t *testing.T) {\n\t\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\t\trule.active = test.active\n\t\t\tgot := rule.State()\n\t\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t\t})\n\t}\n}"
+    "funcDecl": "func TestAlertingRuleState(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tactive map[uint64]*Alert\n\t\twant   AlertState\n\t}{\n\t\t{\n\t\t\tname: \"MaxStateFiring\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StatePending},\n\t\t\t\t1: {State: StateFiring},\n\t\t\t},\n\t\t\twant: StateFiring,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStatePending\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StatePending},\n\t\t\t},\n\t\t\twant: StatePending,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStateInactive\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StateInactive},\n\t\t\t},\n\t\t\twant: StateInactive,\n\t\t},\n\t}\n\n\tfor i, test := range tests {\n\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\trule.active = test.active\n\t\tgot := rule.State()\n\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t}\n}"
   },
   
   // The "ScenarioSet" object contains information about the table-driven features of a test, if applicable.
@@ -54,13 +54,13 @@
     
     // The individual scenarios themselves, based on their AST representations.
     "scenarios": [
-      "{\n\tname: \"MaxStateFiring\",\n\tactive: map[uint64]*Alert{\n\t\t0: {State: StatePending},\n\t\t1: {State: StateFiring},\n\t},\n\twant: StateFiring,\n}",
-      "{\n\tname: \"MaxStatePending\",\n\tactive: map[uint64]*Alert{\n\t\t0: {State: StateInactive},\n\t\t1: {State: StatePending},\n\t},\n\twant: StatePending,\n}",
-      "{\n\tname: \"MaxStateInactive\",\n\tactive: map[uint64]*Alert{\n\t\t0: {State: StateInactive},\n\t\t1: {State: StateInactive},\n\t},\n\twant: StateInactive,\n}"
+      "{\n\tname: \"MaxStateFiring\",\n\tactive: map[uint64]*Alert{\n\t\t0: {State: StatePending},\n\t\t1: {State: StateFiring},\n\t},\n\twant: StateFiring,\n},",
+      "{\n\tname: \"MaxStatePending\",\n\tactive: map[uint64]*Alert{\n\t\t0: {State: StateInactive},\n\t\t1: {State: StatePending},\n\t},\n\twant: StatePending,\n},",
+      "{\n\tname: \"MaxStateInactive\",\n\tactive: map[uint64]*Alert{\n\t\t0: {State: StateInactive},\n\t\t1: {State: StateInactive},\n\t},\n\twant: StateInactive,\n},"
     ],
     
     // The loop statement that executes each of the test scenarios, based on its AST representation.
-    "runner": "for i, test := range tests {\n\tt.Run(test.name, func(t *testing.T) {\n\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\trule.active = test.active\n\t\tgot := rule.State()\n\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t})\n}",
+    "runner": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
     
     // The name of the struct field representing each scenario's name.
     // This can also be "map key" if scenarios are defined using a map whose key type is string. 
@@ -100,7 +100,7 @@
       "stmt": "tests := []struct {\n\tname   string\n\tactive map[uint64]*Alert\n\twant   AlertState\n}{\n\t{\n\t\tname: \"MaxStateFiring\",\n\t\tactive: map[uint64]*Alert{\n\t\t\t0: {State: StatePending},\n\t\t\t1: {State: StateFiring},\n\t\t},\n\t\twant: StateFiring,\n\t},\n\t{\n\t\tname: \"MaxStatePending\",\n\t\tactive: map[uint64]*Alert{\n\t\t\t0: {State: StateInactive},\n\t\t\t1: {State: StatePending},\n\t\t},\n\t\twant: StatePending,\n\t},\n\t{\n\t\tname: \"MaxStateInactive\",\n\t\tactive: map[uint64]*Alert{\n\t\t\t0: {State: StateInactive},\n\t\t\t1: {State: StateInactive},\n\t\t},\n\t\twant: StateInactive,\n\t},\n}"
     },
     {
-      "stmt": "for i, test := range tests {\n\tt.Run(test.name, func(t *testing.T) {\n\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\trule.active = test.active\n\t\tgot := rule.State()\n\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t})\n}",
+      "stmt": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
       "children": [
         {
           "stmt": "NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)",
