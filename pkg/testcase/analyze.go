@@ -26,10 +26,8 @@ func IdentifyScenarioSet(tc *TestCase, statements []*ExpandedStatement) *Scenari
 	ss := &ScenarioSet{TestCase: tc}
 
 	// Iterate test statements in reverse to find the runner loop before trying to find the scenarios
-	stmtsReversed := slices.Clone(stmts)
-	slices.Reverse(stmtsReversed)
 outerStmtLoop:
-	for _, expanded := range stmtsReversed {
+	for _, expanded := range slices.Backward(stmts) {
 		if expanded == nil {
 			slog.Warn("Encountered nil statement in test case", "testCase", tc)
 			continue outerStmtLoop
@@ -147,30 +145,29 @@ outerStmtLoop:
 
 // Detects the type of data structure used to store scenarios in a table-driven test as well as
 // the underlying type (usually a struct) used to define scenarios, then saves both to the `ScenarioSet`.
-// If scenarios are defined using pointers, the base (unpointer-ed) type of the will be saved as the `ScenarioType`.
 // Also checks if the key of a map structure is used to define scenario names.
 //
-// Returns the ScenarioDataStructure value for this type and the underlying type used to define scenarios,
-// which are both already saved to the `ScenarioSet`.
+// Returns the ScenarioDataStructure value for this type and the original (not underlying) type used to
+// define scenarios, which are both already saved to the `ScenarioSet`.
 func (ss *ScenarioSet) detectScenarioDataStructure(typ types.Type) (ScenarioDataStructure, types.Type) {
 	if typ == nil {
 		ss.DataStructure, ss.ScenarioType = ScenarioNoDS, nil
 		return ss.DataStructure, ss.ScenarioType
 	}
 
-	// Check the underlying type
+	// Check the underlying type of the whole data structure
 	switch x := typ.Underlying().(type) {
 
 	case *types.Slice:
 		// Check for []struct
-		if structType, ok := asttools.Unpointer(x.Elem()).Underlying().(*types.Struct); ok {
-			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, structType
+		if _, ok := asttools.UnderlyingType(x.Elem()).(*types.Struct); ok {
+			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, x.Elem() // save the original data type, not the underlying one
 			return ss.DataStructure, ss.ScenarioType
 		}
 	case *types.Array:
 		// Check for [N]struct
-		if structType, ok := asttools.Unpointer(x.Elem()).Underlying().(*types.Struct); ok {
-			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, structType
+		if _, ok := asttools.UnderlyingType(x.Elem()).(*types.Struct); ok {
+			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, x.Elem() // save the original data type, not the underlying one
 			return ss.DataStructure, ss.ScenarioType
 		}
 
@@ -178,7 +175,7 @@ func (ss *ScenarioSet) detectScenarioDataStructure(typ types.Type) (ScenarioData
 		// Check for map[any]any
 		// map[any]struct is expected most of the time, but something like map[string]bool is fine too
 		ss.DataStructure = ScenarioMapDS
-		ss.ScenarioType = asttools.Unpointer(x.Elem()).Underlying()
+		ss.ScenarioType = x.Elem()
 
 		// If the map key is a string (not considering underlying type), assume it's the scenario name
 		if asttools.IsBasicType(x.Key(), types.IsString) {
@@ -193,7 +190,7 @@ func (ss *ScenarioSet) detectScenarioDataStructure(typ types.Type) (ScenarioData
 	return ss.DataStructure, ss.ScenarioType
 }
 
-// Checks whether an expression has the same underlying type as the ScenarioType, and if so, saves the scenarios from the expression.
+// Checks whether an expression has the same original (not underlying) type as the ScenarioType, and if so, saves the scenarios from the expression.
 // Returns whether the scenarios were saved successfully. Always returns `false` if the `ScenarioSet.DataStructure` is unknown.
 // See https://go.dev/ref/spec#Type_identity for details of the `types.Identical` comparison method.
 func (ss *ScenarioSet) IdentifyScenarios(expr dst.Expr, tc *TestCase) bool {
@@ -215,7 +212,7 @@ func (ss *ScenarioSet) IdentifyScenarios(expr dst.Expr, tc *TestCase) bool {
 		case ScenarioStructListDS:
 			// Scenarios are directly stored as the elements of the slice
 			typ := tc.TypeOf(compositeLit.Elts[0])
-			if typ != nil && types.Identical(asttools.Unpointer(typ).Underlying(), ss.ScenarioType) {
+			if typ != nil && types.Identical(typ, ss.ScenarioType) {
 				ss.Scenarios = compositeLit.Elts
 				return true
 			}
@@ -223,7 +220,11 @@ func (ss *ScenarioSet) IdentifyScenarios(expr dst.Expr, tc *TestCase) bool {
 		case ScenarioMapDS:
 			// Scenarios are stored as the values of the `KeyValueExpr` elements
 			kvExpr, ok := compositeLit.Elts[0].(*dst.KeyValueExpr)
-			if ok && types.Identical(asttools.Unpointer(tc.TypeOf(kvExpr.Value)).Underlying(), ss.ScenarioType) {
+			if !ok {
+				return false
+			}
+			typ := tc.TypeOf(kvExpr.Value)
+			if typ != nil && types.Identical(typ, ss.ScenarioType) {
 				for _, elt := range compositeLit.Elts {
 					if kvExpr, ok := elt.(*dst.KeyValueExpr); ok {
 						ss.Scenarios = append(ss.Scenarios, kvExpr)

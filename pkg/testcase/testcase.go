@@ -251,6 +251,42 @@ func (tc *TestCase) ObjectOf(ident *dst.Ident) types.Object {
 	return typeInfo.ObjectOf(astIdent)
 }
 
+// Convenience method for getting the Scope corresponding to the TestCase's function.
+// Returns `nil` if the type information for the project is not available.
+func (tc *TestCase) FunctionScope() *types.Scope {
+	typeInfo := tc.TypeInfo()
+	astNode := tc.DstToAst(tc.funcDecl.Type) // See https://pkg.go.dev/go/types#Info for information about the mapping between nodes and scopes.
+	if typeInfo == nil || astNode == nil {
+		return nil
+	}
+	return typeInfo.Scopes[astNode]
+}
+
+// Returns the position and package of the definition corresponding to the given identifier,
+// and whether the package matches the current test case's package.
+func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (token.Pos, *types.Package, bool, error) {
+	// Get the type object corresponding to the identifier (i.e. its definition)
+	obj := tc.ObjectOf(ident)
+	if obj == nil {
+		return token.NoPos, nil, false, fmt.Errorf("could not resolve identifier %q", ident.Name)
+	}
+	pos := obj.Pos()
+	pkg := obj.Pkg()
+
+	// Check if the package matches the current test case's package
+	isSamePackage := true
+	if pkg == nil || pos == token.NoPos {
+		// Universe-scope function
+		// slog.Debug("Found universe-scope function", "identifier", ident.Name)
+		isSamePackage = false
+	} else if pkg.Path() != tc.GetImportPath() {
+		// Function defined outside the current package
+		// slog.Debug("Found function defined outside the current package", "identifier", ident.Name, "package", pkg.Path())
+		isSamePackage = false
+	}
+	return pos, pkg, isSamePackage, nil
+}
+
 // Map an AST node to its corresponding DST (decorated) node to access better comment functionality.
 func (tc *TestCase) AstToDst(astNode ast.Node) dst.Node {
 	return tc.pkgInfo.Decorator.Dst.Nodes[astNode]

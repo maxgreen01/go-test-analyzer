@@ -39,7 +39,7 @@
   // The "ScenarioSet" object contains information about the table-driven features of a test, if applicable.
   // If the test is not table-driven, the fields will mostly be empty, false, or null.
   "ScenarioSet": {
-    // The data type used to define each scenario in a table-driven test.
+    // The underlying data type used to define each scenario in a table-driven test.
     // 
     // If scenarios are defined using a list of structs, this will be the type of the structs in the list.
     // If scenarios are defined using a map, this will be the type of the value corresponding to each map key.

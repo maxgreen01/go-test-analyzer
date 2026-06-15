@@ -182,6 +182,12 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 		return nil, RefactorGenerationStatusError, fmt.Errorf("cannot refactor test case that is not table-driven")
 	}
 
+	// While we still have the original DST data available, get the Scope for the Runner (for use later in finding duplicate names)
+	functionScope := tc.FunctionScope()
+	if functionScope == nil {
+		return nil, RefactorGenerationStatusError, fmt.Errorf("cannot refactor test case because function scope is not available")
+	}
+
 	// If the modified nodes are in a helper function, perform the refactoring on a copy to avoid modifying the original DST.
 	// This creates the RefactoredFunction that will eventually be returned if the statement is part of a helper, because
 	// the DST data it contains will be modified in-place during refactoring.
@@ -192,7 +198,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	var loopKeyName string
 	var loopValueName string
 	var originalRunnerStatements []dst.Stmt
-	var runnerStatements []dst.Stmt
+	var runnerStatements []dst.Stmt // the code being moved into the `t.Run()` body
 	switch loop := ss.Runner.(type) {
 	case *dst.RangeStmt:
 		// Detect the key/value variable names used by the loop (used to work with scenarios within the loop)
@@ -215,10 +221,22 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 		return nil, RefactorGenerationStatusFail, nil
 	}
 
+	var newStatements []dst.Stmt // the code that will be placed inside the Runner loop
+
+	// Detect the name of the variable representing each scenario in the loop
+	scenarioVarName := loopValueName // e.g. `tt` in `for _, tt := range scenarios`
+
 	// Use the detected scenario name field, or use the first string-typed struct field if one is not detected
 	nameField := ss.NameField
 	if nameField == "" {
+		// If the scenario is defined in a different package, we can only use exported fields
+		samePackage := ss.IsScenarioFromSamePackage()
+
 		for field := range ss.GetFields() {
+			if !samePackage && !field.Exported() {
+				// Skip unexported fields if the scenario is in a different package
+				continue
+			}
 			if asttools.IsBasicType(field.Type(), types.IsString) {
 				nameField = field.Name()
 				break
@@ -244,11 +262,43 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 		scenarioNameExpr = dst.NewIdent(loopKeyName)
 	} else {
 		// Regular case -- name is a scenario field
-
-		// Detect the name of the variable representing each scenario in the loop
-		scenarioVarName := loopValueName // e.g. `tt` in `for _, tt := range scenarios`
-
 		scenarioNameExpr = asttools.NewSelectorExpr(scenarioVarName, nameField)
+	}
+
+	// Safety case: if the scenario type is a pointer, add a nil check before accessing the name field.
+	// The generated nil check has the form:
+	// ```
+	// var name string
+	// if {scenarioVarName} != nil {
+	//     name = {scenarioNameExpr}
+	// } else {
+	//     name = "nil"
+	// }
+	// ```
+	if asttools.IsPointer(ss.ScenarioType) {
+		// Construct the new nodes
+		// Note that any reused DST nodes need to be cloned to ensure they are unique, or else this will cause a panic
+		scenarioNameVarName := asttools.GenerateUniqueName(functionScope, "name")
+		assignNameTo := func(rhs dst.Expr) dst.Stmt {
+			return &dst.AssignStmt{Lhs: []dst.Expr{dst.NewIdent(scenarioNameVarName)}, Tok: token.ASSIGN, Rhs: []dst.Expr{rhs}}
+		}
+		newStatements = append(newStatements, &dst.DeclStmt{
+			// ```var name string```
+			Decl: &dst.GenDecl{
+				Tok:   token.VAR,
+				Specs: []dst.Spec{&dst.ValueSpec{Names: []*dst.Ident{dst.NewIdent(scenarioNameVarName)}, Type: dst.NewIdent("string")}},
+			},
+		})
+		newStatements = append(newStatements, &dst.IfStmt{
+			// ```if {scenarioVarName} != nil```
+			Cond: &dst.BinaryExpr{X: dst.NewIdent(scenarioVarName), Op: token.NEQ, Y: dst.NewIdent("nil")},
+			// ```name = {scenarioNameExpr}```
+			Body: &dst.BlockStmt{List: []dst.Stmt{assignNameTo(scenarioNameExpr)}},
+			// ```name = "nil"```
+			Else: &dst.BlockStmt{List: []dst.Stmt{assignNameTo(&dst.BasicLit{Kind: token.STRING, Value: "\"nil\""})}},
+		})
+		// Use the new `name` variable as the subtest name
+		scenarioNameExpr = dst.NewIdent(scenarioNameVarName)
 	}
 
 	// Detect the name of the `*testing.T` parameter in the Runner's function body, instead of hardcoding it to "t"
@@ -316,6 +366,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 			},
 		},
 	) // end of constructing `t.Run()` call
+	newStatements = append(newStatements, tRunCall)
 
 	// At this point, the refactored DST changes are mostly complete, but we haven't been applied yet
 
@@ -333,7 +384,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	// Apply the refactoring changes to the underlying DST now that the refactoring logic is complete
 	switch loop := ss.Runner.(type) {
 	case *dst.RangeStmt:
-		loop.Body.List = []dst.Stmt{tRunCall}
+		loop.Body.List = newStatements
 		// If the range key identifier changed, update that too
 		if loopKeyName != loop.Key.(*dst.Ident).Name {
 			loop.Key.(*dst.Ident).Name = loopKeyName

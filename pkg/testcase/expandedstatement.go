@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/ast"
-	"go/token"
 	"iter"
 	"log/slog"
 	"slices"
@@ -191,24 +190,14 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 		slog.Debug("Ignoring identifier with invalid position", "identifier", ident.Name, "testCase", tc)
 		return nil, nil
 	}
-
-	// Get the type object corresponding to the identifier (i.e. its definition)
-	obj := tc.ObjectOf(ident)
-	if obj == nil {
-		return nil, fmt.Errorf("could not resolve identifier %q", ident.Name)
-	}
-	pos := obj.Pos()
-	pkg := obj.Pkg()
-
+	
 	// Don't attempt to expand functions that aren't defined within the same package path as the current project.
 	// This helps avoid expanding functions defined in external or built-in libraries, and universe-scope functions.
-	if pkg == nil || pos == token.NoPos {
-		// Universe-scope function
-		slog.Debug("Ignoring universe-scope function", "identifier", ident.Name)
-		return nil, nil
-	} else if pkg.Path() != tc.GetImportPath() {
-		// Function defined outside the current package
-		slog.Debug("Ignoring function defined outside the current package", "identifier", ident.Name, "package", pkg.Path())
+	pos, _, isSamePackage, err := tc.GetIdentDefinition(ident)
+	if err != nil {
+		return nil, err
+	}
+	if !isSamePackage {
 		return nil, nil
 	}
 

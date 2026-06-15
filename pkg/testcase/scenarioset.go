@@ -19,7 +19,7 @@ type ScenarioSet struct {
 
 	// Core data fields
 	// todo LATER expand to support scenario definitions like `map[string]bool` without a struct template (probably by making changes to `DetectScenarioDataStructure`)
-	ScenarioType types.Type // the definition of the `struct` type that individual scenarios are based on
+	ScenarioType types.Type // the data type that individual scenarios are based on, which may be an alias or pointer to another type containing the actual fields
 
 	DataStructure ScenarioDataStructure // describes the type of data structure used to store scenarios
 	Scenarios     []dst.Expr            // the individual scenarios themselves //todo LATER convert to type `[]Scenario`
@@ -101,20 +101,28 @@ func (ss *ScenarioSet) detectNameField() string {
 		return ss.NameField
 	}
 
-	if _, ok := ss.ScenarioType.(*types.Struct); !ok {
+	if _, ok := asttools.UnderlyingType(ss.ScenarioType).(*types.Struct); !ok {
 		return "" // No fields to analyze
 	}
+
+	// If the scenario is defined in a different package, we can only use exported fields
+	// todo LATER maybe there's a way to detect exported methods to access unexported fields?
+	samePackage := ss.IsScenarioFromSamePackage()
 
 	// If the scenario uses subtests, check if the first arg of `t.Run()` is a field of the scenario struct
 	if ok, callExpr := ss.detectSubtest(); ok {
 		// Get the first argument of the `t.Run()` call
 		if len(callExpr.Args) > 0 {
 			if selExpr, ok := callExpr.Args[0].(*dst.SelectorExpr); ok {
-				// todo CLEANUP replace this with using the type system to check if the owner is the scenario struct, and the name is a field of it
+				// todo CLEANUP replace this with using the type system to check if the owner is the scenario struct, and the name is a field of it - maybe using tc.ObjectOf
 
 				// Check if the identifier is a field of the scenario struct
 				name := selExpr.Sel.Name
 				for field := range ss.GetFields() {
+					if !samePackage && !field.Exported() {
+						// Skip unexported fields if the scenario is in a different package
+						continue
+					}
 					if field.Name() == name {
 						return name
 					}
@@ -131,6 +139,10 @@ func (ss *ScenarioSet) detectNameField() string {
 			// Skip non-string fields
 			continue
 		}
+		if !samePackage && !field.Exported() {
+			// Skip unexported fields if the scenario is in a different package
+			continue
+		}
 		lowercase := strings.ToLower(field.Name())
 		if strings.Contains(lowercase, "name") || strings.Contains(lowercase, "desc") {
 			return field.Name()
@@ -142,13 +154,20 @@ func (ss *ScenarioSet) detectNameField() string {
 // Returns the names of the fields representing the expected results of each scenario
 // todo LATER try expanding this to detect fields that are used in assertions or comparisons
 func (ss *ScenarioSet) detectExpectedFields() []string {
-	if _, ok := ss.ScenarioType.(*types.Struct); !ok {
+	if _, ok := asttools.UnderlyingType(ss.ScenarioType).(*types.Struct); !ok {
 		return nil // No fields to analyze
 	}
+
+	// If the scenario is defined in a different package, we can only use exported fields
+	samePackage := ss.IsScenarioFromSamePackage()
 
 	// Save the names of fields containing the string "expect", "want", or "result"
 	var expectedFields []string
 	for field := range ss.GetFields() {
+		if !samePackage && !field.Exported() {
+			// Skip unexported fields if the scenario is in a different package
+			continue
+		}
 		lowercase := strings.ToLower(field.Name())
 		if strings.Contains(lowercase, "expect") || strings.Contains(lowercase, "want") || strings.Contains(lowercase, "result") {
 			expectedFields = append(expectedFields, field.Name())
@@ -159,12 +178,12 @@ func (ss *ScenarioSet) detectExpectedFields() []string {
 
 // Returns a bool indicating whether the scenario type has any fields whose type is a function
 func (ss *ScenarioSet) detectFunctionFields() bool {
-	if _, ok := ss.ScenarioType.(*types.Struct); !ok {
+	if _, ok := asttools.UnderlyingType(ss.ScenarioType).(*types.Struct); !ok {
 		return false // No fields to analyze
 	}
 
 	for field := range ss.GetFields() {
-		if _, ok := field.Type().Underlying().(*types.Signature); ok {
+		if _, ok := asttools.UnderlyingType(field.Type()).(*types.Signature); ok {
 			return true
 		}
 	}
@@ -199,7 +218,7 @@ func (ss *ScenarioSet) detectSubtest() (bool, *dst.CallExpr) {
 // Returns the fields of the struct type used to define scenarios, if possible.
 // Note that fields defined like `a, b int` are treated as one `Field` element with multiple Names.
 func (ss *ScenarioSet) GetFields() iter.Seq[*types.Var] {
-	structTemplate, ok := ss.ScenarioType.(*types.Struct)
+	structTemplate, ok := asttools.UnderlyingType(ss.ScenarioType).(*types.Struct)
 	if !ok {
 		// No fields to analyze, so return empty iterator (which avoids a panic by trying to range over nil)
 		return iter.Seq[*types.Var](func(yield func(*types.Var) bool) {})
@@ -242,6 +261,24 @@ func (ss *ScenarioSet) IsTableDriven() bool {
 	return ss.DataStructure != ScenarioNoDS && ss.ScenarioType != nil && len(ss.Scenarios) > 0
 }
 
+// Returns whether the scenario type is defined in the same package as the test function
+func (ss *ScenarioSet) IsScenarioFromSamePackage() bool {
+	if ss == nil || ss.TestCase == nil || ss.ScenarioType == nil {
+		return false
+	}
+
+	// If scenarios are defined with a named type, we can check its underlying types.Object (i.e. its definition) directly.
+	// We use `types.Unalias` to find the underlying type without losing the types.Named data.
+	if unaliased := types.Unalias(asttools.Unpointer(ss.ScenarioType)); unaliased != nil {
+		if namedType, ok := unaliased.(*types.Named); ok {
+			pkg := namedType.Obj().Pkg()
+			return pkg != nil && pkg.Path() == ss.TestCase.GetImportPath()
+		}
+	}
+	// If the type isn't named then it must be anonymous, meaning it's definitely from the same package
+	return true
+}
+
 //
 // =============== Output Methods ===============
 //
@@ -251,7 +288,7 @@ func (ss *ScenarioSet) IsTableDriven() bool {
 type scenarioSetJSON struct {
 	// Parent TestCase is deliberately not included
 
-	ScenarioType string `json:"scenarioType"`
+	ScenarioType string `json:"scenarioType"` // NOTE: this should be the underlying type, not the pointer or alias
 
 	DataStructure ScenarioDataStructure `json:"dataStructure"`
 	Scenarios     []string              `json:"scenarios"`
@@ -274,7 +311,7 @@ func (ss *ScenarioSet) MarshalJSON() ([]byte, error) {
 
 	var scenarioTypeStr string
 	if ss.ScenarioType != nil {
-		scenarioTypeStr = ss.ScenarioType.String()
+		scenarioTypeStr = asttools.UnderlyingType(ss.ScenarioType).String()
 	}
 
 	// Marshal individual Scenario data
