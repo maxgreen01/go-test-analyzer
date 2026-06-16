@@ -3,8 +3,10 @@
 // command. Each JSON file contains detailed information about the corresponding test, its table-driven features,
 // and the result of refactoring and executing it, if applicable.
 // 
-// *** This example is updated as of v1.2.2 of the Go Test Analysis Engine. ***
-// 
+// -----------------------------------------------------------------------------------------------------------
+// This example is compatible with the latest version of the Go Test Analysis Engine.
+// For older versions, refer to this file at the appropriate version tag in the source repository.
+// -----------------------------------------------------------------------------------------------------------
 // 
 // 
 // These JSON files each represent a single test case, and are named like "<project>_<package>_<testName>.json".
@@ -87,10 +89,14 @@
   // following rules:
   // 
   //  - At each recursive step, the statement to be expanded is stored in the `stmt` field.
-  //  - If the statement is a function call, the function's own statements are expanded recursively and stored
-  //    in the `children` field of the function call.
+  //  - If the statement is a function call, the function's own body statements are expanded recursively and
+  //    stored in the `children` field of the function call.
   //  - If the statement indirectly involves function calls (e.g. as part of an assignment or conditional
   //    statement), those calls are also stored in the `children` field and similarly expanded.
+  //  - If the statement uses function literals as arguments to a function call, those function literals are
+  //    also stored in the `children` field and similarly expanded.
+  //  - Any instances of indirect function calls or function literals are expanded and stored before the body
+  //    statements of a called function.
   //  - Function calls are only expanded if they are defined inside a test file, which avoids expanding
   //    production code (because it is not the focus of the test analysis).
   //  - If the statement does not involve any function calls that should be expanded, its `children` field is

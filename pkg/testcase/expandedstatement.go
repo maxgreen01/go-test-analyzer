@@ -15,11 +15,19 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-// Represents the expanded form of a function call statement as a G-tree.
-// If the statement is a function call, its inner statements are expanded recursively and stored in `Children`.
-// If the statement involves function calls somehow (e.g. as part of an assignment or conditional statement), those calls
-// are also considered as children.
-// If the statement is not a function call and does not involve any function calls, its `Children` field is nil.
+// Represents the recursively expanded form of a DST statement as a G-tree, based on the following rules:
+//
+//   - At each recursive step, the statement to be expanded is stored in the `Stmt` field.
+//   - If the statement is a function call, the function's own body statements are expanded recursively and
+//     stored in the `Children` field of the function call.
+//   - If the statement indirectly involves function calls (e.g. as part of an assignment or conditional
+//     statement), those calls are also stored in the `Children` field and similarly expanded.
+//   - If the statement uses function literals as arguments to a function call, those function literals are
+//     also stored in the `Children` field and similarly expanded.
+//   - Any instances of indirect function calls or function literals are expanded and stored before the body
+//     statements of a called function.
+//   - If the statement does not involve any function calls that should be expanded, its `Children` field is
+//     nil.
 type ExpandedStatement struct {
 	// The original statement
 	Stmt dst.Stmt
@@ -30,7 +38,6 @@ type ExpandedStatement struct {
 
 // Recursively create the fully expanded form of a function call statement, expanding depth first.
 // If `testOnly` is true, only expand statements that are defined in a file with a `_test.go` suffix.
-// Note that functions are only expanded when they're called, so function literals (e.g. inside `t.Run()`) are not expanded.
 func ExpandStatement(stmt dst.Stmt, tc *TestCase, testOnly bool) *ExpandedStatement {
 	return expandStatementWithStack(stmt, tc, testOnly, nil)
 }
@@ -64,7 +71,22 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 		if n == nil {
 			return false
 		}
-		// Look for function calls
+
+		// If we encounter a function literal as part of a larger expression, we should only expand its statements if it's the root statement being expanded.
+		// There isn't any need to expand a statement like `x := func() {...}`  until the function is called, which is handled as a CallExpr.
+		// If a FuncLit is specifically being expanded, it should already be wrapped in an ExprStmt as the root to act as a new layer of nesting.
+		if funcLit, ok := n.(*dst.FuncLit); ok {
+			if exprStmt, ok := root.Stmt.(*dst.ExprStmt); ok && exprStmt.X == funcLit {
+				if funcLit.Body != nil {
+					funcName := fmt.Sprintf("funcLit@%s", fset.Position(tc.DstStartPos(funcLit)))
+					expandInnerStatements(root, funcName, funcLit.Body.List, tc, testOnly, callStack)
+				}
+			}
+			// Don't check the FuncLit's statements since we either shouldn't be expanding them, or they've already been expanded manually
+			return false
+		}
+
+		// Look for function calls, and only proceed once we've found one
 		callExpr, ok := n.(*dst.CallExpr)
 		if !ok {
 			// The only time we want to continue checking the node's children via `Inspect()` is if the node is NOT a function call.
@@ -72,24 +94,34 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 			return true
 		}
 
-		// Make sure the function call itself has its own ExpandedStatement (regardless of how it's used in the parent),
-		// which will then be used to expand its children before being saved back to the root statement.
-		// Don't create a new parent if the root is an expression statement, though, because the structs would be identical.
+		// Now that we've found a function call, wrap it in an ExprStmt to act as a new layer of nesting before continuing.
+		// Only do this step if the root is something other than the ExprStmt corresponding to this call, meaning the call is not wrapped yet.
 		parent := root
-		if _, ok := parent.Stmt.(*dst.ExprStmt); !ok {
+		if exprStmt, ok := root.Stmt.(*dst.ExprStmt); !ok || exprStmt.X != callExpr {
 			parent = &ExpandedStatement{
 				Stmt: &dst.ExprStmt{X: callExpr},
 			}
-			// Save a reference to the parent in the root statement, so all changes to the parent are also saved to the root
+			// Save a reference to the new parent in the root statement so all the upcoming expansions are connected to the root
 			root.Children = append(root.Children, parent)
 		}
 
 		// Before expanding the function definition, expand the arguments of the function call
 		for _, arg := range callExpr.Args {
-			// If the argument expression is a function call, treat it as a standalone statement and expand it.
+			// Find all CallExpr and FuncLit nodes inside the argument expression (not including ones that are nested inside each other), then treat them as standalone statements and expand them.
 			// The callstack doesn't have to be adjusted here because the arg function is run in the same scope as the original statement.
-			if _, ok := arg.(*dst.CallExpr); ok {
-				argStmt := &dst.ExprStmt{X: arg}
+			expandableNodes := findExpandableNodes(arg)
+			if len(expandableNodes) == 0 {
+				// If the arg doesn't contain any statements to expand, check if the argument itself resolves to a function literal that can be expanded,
+				// e.g. `x := func() {...};  otherFunc(x)`
+				definition, err := FindDefinition(arg, tc, testOnly)
+				if err == nil && definition != nil {
+					if funcLit, ok := definition.Node.(*dst.FuncLit); ok {
+						expandableNodes = append(expandableNodes, funcLit)
+					}
+				}
+			}
+			for _, expandable := range expandableNodes {
+				argStmt := &dst.ExprStmt{X: expandable}
 				parent.Children = append(parent.Children, expandStatementWithStack(argStmt, tc, testOnly, callStack))
 			}
 		}
@@ -130,23 +162,46 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 			return false
 		}
 
-		// Avoid expanding recursive functions by checking the callstack
-		if slices.Contains(callStack, funcName) {
-			slog.Debug("Skipping expansion of recursive function call", "function", funcName)
-			return false
-		}
-		// Add the current function name to the callstack to indicate that we'll be working "inside" it
-		callStack = append(callStack, funcName)
-
-		// Recursively expand the function's inner statements using the updated callstack
-		for _, inner := range innerStmts {
-			parent.Children = append(parent.Children, expandStatementWithStack(inner, tc, testOnly, callStack))
-		}
+		expandInnerStatements(parent, funcName, innerStmts, tc, testOnly, callStack)
 
 		return false
 	}) // end of `dst.Inspect()`
 
 	return root
+}
+
+// Helper for expandStatementWithStack that expands a function's inner statements within connection to a parent, checking for recursive functions.
+func expandInnerStatements(parent *ExpandedStatement, funcName string, innerStmts []dst.Stmt, tc *TestCase, testOnly bool, callStack []string) {
+	// Avoid expanding recursive functions by checking the callstack
+	if slices.Contains(callStack, funcName) {
+		slog.Debug("Skipping expansion of recursive function call", "function", funcName)
+		return
+	}
+	// Add the current function name to the callstack to indicate that we'll be working "inside" it
+	newCallStack := append(slices.Clone(callStack), funcName)
+
+	// Recursively expand the function's inner statements using the updated callstack
+	for _, inner := range innerStmts {
+		parent.Children = append(parent.Children, expandStatementWithStack(inner, tc, testOnly, newCallStack))
+	}
+}
+
+// Helper for expandStatementWithStack that inspects an expression and returns any CallExpr and FuncLit nodes that can be expanded.
+// Only returns nodes that are not nested inside any other CallExpr or FuncLit within the given expression, since those will be checked later.
+func findExpandableNodes(expr dst.Expr) []dst.Expr {
+	var nodes []dst.Expr
+	dst.Inspect(expr, func(n dst.Node) bool {
+		if n == nil {
+			return false
+		}
+		switch n.(type) {
+		case *dst.CallExpr, *dst.FuncLit:
+			nodes = append(nodes, n.(dst.Expr))
+			return false // Don't continue descending into this node
+		}
+		return true
+	})
+	return nodes
 }
 
 // Represents the definition of an expression as found by FindDefinition.
@@ -190,7 +245,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 		slog.Debug("Ignoring identifier with invalid position", "identifier", ident.Name, "testCase", tc)
 		return nil, nil
 	}
-	
+
 	// Don't attempt to expand functions that aren't defined within the same package path as the current project.
 	// This helps avoid expanding functions defined in external or built-in libraries, and universe-scope functions.
 	pos, _, isSamePackage, err := tc.GetIdentDefinition(ident)
