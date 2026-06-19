@@ -301,7 +301,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 	// The first node is expected to be the original identifier itself, so the second node should be the actual target definition
 	if _, ok := node.(*ast.Ident); ok && len(path) > 1 && path[1] != nil {
 		definition := &ExpressionDefinition{Node: tc.AstToDst(path[1]), File: tc.AstToDst(definitionFile).(*dst.File)}
-		slog.Debug("Found definition for identifier", "identifier", ident.Name, "position", tc.DstStartPos(definition.Node), "test", tc)
+		// slog.Debug("Found definition for identifier", "identifier", ident.Name, "position", tc.DstStartPos(definition.Node), "test", tc)
 
 		findDefinitionMemo.Store(cacheKey, definition) // Store the definition in the memoization cache
 		return definition, nil

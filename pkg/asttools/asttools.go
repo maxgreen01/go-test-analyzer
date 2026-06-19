@@ -447,12 +447,14 @@ func UnderlyingType(t types.Type) types.Type {
 	return Unpointer(t).Underlying()
 }
 
-// Generates a unique name for a variable in the given scope by appending a number to the base name until it is unique.
-// For example, if the base name is "x" and a variable named "x" is already defined in the scope, the next attempt will
-// be "x1", then "x2", and so on. If the base name is not already defined, it will be returned without modification.
-func GenerateUniqueName(scope *types.Scope, base string) string {
+// Generates a unique name for a variable in the given scope (including all its children) by appending a number to the
+// base name until the name is unique. For example, if the base name is "x" and a variable named "x" is already
+// defined in the scope, the next attempt will be "x1", then "x2", and so on. If the base name is not already defined,
+// it will be returned without modification. Since this checks all child scopes, it may add numbers unnecessarily if
+// the new variable is placed in a different child scope than an existing variable with the desired name.
+func GenerateUniqueName(base string, scope *types.Scope) string {
 	name := base
-	for i := 1; IsNameUsed(scope, name); i++ {
+	for i := 1; IsNameUsed(name, scope); i++ {
 		name = fmt.Sprintf("%s%d", base, i)
 	}
 	return name
@@ -461,7 +463,7 @@ func GenerateUniqueName(scope *types.Scope, base string) string {
 // Returns whether a variable with the given name is used in the given scope,
 // any of the scope's parents (upward), or any nested scopes (downward).
 // This indicates whether the name is at risk of being redeclared or shadowed.
-func IsNameUsed(scope *types.Scope, name string) bool {
+func IsNameUsed(name string, scope *types.Scope) bool {
 	if name == "" || scope == nil {
 		return false
 	}
@@ -472,17 +474,17 @@ func IsNameUsed(scope *types.Scope, name string) bool {
 	}
 
 	// Recursively check all child scopes (nested blocks, loops, ifs, etc.)
-	return isNameUsedInChildScopes(scope, name)
+	return isNameUsedInChildScopes(name, scope)
 }
 
 // Returns whether a name is used in any of the child scopes of the given scope,
 // checked recursively.
-func isNameUsedInChildScopes(scope *types.Scope, name string) bool {
+func isNameUsedInChildScopes(name string, scope *types.Scope) bool {
 	for child := range scope.Children() {
 		if child.Lookup(name) != nil {
 			return true
 		}
-		if isNameUsedInChildScopes(child, name) {
+		if isNameUsedInChildScopes(name, child) {
 			return true
 		}
 	}

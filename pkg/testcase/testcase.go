@@ -298,9 +298,13 @@ func (tc *TestCase) DstToAst(dstNode dst.Node) ast.Node {
 }
 
 // Obtain the start position of a DST node by mapping it to its corresponding AST node.
-// Equivalent to `tc.DstToAst(dstNode).Pos()`.
+// Returns `token.NoPos` if the DST node does not have a corresponding AST node.
 func (tc *TestCase) DstStartPos(dstNode dst.Node) token.Pos {
-	return tc.DstToAst(dstNode).Pos()
+	astNode := tc.DstToAst(dstNode)
+	if astNode == nil {
+		return token.NoPos
+	}
+	return astNode.Pos()
 }
 
 //

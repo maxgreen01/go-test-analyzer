@@ -64,6 +64,9 @@
     // The loop statement that executes each of the test scenarios, based on its AST representation.
     "runner": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
     
+    // The name of the variable representing the scenario data structure, which is iterated over by the runner loop
+    "ScenarioStructName": "tests",
+
     // The name of the struct field representing each scenario's name.
     // This can also be "map key" if scenarios are defined using a map whose key type is string. 
     "nameField": "name",

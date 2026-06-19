@@ -24,7 +24,8 @@ type ScenarioSet struct {
 	DataStructure ScenarioDataStructure // describes the type of data structure used to store scenarios
 	Scenarios     []dst.Expr            // the individual scenarios themselves //todo LATER convert to type `[]Scenario`
 
-	Runner dst.Stmt // the actual code that runs the subtest (which is expected to be either a `ForStmt` or a `RangeStmt`)
+	Runner             dst.Stmt // the actual code that runs the scenarios (which is expected to be either a `ForStmt` or a `RangeStmt`)
+	ScenarioStructName string   // the name of the variable representing the scenario data structure, which is iterated over by the Runner
 
 	// Derived analysis results
 	NameField         string   // the name of the field representing each scenario's name, or "map key" if the map key is used as the name
@@ -293,7 +294,8 @@ type scenarioSetJSON struct {
 	DataStructure ScenarioDataStructure `json:"dataStructure"`
 	Scenarios     []string              `json:"scenarios"`
 
-	Runner string `json:"runner"`
+	Runner             string `json:"runner"`
+	ScenarioStructName string `json:"scenarioStructName"`
 
 	NameField         string   `json:"nameField"`
 	ExpectedFields    []string `json:"expectedFields"`
@@ -327,7 +329,8 @@ func (ss *ScenarioSet) MarshalJSON() ([]byte, error) {
 		DataStructure: ss.DataStructure,
 		Scenarios:     scenarioStrs,
 
-		Runner: asttools.NodeToString(ss.Runner),
+		Runner:             asttools.NodeToString(ss.Runner),
+		ScenarioStructName: ss.ScenarioStructName,
 
 		NameField:         ss.NameField,
 		ExpectedFields:    ss.ExpectedFields,
