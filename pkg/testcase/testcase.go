@@ -4,6 +4,8 @@ package testcase
 // The fields of the structs defined in this package should never be modified directly.
 
 import (
+	"crypto/md5"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -22,7 +24,8 @@ import (
 type TestCase struct {
 	// High-level identifiers
 	TestName    string // the name of the test case itself
-	PackageName string // the name of the package where the test case is defined, as it appears in the source code
+	PackageName string // the name of the package where the test case is defined, as it appears in the source file's `package` statement
+	ImportPath  string // the full import path of the package where the test case is defined, e.g. "github.com/user/repo/pkg/config"
 	FilePath    string // the path to the file where the test case is defined
 	ProjectName string // the name of the overarching project that the test case is part of
 
@@ -43,7 +46,8 @@ func CreateTestCase(funcDecl *dst.FuncDecl, file *dst.File, pkg *decorator.Packa
 	// Create the TestCase itself
 	return TestCase{
 		TestName:    funcDecl.Name.Name,
-		PackageName: file.Name.Name, // todo CLEANUP this should probably be pkg.PkgPath for extra precision
+		PackageName: file.Name.Name,
+		ImportPath:  pkg.PkgPath,
 		FilePath:    pkg.Fset.Position(pkg.Decorator.Ast.Nodes[file].(*ast.File).FileStart).Filename,
 		ProjectName: project,
 
@@ -157,15 +161,6 @@ func (tc *TestCase) GetPackageFiles() []*ast.File {
 	return tc.pkgInfo.Package.Syntax
 }
 
-// Get the entire import path of the test case's package, as used when importing the package,
-// e.g. "github.com/user/repo/pkg/config"
-func (tc *TestCase) GetImportPath() string {
-	if tc.pkgInfo == nil {
-		return ""
-	}
-	return tc.pkgInfo.PkgPath
-}
-
 // Get the "repository root path" part of the test case's package import path.
 // This is the part of the import path before the third slash, e.g. "github.com/user/repo"
 // Note: this is somewhat brittle, and might not work well for all package paths.
@@ -173,7 +168,7 @@ func (tc *TestCase) GetImportPathRoot() string {
 	if tc.pkgInfo == nil {
 		return ""
 	}
-	importPath := tc.pkgInfo.PkgPath
+	importPath := tc.ImportPath
 	// Find the position of the third slash, and return everything before it
 	slashCount := 0
 	for i, c := range importPath {
@@ -279,7 +274,7 @@ func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (token.Pos, *types.Pack
 		// Universe-scope function
 		// slog.Debug("Found universe-scope function", "identifier", ident.Name)
 		isSamePackage = false
-	} else if pkg.Path() != tc.GetImportPath() {
+	} else if pkg.Path() != tc.ImportPath {
 		// Function defined outside the current package
 		// slog.Debug("Found function defined outside the current package", "identifier", ident.Name, "package", pkg.Path())
 		isSamePackage = false
@@ -317,15 +312,22 @@ func (tc *TestCase) String() string {
 }
 
 // Return the filepath where the test case's JSON representation should be saved, using the specified directory as a base if provided.
-// The returned path is formatted like `<project>/<project>_<package>_<testName>.json`.
+// The returned path is formatted like `<project>/<project>_<package>_<testName>_<hash>.json`.
+// The `<hash>` is the raw URL-safe Base64 encoding of the first 5 bytes of the MD5 hash of the test's full import path.
 func (tc *TestCase) GetJSONFilePath(dir string) string {
-	return filepath.Join(dir, tc.ProjectName, fmt.Sprintf("%s_%s_%s.json", tc.ProjectName, tc.PackageName, tc.TestName))
+	// The hash helps makes sure JSON files are named uniquely, even if the package name and test name are the same.
+	// The full import path would have to be different if test names are the same, but using the full import path here could make the filepath very long.
+	// Use base64 encoding to make the hash slightly shorter (7 characters) instead of requiring 10 hex characters.
+	hash := md5.Sum([]byte(tc.ImportPath))
+	b64 := base64.RawURLEncoding.EncodeToString(hash[:5])
+	return filepath.Join(dir, tc.ProjectName, fmt.Sprintf("%s_%s_%s_%s.json", tc.ProjectName, tc.PackageName, tc.TestName, b64))
 }
 
 // Helper struct for Marshaling JSON
 type testCaseJSON struct {
 	Name        string `json:"name"`
 	PackageName string `json:"package"`
+	ImportPath  string `json:"importPath"`
 	FilePath    string `json:"filePath"`
 	ProjectName string `json:"project"`
 
@@ -338,6 +340,7 @@ func (tc *TestCase) MarshalJSON() ([]byte, error) {
 	return json.Marshal(testCaseJSON{
 		Name:        tc.TestName,
 		PackageName: tc.PackageName,
+		ImportPath:  tc.ImportPath,
 		FilePath:    tc.FilePath,
 		ProjectName: tc.ProjectName,
 
@@ -370,6 +373,7 @@ func (tc *TestCase) UnmarshalJSON(data []byte) error {
 	*tc = TestCase{
 		TestName:    jsonData.Name,
 		PackageName: jsonData.PackageName,
+		ImportPath:  jsonData.ImportPath,
 		FilePath:    jsonData.FilePath,
 		ProjectName: jsonData.ProjectName,
 

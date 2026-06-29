@@ -273,7 +273,7 @@ func (ss *ScenarioSet) IsScenarioFromSamePackage() bool {
 	if unaliased := types.Unalias(asttools.Unpointer(ss.ScenarioType)); unaliased != nil {
 		if namedType, ok := unaliased.(*types.Named); ok {
 			pkg := namedType.Obj().Pkg()
-			return pkg != nil && pkg.Path() == ss.TestCase.GetImportPath()
+			return pkg != nil && pkg.Path() == ss.TestCase.ImportPath
 		}
 	}
 	// If the type isn't named then it must be anonymous, meaning it's definitely from the same package

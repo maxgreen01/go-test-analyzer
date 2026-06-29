@@ -9,7 +9,8 @@
 // -----------------------------------------------------------------------------------------------------------
 // 
 // 
-// These JSON files each represent a single test case, and are named like "<project>_<package>_<testName>.json".
+// These JSON files each represent a single test case, and are named like "<project>_<package>_<testName>_<hash>.json".
+// The `<hash>` is the raw URL-safe Base64 encoding of the first 5 bytes of the MD5 hash of the test's full import path.
 // The `analyze` command automatically generates one such file for each test detected in the specified project,
 // and saves them in a new folder named like "<package>" in the same directory as the main `output` file.
 // These normally have the plain ".json" extension, but this annotated example is ".jsonc" to allow for comments.
@@ -25,8 +26,11 @@
     // The name of the test function itself.
     "name": "TestAlertingRuleState",
     
-    // The package where the test case is defined, as it appears in the source code at the top of the file.
+    // The package where the test case is defined, as it appears in the source file's `package` statement.
     "package": "rules",
+
+    // The full import path of the package where the test case is defined.
+    "importPath": "github.com/prometheus/prometheus/rules",
     
     // The absolute path to the file where the test case is defined.
     "filePath": "D:\\go-projects\\prometheus\\rules\\alerting_test.go",

@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/dave/dst"
@@ -188,6 +189,25 @@ func parseDir(ctx context.Context, task Task, dir string) error {
 	if err != nil {
 		return fmt.Errorf("loading packages in directory %q: %w", dir, err)
 	}
+
+	// Since we've loaded the test variants for all the packages (which includes both the production and test files),
+	// we can filter out production-only packages where a test variant also exists, since the test variant contains a
+	// superset of the files in the production-only package.
+	// This avoids decorating and visiting the same production files twice, which has the secondary benefit of avoiding
+	// duplicate detection of tests that are accidentally defined in a production file.
+	hasTestVariant := make(map[string]bool)
+	for _, pkg := range pkgs {
+		// Identify test variants built specifically for testing the same package (pkg.ForTest == pkg.PkgPath),
+		// excluding packages that are rebuilt as a dependency of a different package under test
+		if pkg.ForTest != "" && pkg.ForTest == pkg.PkgPath {
+			hasTestVariant[pkg.PkgPath] = true
+		}
+	}
+	// Remove production packages that have a test variant by filtering the slice in-place
+	pkgs = slices.DeleteFunc(pkgs, func(pkg *packages.Package) bool {
+		return pkg.ForTest == "" && hasTestVariant[pkg.PkgPath]
+	})
+
 	if len(pkgs) == 0 {
 		// todo maybe this should be an error?
 		slog.Warn("No packages found in directory " + dir)

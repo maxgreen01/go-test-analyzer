@@ -257,7 +257,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 	}
 
 	// Check the memoization cache to see if the definition has already been found
-	cacheKey := fmt.Sprintf("%d-%s-%s-%v", pos, tc.PackageName, tc.ProjectName, testOnly)
+	cacheKey := fmt.Sprintf("%d-%s-%s-%v", pos, tc.ImportPath, tc.ProjectName, testOnly)
 	if cached, ok := findDefinitionMemo.Load(cacheKey); ok {
 		// Definition already found, so return it
 		if definition, ok := cached.(*ExpressionDefinition); ok {

@@ -182,7 +182,7 @@ Example:
 
 ### Analyze
 
-The `analyze` command performs a deeper analysis of the test cases in a project. This command identifies various structural elements in each test, with a focus on table-driven tests. The result of analyzing each test is saved in a unique JSON files, which are all saved in a new folder in the same directory as the `output` file. The JSON files are named like `<project>/<project>_<package>_<testName>.json`. An annotated example of one of these JSON files can be viewed [in the examples directory](./examples/ANNOTATED-prometheus_rules_TestAlertingRuleState.jsonc).
+The `analyze` command performs a deeper analysis of the test cases in a project. This command identifies various structural elements in each test, with a focus on table-driven tests. The result of analyzing each test is saved in a unique JSON files, which are all saved in a new folder in the same directory as the `output` file. The JSON files are named like `<project>/<project>_<package>_<testName>_<hash>.json`. The `<hash>` is the raw URL-safe Base64 encoding of the first 5 bytes of the MD5 hash of the test's full import path. An annotated example of one of these JSON files can be viewed [in the examples directory](./examples/ANNOTATED-prometheus_rules_TestAlertingRuleState_JCvMs6I.jsonc).
 
 Certain detected test cases can also be refactored using the `refactor` option, as described in the [Command Options](#analyze-command-options) subsection.
 

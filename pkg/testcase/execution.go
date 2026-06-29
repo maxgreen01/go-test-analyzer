@@ -94,11 +94,7 @@ func (tc *TestCase) Execute() (TestExecutionResult, error) {
 	if tc.FilePath == "" || tc.TestName == "" {
 		return TestExecutionResultNotRun, fmt.Errorf("missing FilePath or TestName in TestCase: %v", tc)
 	}
-	importPath := tc.GetImportPath()
-	if importPath == "" {
-		return TestExecutionResultNotRun, fmt.Errorf("missing ImportPath in TestCase: %v", tc)
-	}
-	importPath = strings.TrimSuffix(importPath, "_test") // `go test` fails to compile because of a missing module unless we remove the `_test` suffix
+	importPath := strings.TrimSuffix(tc.ImportPath, "_test") // `go test` fails to compile because of a missing module unless we remove the `_test` suffix
 
 	slog.Debug("Executing test case", "file", tc.FilePath, "test", tc)
 

@@ -86,7 +86,7 @@ func (ar *AnalysisResult) GetCSVHeaders() []string {
 	return []string{
 		"project",
 		"filePath",
-		"package",
+		"importPath",
 		"name",
 		"isTableDriven",
 		"scenarioDataStructure",
@@ -119,7 +119,7 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 	return []string{
 		tc.ProjectName,
 		tc.FilePath,
-		tc.PackageName,
+		tc.ImportPath,
 		tc.TestName,
 		strconv.FormatBool(ss.IsTableDriven()),
 		ss.DataStructure.String(),
@@ -136,7 +136,8 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 	}
 }
 
-// Save the AnalysisResult as JSON to a file named like `<project>/<project>_<package>_<testName>.json` in the specified directory (or the output directory if not specified).
+// Save the AnalysisResult as JSON to a file named like `<project>/<project>_<package>_<testName>_<hash>.json` in the specified directory
+// (or the default output directory if not specified).
 func (ar *AnalysisResult) SaveAsJSON(dir string) error {
 	tc := ar.TestCase
 	slog.Info("Saving test case analysis results as JSON", "testCase", tc)
