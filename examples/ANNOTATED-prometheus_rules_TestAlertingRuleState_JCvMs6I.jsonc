@@ -206,7 +206,75 @@
     "originalTestResult": "pass",
 
     // A string representing the result of executing the test after refactoring to validate behavior.
-    // This follows the same format as the "originalTestResult" field.
+    // This follows the same structure as the "originalTestResult" field.
     "refactoredTestResult": "pass"
+  },
+
+  // The "LoopAnalysis" object contains information about the loops detected in a test case. This field
+  // is only present if the `--analyze-loops` option is set.
+  "LoopAnalysis": {
+    // The number of loops detected directly inside the test function itself, not including nested loops.
+    "numDirectLoops": 1,
+
+    // The number of loops detected in package-local helper functions called by the test, including loops
+    // inside nested helper functions, but not including nested loops.
+    "numIndirectLoops": 0,
+    
+    // Information about the detected direct loops themselves, or "null" if none were detected.
+    "directLoops": [
+      {
+        // The classification of the loop's structure.
+        // 
+        // - If no loop was detected, this will be "none".
+        // - For a range loop over a slice/array of structs,   e.g. `for _, s := range []struct{...}`,
+        //   this will be "range structs".
+        // - For a range loop over a slice/array of non-struct elements,   e.g. `for _, x := range []int{...}`,
+        //   this will be "range non-structs".
+        // - For a range loop over a map of keys/values,   e.g. `for k, v := range map[string]int{...}`,
+        //   this will be "range map".
+        // - For a range loop over an integer value directly,   e.g. `for i := range 10`,
+        //   this will be "range int".
+        // - For a range loop over something not categorized above (including strings, channels, or iterators),
+        //   e.g. `for _, c := range "hello"`,   this will be "range other".
+        // - For a three-clause loop using an integer index variable,   e.g. `for i := 0; i < 10; i++`,
+        //   this will be "iterative indexed".
+        // - For a three-clause loop that does not use an integer index variable,
+        //   e.g. `for p := head; p != nil; p = p.Next`,   this will be "iterative non-indexed".
+        // - For a loop only containing a condition, acting as a while loop,   e.g. `for condition { ... }`,
+        //   this will be "condition-only".
+        // - For a infinite loop with no clauses,   e.g. `for { ... }`,   this will be "infinite".
+        // - For a loop with an unrecognized structure, this will be "unknown".
+        "loopType": "range structs",
+        
+        // The loop's content, based on its AST representation.
+        "content": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
+
+        // A boolean indicating whether the loop is indicative of a table-driven test. Note that this is
+        // determined based on this object's analysis fields, so this may differ from the "isTableDriven"
+        // field in the "ScenarioSet" object, which is determined using different criteria.
+        "indicatesTableDriven": true,
+        
+        // A boolean indicating whether the loop defines subtests using the built-in `t.Run` method or
+        // a library-based equivalent.
+        "hasSubtest": false,
+        
+        // A boolean indicating whether the loop contains an assertion, detected based on the presence
+        // of built-in or library-based test failure or assertion functions.
+        "hasAssertion": true,
+        
+        // A boolean indicating whether the loop directly mutates any data defined outside the loop.
+        // This does not include mutations that may occur indirectly through function calls.
+        "doesExternalMutation": false,
+        
+        // Information about any additional loops that are contained within this loop, if any.
+        // This field is usually omitted if no nested loops are detected, but is included here for
+        // completeness.
+        "nestedLoops": null
+      }
+    ],
+
+    // Information about the detected indirect loops themselves, or "null" if none were detected.
+    // This follows the same structure as the "directLoops" field.
+    "indirectLoops": null
   }
 }

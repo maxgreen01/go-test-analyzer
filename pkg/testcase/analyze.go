@@ -17,8 +17,7 @@ func IdentifyScenarioSet(tc *TestCase, statements []*ExpandedStatement) *Scenari
 		slog.Error("Cannot identify Scenarios in nil TestCase")
 		return nil
 	}
-	stmts := statements
-	if len(stmts) == 0 {
+	if len(statements) == 0 {
 		slog.Warn("Cannot identify ScenarioSet because there are no statements", "testCase", tc)
 		return nil
 	}
@@ -28,7 +27,7 @@ func IdentifyScenarioSet(tc *TestCase, statements []*ExpandedStatement) *Scenari
 
 	// Iterate test statements in reverse to find the runner loop before trying to find the scenarios
 outerStmtLoop:
-	for _, expanded := range slices.Backward(stmts) {
+	for _, expanded := range slices.Backward(statements) {
 		if expanded == nil {
 			slog.Warn("Encountered nil statement in test case", "testCase", tc)
 			continue outerStmtLoop
@@ -97,8 +96,9 @@ outerStmtLoop:
 
 				// If a data structure is still not found, search the loop body based on the index variable
 				if ss.DataStructure == ScenarioNoDS {
-					indexVarName := GetForStmtIndexVar(forStmt)
-					ss.detectScenariosByIndex(forStmt.Body, indexVarName)
+					if indexIdent := GetForStmtIndexIdent(forStmt); indexIdent != nil {
+						ss.detectScenariosByIndex(forStmt.Body, indexIdent.Name)
+					}
 				}
 
 				// If we still haven't found a valid scenario data structure, try analyzing a different statement
@@ -181,15 +181,11 @@ func (ss *ScenarioSet) detectScenarioDataStructure(expr dst.Expr) {
 	// Check the underlying type of the whole data structure
 	switch x := typ.Underlying().(type) {
 
-	case *types.Slice:
-		// Check for []struct
-		if _, ok := asttools.UnderlyingType(x.Elem()).(*types.Struct); ok {
-			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, x.Elem() // save the original data type, not the underlying one
-		}
-	case *types.Array:
-		// Check for [N]struct
-		if _, ok := asttools.UnderlyingType(x.Elem()).(*types.Struct); ok {
-			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, x.Elem() // save the original data type, not the underlying one
+	case *types.Slice, *types.Array:
+		// Check for []struct or [N]struct
+		elemType := x.(asttools.Elemer).Elem()
+		if _, ok := asttools.UnderlyingType(elemType).(*types.Struct); ok {
+			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, elemType // save the original data type, not the underlying one
 		}
 
 	case *types.Map:
@@ -262,22 +258,23 @@ func (ss *ScenarioSet) IdentifyScenarios(expr dst.Expr, tc *TestCase) bool {
 	return false
 }
 
-// Returns the name of the loop index variable of an index loop by finding the first variable
-// being modified in the loop's initialization or post iteration expression.
-func GetForStmtIndexVar(loop *dst.ForStmt) string {
+// Returns the identifier representing the index variable of a non-range loop by finding the first variable
+// to be modified in the loop's initialization or post iteration expression. Returns nil if no suitable
+// identifier is found.
+func GetForStmtIndexIdent(loop *dst.ForStmt) *dst.Ident {
 	// Check the init statement
 	switch init := loop.Init.(type) {
 	case *dst.AssignStmt:
 		if len(init.Lhs) > 0 {
 			if ident, ok := init.Lhs[0].(*dst.Ident); ok {
-				return ident.Name
+				return ident
 			}
 		}
 	case *dst.DeclStmt:
 		if genDecl, ok := init.Decl.(*dst.GenDecl); ok {
 			for _, spec := range genDecl.Specs {
 				if valueSpec, ok := spec.(*dst.ValueSpec); ok && len(valueSpec.Names) > 0 {
-					return valueSpec.Names[0].Name
+					return valueSpec.Names[0]
 				}
 			}
 		}
@@ -286,16 +283,16 @@ func GetForStmtIndexVar(loop *dst.ForStmt) string {
 	switch post := loop.Post.(type) {
 	case *dst.IncDecStmt:
 		if ident, ok := post.X.(*dst.Ident); ok {
-			return ident.Name
+			return ident
 		}
 	case *dst.AssignStmt:
 		if len(post.Lhs) > 0 {
 			if ident, ok := post.Lhs[0].(*dst.Ident); ok {
-				return ident.Name
+				return ident
 			}
 		}
 	}
-	return ""
+	return nil
 }
 
 // Checks if an expression is ever used on the LHS of an assignment or increment/decrement within the given body.
@@ -303,33 +300,21 @@ func GetForStmtIndexVar(loop *dst.ForStmt) string {
 func isAssigned(target dst.Expr, body []dst.Stmt) bool {
 	assigned := false
 	for _, stmt := range body {
-		dst.Inspect(stmt, func(n dst.Node) bool {
-			// Stop iterating if a matching assignment has been found
-			if assigned {
-				return false
-			}
-
-			inspectDeeper := func(child dst.Node) bool {
+		// Check for the matching expression on the LHS of an assignment or increment/decrement statement
+		for _, lhs := range asttools.FindModifiedExpressions(stmt) {
+			dst.Inspect(lhs, func(child dst.Node) bool {
 				if dstequal.Node(child, target) {
 					assigned = true
-					return false
+					return false // Stop descending if a matching assignment has been found
 				}
 				return true
+			})
+			if assigned {
+				return true
 			}
-
-			// Find the matching expression on the LHS of an assignment or increment/decrement
-			if assignStmt, ok := n.(*dst.AssignStmt); ok {
-				for _, lhs := range assignStmt.Lhs {
-					dst.Inspect(lhs, inspectDeeper)
-				}
-			}
-			if incdecStmt, ok := n.(*dst.IncDecStmt); ok {
-				dst.Inspect(incdecStmt.X, inspectDeeper)
-			}
-			return true
-		})
+		}
 	}
-	return assigned
+	return false
 }
 
 // Checks if the expression is a call to `len(x)`, where x represents a valid scenario data structure

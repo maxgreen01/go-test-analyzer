@@ -248,13 +248,14 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 
 	// Don't attempt to expand functions that aren't defined within the same package path as the current project.
 	// This helps avoid expanding functions defined in external or built-in libraries, and universe-scope functions.
-	pos, _, isSamePackage, err := tc.GetIdentDefinition(ident)
+	obj, isSamePackage, err := tc.GetIdentDefinition(ident)
 	if err != nil {
 		return nil, err
 	}
 	if !isSamePackage {
 		return nil, nil
 	}
+	pos := obj.Pos()
 
 	// Check the memoization cache to see if the definition has already been found
 	cacheKey := fmt.Sprintf("%d-%s-%s-%v", pos, tc.ImportPath, tc.ProjectName, testOnly)
@@ -314,7 +315,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 // ========== Traversal Methods ==========
 //
 
-// Returns an iterator over all the statements contained within the ExpandedStatement
+// Returns an iterator over all the statements contained within the ExpandedStatement in a pre-order traversal starting with the root.
 func (es *ExpandedStatement) All() iter.Seq[dst.Stmt] {
 	return func(yield func(dst.Stmt) bool) {
 		es.push(yield)

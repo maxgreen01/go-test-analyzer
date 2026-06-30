@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -22,10 +23,15 @@ type AnalysisResult struct {
 
 	// Refactoring result - only available after running `AttemptRefactoring()`
 	RefactorResult RefactorResult // the result of refactoring the test case
+
+	// Loop Analysis result - only available if `--analyze-loops` option is set.
+	// Use `omitempty` instead of `omitzero` so the field is always marshalled if the option is set.
+	LoopAnalysis *LoopAnalysisResult `json:",omitempty"`
+	// TODO cleanup maybe find a cleaner way to pass around supplementary analysis fields and variables like LoopAnalysis
 }
 
 // Extracts relevant information about a TestCase and saves the results to a new AnalysisResult instance
-func Analyze(tc *TestCase) *AnalysisResult {
+func Analyze(tc *TestCase, analyzeLoops bool) *AnalysisResult {
 	slog.Debug("Analyzing TestCase", "testCase", tc)
 
 	// Initialize the AnalysisResult
@@ -65,6 +71,11 @@ func Analyze(tc *TestCase) *AnalysisResult {
 		slog.Error("Cannot extract imported packages in TestCase because File is nil", "testCase", tc)
 	}
 
+	// Perform a loop analysis if requested
+	if analyzeLoops {
+		result.LoopAnalysis = AnalyzeLoops(tc, result.ParsedStatements)
+	}
+
 	return result
 }
 
@@ -83,7 +94,7 @@ func (ar *AnalysisResult) IsTableDriven() bool {
 // Return the headers for the CSV representation of the AnalysisResult.
 // Complex or large fields are excluded for the sake of brevity.
 func (ar *AnalysisResult) GetCSVHeaders() []string {
-	return []string{
+	headers := []string{
 		"project",
 		"filePath",
 		"importPath",
@@ -101,6 +112,20 @@ func (ar *AnalysisResult) GetCSVHeaders() []string {
 		"refactoredExecutionResult",
 		"importedPackages",
 	}
+	if ar.LoopAnalysis != nil {
+		// insert before "importedPackages"
+		headers = slices.Insert(headers, len(headers)-1,
+			"directLoops",
+			"indirectLoops",
+			"tableDrivenLoops",
+			// TODO CLEANUP maybe remove some of these extra fields to avoid bloated JSON
+			// "loopTypes",
+			// "numAssertionLoops",
+			// "numSubtestLoops",
+			// "numMutationLoops",
+		)
+	}
+	return headers
 }
 
 // Encode the AnalysisResult as a CSV row, returning the encoded data corresponding to the headers in `GetCSVHeaders()`.
@@ -116,7 +141,7 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 	}
 	rr := ar.RefactorResult
 
-	return []string{
+	row := []string{
 		tc.ProjectName,
 		tc.FilePath,
 		tc.ImportPath,
@@ -134,6 +159,38 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 		rr.RefactoredExecutionResult.String(),
 		strings.Join(ar.ImportedPackages, ", "),
 	}
+	if ar.LoopAnalysis != nil {
+		// insert before "importedPackages"
+		row = slices.Insert(row, len(row)-1,
+			strconv.Itoa(ar.LoopAnalysis.NumDirectLoops),
+			strconv.Itoa(ar.LoopAnalysis.NumIndirectLoops),
+			strconv.Itoa(ar.LoopAnalysis.CountTableDriven()),
+		)
+		// TODO CLEANUP maybe remove some of these extra fields to avoid bloated JSON
+		// loopTypes := make([]string, 0)
+		// numAssertionLoops := 0
+		// numSubtestLoops := 0
+		// numMutationLoops := 0
+		// for _, loop := range ar.LoopAnalysis.GetAllLoops() {
+		// 	loopTypes = append(loopTypes, loop.LoopType.String())
+		// 	if loop.HasAssertion {
+		// 		numAssertionLoops++
+		// 	}
+		// 	if loop.HasSubtest {
+		// 		numSubtestLoops++
+		// 	}
+		// 	if loop.DoesExternalMutation {
+		// 		numMutationLoops++
+		// 	}
+		// }
+		// row = slices.Insert(row, len(row)-1,
+		// 	strings.Join(loopTypes, ", "),
+		// 	strconv.Itoa(numAssertionLoops),
+		// 	strconv.Itoa(numSubtestLoops),
+		// 	strconv.Itoa(numMutationLoops),
+		// )
+	}
+	return row
 }
 
 // Save the AnalysisResult as JSON to a file named like `<project>/<project>_<package>_<testName>_<hash>.json` in the specified directory

@@ -195,7 +195,7 @@ func (ss *ScenarioSet) detectFunctionFields() bool {
 func (ss *ScenarioSet) detectSubtest() (bool, *dst.CallExpr) {
 	tc := ss.TestCase
 	// Detect the name of the `testing.T` parameter instead of hardcoding "t"
-	tVarName, err := asttools.GetParamNameByType(tc.funcDecl, &dst.StarExpr{X: asttools.NewSelectorExpr("testing", "T")})
+	tVarName, err := GetTestingParamName(tc.funcDecl)
 	if err != nil {
 		slog.Warn("Cannot detect `*testing.T` parameter in test case", "err", err, "test", tc)
 		return false, nil

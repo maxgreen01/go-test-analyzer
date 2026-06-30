@@ -29,10 +29,11 @@ type AnalyzeCommand struct {
 	// Data fields
 	testCases []*testcase.AnalysisResult // list of analysis results and related metadata for detected test functions
 
-	tableDrivenTests            int // number of tests that are table-driven
+	tableDrivenTests            int // number of tests that are detected as table-driven
 	refactorAttempts            int // total number of test cases that were attempted to be refactored
 	refactorGenerationSuccesses int // number of test cases that were successfully refactored in some way
 	refactorSuccesses           int // number of test cases whose execution results matched before and after refactoring
+	tableDrivenLoops            int // if `--analyze-loops` is set, number of tests with loops that look table-driven
 }
 
 // Command-line flags for the Analyze command specifically
@@ -40,6 +41,7 @@ type analyzeOptions struct {
 	// todo LATER/MAYBE make this a slice so multiple refactoring methods can be applied at once
 	RefactorStrategy    string `long:"refactor" description:"The type of refactoring to perform on the detected test cases" choice:"none" choice:"subtest" default:"none"`
 	KeepRefactoredFiles bool   `long:"keep-refactored-files" description:"Whether to retain the results of refactored test cases by NOT restoring the original source files after refactoring"`
+	AnalyzeLoops        bool   `long:"analyze-loops" description:"Whether to perform an additional analysis of the loops in the detected test cases"`
 }
 
 // Compile-time interface implementation check
@@ -145,7 +147,7 @@ func (cmd *AnalyzeCommand) Visit(file *dst.File, pkg *decorator.Package) {
 		tc := testcase.CreateTestCase(fn, file, pkg, projectName)
 
 		// Analyze and store the test case
-		analysisResult := testcase.Analyze(&tc)
+		analysisResult := testcase.Analyze(&tc, cmd.AnalyzeLoops)
 		cmd.testCases = append(cmd.testCases, analysisResult)
 
 		if analysisResult.IsTableDriven() {
@@ -169,6 +171,11 @@ func (cmd *AnalyzeCommand) Visit(file *dst.File, pkg *decorator.Package) {
 					cmd.refactorSuccesses++
 				}
 			}
+		}
+
+		// Only count loop analysis statistics if the `--analyze-loops` option is set
+		if cmd.AnalyzeLoops && analysisResult.LoopAnalysis.CountTableDriven() > 0 {
+			cmd.tableDrivenLoops++
 		}
 
 		// Write all results to a JSON file
@@ -206,6 +213,13 @@ func (cmd *AnalyzeCommand) ReportResults() error {
 				fmt.Sprintf("Refactoring attempts: %d\n", cmd.refactorAttempts),
 				fmt.Sprintf("Refactor generation successes: %d\n", cmd.refactorGenerationSuccesses),
 				fmt.Sprintf("Refactoring successes (with successful execution): %d\n", cmd.refactorSuccesses),
+			)
+		}
+
+		if cmd.AnalyzeLoops {
+			reportLines = append(reportLines,
+				"\n",
+				fmt.Sprintf("Tests with table-driven loops: %d\n", cmd.tableDrivenLoops),
 			)
 		}
 	}

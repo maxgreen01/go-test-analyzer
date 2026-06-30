@@ -133,6 +133,12 @@ func IsValidTestCase(funcDecl *dst.FuncDecl) (valid bool, badFormat bool) {
 	return true, badFormat
 }
 
+// Get the name of the `*testing.T` parameter for the test case's function declaration.
+// Also detects equivalent types from other packages (e.g. `*require.TestingT`).
+func GetTestingParamName(funcDecl *dst.FuncDecl) (string, error) {
+	return asttools.GetParamNameByType(funcDecl, &dst.StarExpr{X: asttools.NewSelectorExpr("testing", "T")}, &dst.StarExpr{X: asttools.NewSelectorExpr("require", "TestingT")})
+}
+
 //
 // ========== Field Getters ==========
 //
@@ -246,24 +252,30 @@ func (tc *TestCase) ObjectOf(ident *dst.Ident) types.Object {
 	return typeInfo.ObjectOf(astIdent)
 }
 
-// Convenience method for getting the Scope corresponding to the TestCase's function.
+// Convenience method for getting the Scope corresponding to the TestCase's definition function.
 // Returns `nil` if the type information for the project is not available.
-func (tc *TestCase) FunctionScope() *types.Scope {
+func (tc *TestCase) GetFunctionScope() *types.Scope {
+	return tc.GetNodeScope(tc.funcDecl.Type)
+}
+
+// Convenience method for getting the Scope corresponding to a DST node within the current TestCase's project.
+// See https://pkg.go.dev/go/types#Info for information about the mapping between nodes and scopes.
+func (tc *TestCase) GetNodeScope(node dst.Node) *types.Scope {
 	typeInfo := tc.TypeInfo()
-	astNode := tc.DstToAst(tc.funcDecl.Type) // See https://pkg.go.dev/go/types#Info for information about the mapping between nodes and scopes.
+	astNode := tc.DstToAst(node)
 	if typeInfo == nil || astNode == nil {
 		return nil
 	}
 	return typeInfo.Scopes[astNode]
 }
 
-// Returns the position and package of the definition corresponding to the given identifier,
-// and whether the package matches the current test case's package.
-func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (token.Pos, *types.Package, bool, error) {
+// Returns the `types.Object` corresponding to the given identifier (which includes its location information),
+// and whether the object's package matches the current test case's package.
+func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (types.Object, bool, error) {
 	// Get the type object corresponding to the identifier (i.e. its definition)
 	obj := tc.ObjectOf(ident)
 	if obj == nil {
-		return token.NoPos, nil, false, fmt.Errorf("could not resolve identifier %q", ident.Name)
+		return nil, false, fmt.Errorf("could not resolve identifier %q", ident.Name)
 	}
 	pos := obj.Pos()
 	pkg := obj.Pkg()
@@ -279,7 +291,7 @@ func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (token.Pos, *types.Pack
 		// slog.Debug("Found function defined outside the current package", "identifier", ident.Name, "package", pkg.Path())
 		isSamePackage = false
 	}
-	return pos, pkg, isSamePackage, nil
+	return obj, isSamePackage, nil
 }
 
 // Map an AST node to its corresponding DST (decorated) node to access better comment functionality.

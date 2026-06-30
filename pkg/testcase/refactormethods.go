@@ -185,7 +185,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	}
 
 	// While we still have the original DST data available, get the Scope for the Runner (for use later in finding duplicate names)
-	functionScope := tc.FunctionScope()
+	functionScope := tc.GetFunctionScope()
 	if functionScope == nil {
 		return nil, RefactorGenerationStatusError, fmt.Errorf("cannot refactor test case because function scope is not available")
 	}
@@ -237,7 +237,6 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 				return nil, RefactorGenerationStatusFail, nil
 			}
 			loopIndexName = keyIdent.Name
-			// Key might be adjusted below depending on the type of refactoring needed
 		}
 
 		// Detect the value (scenario) variable defined by the range loop
@@ -322,12 +321,16 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 			slog.Warn("Cannot refactor index loop because scenario structure variable name is not known", "test", tc)
 			return nil, RefactorGenerationStatusFail, nil
 		}
-		loopIndexName = GetForStmtIndexVar(loop)
+
 		// If the index variable is blank or not defined, don't attempt to generate a new variable because there's a high risk of breaking the existing functionality
+		if indexIdent := GetForStmtIndexIdent(loop); indexIdent != nil {
+			loopIndexName = indexIdent.Name
+		}
 		if loopIndexName == "" || loopIndexName == "_" {
 			slog.Warn("Cannot refactor index loop because index variable is not defined or is blank", "test", tc)
 			return nil, RefactorGenerationStatusFail, nil
 		}
+
 		scenarioExpr = &dst.IndexExpr{
 			X:     dst.NewIdent(scenarioStructName),
 			Index: dst.NewIdent(loopIndexName),
@@ -396,8 +399,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	if funcDecl == nil || funcDecl.Type == nil {
 		return nil, RefactorGenerationStatusError, fmt.Errorf("cannot refactor test case with missing function declaration")
 	}
-	// Look for either `*testing.T` or `*require.TestingT`
-	tVarName, err := asttools.GetParamNameByType(funcDecl, &dst.StarExpr{X: asttools.NewSelectorExpr("testing", "T")}, &dst.StarExpr{X: asttools.NewSelectorExpr("require", "TestingT")})
+	tVarName, err := GetTestingParamName(tc.funcDecl)
 	if err != nil {
 		slog.Warn("Cannot refactor test case because a `*testing.T` parameter was not detected", "err", err, "function", funcDecl.Name.Name, "test", tc)
 		return nil, RefactorGenerationStatusNoTester, nil

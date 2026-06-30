@@ -356,6 +356,58 @@ func GetParamNameByType(funcDecl *dst.FuncDecl, paramTypes ...dst.Expr) (string,
 	return "", fmt.Errorf("could not find parameter name with types %+#v in function %q", paramTypes, funcDecl.Name.Name)
 }
 
+// Helper to extract the "base" identifier for the variable in an expression.
+// This may return identifiers corresponding to package names. Returns nil if
+// the expression does not start with an identifier.
+// E.g. returns `x` for `*(x[0]).y`, and `f` for `f(x)[0].y`.
+func GetRootIdent(expr dst.Expr) *dst.Ident {
+	if expr == nil {
+		return nil
+	}
+	for {
+		switch x := expr.(type) {
+		case *dst.Ident:
+			return x
+		case *dst.SelectorExpr:
+			expr = x.X
+		case *dst.IndexExpr:
+			expr = x.X
+		case *dst.StarExpr:
+			expr = x.X
+		case *dst.ParenExpr:
+			expr = x.X
+		case *dst.CallExpr:
+			expr = x.Fun
+		case *dst.TypeAssertExpr:
+			expr = x.X
+		default:
+			return nil
+		}
+	}
+}
+
+// Returns a slice of all expressions within the given AST node that appear on the
+// LHS of an assignment or are incremented/decremented.
+func FindModifiedExpressions(n dst.Node) []dst.Expr {
+	if n == nil {
+		return nil
+	}
+	var exprs []dst.Expr
+	dst.Inspect(n, func(node dst.Node) bool {
+		if node == nil {
+			return false
+		}
+		if assign, ok := node.(*dst.AssignStmt); ok {
+			exprs = append(exprs, assign.Lhs...)
+		}
+		if incDec, ok := node.(*dst.IncDecStmt); ok {
+			exprs = append(exprs, incDec.X)
+		}
+		return true
+	})
+	return exprs
+}
+
 //
 // ========== Node Creation Functions ==========
 //
@@ -408,11 +460,16 @@ func SaveFileContents(path string, newFile *dst.File) error {
 // ========== Type System Functions ==========
 //
 
+// Represents a `types.Type` that contains elements, e.g. a Slice or Array
+type Elemer interface {
+	Elem() types.Type
+}
+
 // Returns whether a Type is Basic and has the specified info.
 // See `go/types.Basic` for more details.
 func IsBasicType(typ types.Type, info types.BasicInfo) bool {
 	if basic, ok := typ.(*types.Basic); ok {
-		return basic.Info() == info
+		return basic.Info()&info != 0
 	}
 	return false
 }
@@ -447,6 +504,18 @@ func UnderlyingType(t types.Type) types.Type {
 	return Unpointer(t).Underlying()
 }
 
+
+// Returns whether a type is an empty interface (i.e. `interface{}` or `any`).
+func IsEmptyInterface(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	if iface, ok := t.Underlying().(*types.Interface); ok {
+		return iface.NumMethods() == 0
+	}
+	return false
+}
+
 // Generates a unique name for a variable in the given scope (including all its children) by appending a number to the
 // base name until the name is unique. For example, if the base name is "x" and a variable named "x" is already
 // defined in the scope, the next attempt will be "x1", then "x2", and so on. If the base name is not already defined,
@@ -454,27 +523,40 @@ func UnderlyingType(t types.Type) types.Type {
 // the new variable is placed in a different child scope than an existing variable with the desired name.
 func GenerateUniqueName(base string, scope *types.Scope) string {
 	name := base
-	for i := 1; IsNameUsed(name, scope); i++ {
+	for i := 1; IsNameUsedAnywhere(name, scope); i++ {
 		name = fmt.Sprintf("%s%d", base, i)
 	}
 	return name
 }
 
-// Returns whether a variable with the given name is used in the given scope,
-// any of the scope's parents (upward), or any nested scopes (downward).
-// This indicates whether the name is at risk of being redeclared or shadowed.
+// Returns whether a variable with the given name is used in the given scope
+// or any of its children (downward), not considering parent scopes.
 func IsNameUsed(name string, scope *types.Scope) bool {
 	if name == "" || scope == nil {
 		return false
 	}
-
-	// Check the current scope and its parents
-	if _, obj := scope.LookupParent(name, token.NoPos); obj != nil {
+	// Check the current scope
+	if scope.Lookup(name) != nil {
 		return true
 	}
-
 	// Recursively check all child scopes (nested blocks, loops, ifs, etc.)
 	return isNameUsedInChildScopes(name, scope)
+}
+
+// Returns whether a variable with the given name is used in the given scope,
+// any of the scope's parents (upward), or any of the scope's children (downward).
+func IsNameUsedAnywhere(name string, scope *types.Scope) bool {
+	if name == "" || scope == nil {
+		return false
+	}
+	// Check the parents of the current scope (upward)
+	if parent := scope.Parent(); parent != nil {
+		if _, obj := parent.LookupParent(name, token.NoPos); obj != nil {
+			return true
+		}
+	}
+	// Check the current scope and its children (downward)
+	return IsNameUsed(name, scope)
 }
 
 // Returns whether a name is used in any of the child scopes of the given scope,
@@ -485,6 +567,19 @@ func isNameUsedInChildScopes(name string, scope *types.Scope) bool {
 			return true
 		}
 		if isNameUsedInChildScopes(name, child) {
+			return true
+		}
+	}
+	return false
+}
+
+// Returns whether the outer scope is an ancestor of the inner scope.
+func IsScopeAncestor(outer, inner *types.Scope) bool {
+	if outer == nil || inner == nil {
+		return false
+	}
+	for curr := inner; curr != nil; curr = curr.Parent() {
+		if curr == outer {
 			return true
 		}
 	}
