@@ -69,7 +69,7 @@
     "runner": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
     
     // The name of the variable representing the scenario data structure, which is iterated over by the runner loop
-    "ScenarioStructName": "tests",
+    "scenarioStructName": "tests",
 
     // The name of the struct field representing each scenario's name.
     // This can also be "map key" if scenarios are defined using a map whose key type is string. 
@@ -210,18 +210,20 @@
     "refactoredTestResult": "pass"
   },
 
-  // The "LoopAnalysis" object contains information about the loops detected in a test case. This field
+  // The "LoopAnalysis" object contains information about the loops detected in the test case. This field
   // is only present if the `--analyze-loops` option is set.
   "LoopAnalysis": {
-    // The number of loops detected directly inside the test function itself, not including nested loops.
-    "numDirectLoops": 1,
+    // The number of non-nested loops where the loop itself and all detected metadata features are found inside
+    // the test function itself.
+    "numLocalLoops": 1,
 
-    // The number of loops detected in package-local helper functions called by the test, including loops
-    // inside nested helper functions, but not including nested loops.
-    "numIndirectLoops": 0,
+    // The number of non-nested loops where the loop itself or any detected metadata features can only be found
+    // outside the test function itself, e.g. in a helper function.
+    "numDelegatedLoops": 0,
     
-    // Information about the detected direct loops themselves, or "null" if none were detected.
-    "directLoops": [
+    // Information about all detected loops (both local and delegated), or "null" if none were detected.
+    // Loops that appear within other loops are considered to be nested within the corresponding parent.
+    "loops": [
       {
         // The classification of the loop's structure.
         // 
@@ -242,7 +244,7 @@
         //   e.g. `for p := head; p != nil; p = p.Next`,   this will be "iterative non-indexed".
         // - For a loop only containing a condition, acting as a while loop,   e.g. `for condition { ... }`,
         //   this will be "condition-only".
-        // - For a infinite loop with no clauses,   e.g. `for { ... }`,   this will be "infinite".
+        // - For a loop with no clauses,   e.g. `for { ... }`,   this will be "infinite".
         // - For a loop with an unrecognized structure, this will be "unknown".
         "loopType": "range structs",
         
@@ -254,27 +256,41 @@
         // field in the "ScenarioSet" object, which is determined using different criteria.
         "indicatesTableDriven": true,
         
-        // A boolean indicating whether the loop defines subtests using the built-in `t.Run` method or
+        // An object indicating whether the loop defines subtests using the built-in `t.Run` method or
         // a library-based equivalent.
-        "hasSubtest": false,
+        "hasSubtest": {
+          // Whether the feature appears in the loop or any of its children.
+          "present": false,
+          // Whether the feature can only be detected outside the original test function.
+          "delegated": false
+        },
         
-        // A boolean indicating whether the loop contains an assertion, detected based on the presence
+        // An object indicating whether the loop contains an assertion, detected based on the presence
         // of built-in or library-based test failure or assertion functions.
-        "hasAssertion": true,
+        "hasAssertion": {
+          // Whether the feature appears in the loop or any of its children.
+          "present": true,
+          // Whether the feature can only be detected outside the original test function.
+          "delegated": false
+        },
         
         // A boolean indicating whether the loop directly mutates any data defined outside the loop.
         // This does not include mutations that may occur indirectly through function calls.
         "doesExternalMutation": false,
         
+        // A boolean indicating whether the loop itself or any of its detected metadata features
+        // can only be found outside the test function itself, e.g. in a helper function. Features
+        // detected in a helper function that itself is located inside the test function are not
+        // considered delegated. A delegated loop can be interpreted as "relying on" external
+        // helper functions for its features to be detected.
+        "delegated": false,
+        
         // Information about any additional loops that are contained within this loop, if any.
-        // This field is usually omitted if no nested loops are detected, but is included here for
-        // completeness.
+        // Nested loops follow the same structure as non-nested ones, and are recursively expanded
+        // in the same way. This field is usually omitted if no nested loops are detected, but is
+        // included here for documentation purposes.
         "nestedLoops": null
       }
-    ],
-
-    // Information about the detected indirect loops themselves, or "null" if none were detected.
-    // This follows the same structure as the "directLoops" field.
-    "indirectLoops": null
+    ]
   }
 }

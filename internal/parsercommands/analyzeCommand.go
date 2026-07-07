@@ -41,7 +41,7 @@ type analyzeOptions struct {
 	// todo LATER/MAYBE make this a slice so multiple refactoring methods can be applied at once
 	RefactorStrategy    string `long:"refactor" description:"The type of refactoring to perform on the detected test cases" choice:"none" choice:"subtest" default:"none"`
 	KeepRefactoredFiles bool   `long:"keep-refactored-files" description:"Whether to retain the results of refactored test cases by NOT restoring the original source files after refactoring"`
-	AnalyzeLoops        bool   `long:"analyze-loops" description:"Whether to perform an additional analysis of the loops in the detected test cases"`
+	AnalyzeLoops        bool   `long:"analyze-loops" description:"Whether to perform an additional, more detailed analysis of all the loops detected in each test case"`
 }
 
 // Compile-time interface implementation check

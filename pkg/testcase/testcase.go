@@ -269,6 +269,22 @@ func (tc *TestCase) GetNodeScope(node dst.Node) *types.Scope {
 	return typeInfo.Scopes[astNode]
 }
 
+
+// Determines whether a given DST node is located within the test function body.
+// Returns `false` if the node is `nil` or does not have a corresponding AST node.
+func (tc *TestCase) IsWithinTestFunction(node dst.Node) bool {
+	astNode := tc.DstToAst(node)
+	if astNode == nil {
+		return false
+	}
+	pos := astNode.Pos()
+	astFunc := tc.DstToAst(tc.funcDecl)
+	if astFunc == nil {
+		return false
+	}
+	return astFunc.Pos() <= pos && pos < astFunc.End()
+}
+
 // Returns the `types.Object` corresponding to the given identifier (which includes its location information),
 // and whether the object's package matches the current test case's package.
 func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (types.Object, bool, error) {
@@ -295,11 +311,13 @@ func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (types.Object, bool, er
 }
 
 // Map an AST node to its corresponding DST (decorated) node to access better comment functionality.
+// Returns `nil` if the AST node is `nil` or does not have a corresponding DST node.
 func (tc *TestCase) AstToDst(astNode ast.Node) dst.Node {
 	return tc.pkgInfo.Decorator.Dst.Nodes[astNode]
 }
 
 // Map a DST node to its corresponding AST node to access type information.
+// Returns `nil` if the DST node is `nil` or does not have a corresponding AST node.
 func (tc *TestCase) DstToAst(dstNode dst.Node) ast.Node {
 	return tc.pkgInfo.Decorator.Ast.Nodes[dstNode]
 }

@@ -113,7 +113,7 @@ outerStmtLoop:
 		} // end of check for Runner loop
 
 		// Iterate over each component of the expanded statement, i.e. look into expanded helper functions
-		for stmt := range expanded.All() {
+		for stmt := range expanded.AllStatements() {
 
 			// Search for variable assignments matching the detected scenario data structure, with the goal of finding the scenario definitions.
 			// Note that `ScenarioStructName` is not modified here since these definitions might be inside helper functions and use a different name than the test itself.

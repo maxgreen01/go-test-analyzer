@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"go/types"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/dave/dst"
@@ -13,60 +12,41 @@ import (
 
 // Represents the result of analyzing the loops found in a test case.
 type LoopAnalysisResult struct {
-	// The number of detected direct loops, not including nested loops
-	NumDirectLoops int `json:"numDirectLoops"`
+	// The number of detected local loops, not including nested loops
+	NumLocalLoops int `json:"numLocalLoops"`
 
-	// The number of detected indirect loops, not including nested loops
-	NumIndirectLoops int `json:"numIndirectLoops"`
+	// The number of detected delegated loops, not including nested loops
+	NumDelegatedLoops int `json:"numDelegatedLoops"`
 
-	// Detected loops that are directly present in the test function
-	DirectLoops []Loop `json:"directLoops"`
-
-	// Detected loops that are present in helper functions called by the test function, including those within nested helper functions
-	IndirectLoops []Loop `json:"indirectLoops"`
+	// Detected loops found in the test case, with nested loops stored internally
+	Loops []*Loop `json:"loops"`
 }
 
-// Detects and analyzes all the loops found in the expanded statements of a test case
+// Detects and analyzes all the loops found in the expanded statements of a test case, including those called in expanded function calls
 func AnalyzeLoops(tc *TestCase, parsedStmts []*ExpandedStatement) *LoopAnalysisResult {
 	loopAnalysis := &LoopAnalysisResult{}
+	topLevelSeen := make(map[dst.Node]bool)
 
-	// Avoid duplicate detections using a hash set to track loops that have already been visited.
-	// We use one set instead of separate direct/indirect ones to avoid double-counting loops inside function literals.
-	// In this situation, the loop would always be counted as direct before being visited as indirect.
-	visited := make(map[dst.Node]struct{})
-
+	// Analyze each top-level statement's ExpandedStatement tree
 	for _, expanded := range parsedStmts {
-		if expanded == nil {
-			continue
-		}
-
-		// Detect direct loops from the unexpanded (root) statements
-		direct := analyzeLoopsInNode(expanded.Stmt, tc, visited)
-		loopAnalysis.DirectLoops = append(loopAnalysis.DirectLoops, direct...)
-		loopAnalysis.NumDirectLoops += len(direct)
-
-		// Detect indirect loops using the expanded statements, not including the root (to avoid double-counting direct loops)
-		for _, child := range expanded.Children {
-			for stmt := range child.All() {
-				indirect := analyzeLoopsInNode(stmt, tc, visited)
-				loopAnalysis.IndirectLoops = append(loopAnalysis.IndirectLoops, indirect...)
-				loopAnalysis.NumIndirectLoops += len(indirect)
-			}
-		}
+		loops := analyzeStmt(expanded, nil, tc, topLevelSeen)
+		loopAnalysis.Loops = append(loopAnalysis.Loops, loops...)
 	}
 
+	for _, l := range loopAnalysis.Loops {
+		if l.Delegated {
+			loopAnalysis.NumDelegatedLoops++
+		} else {
+			loopAnalysis.NumLocalLoops++
+		}
+	}
 	return loopAnalysis
 }
 
-// Returns a list of all detected loops, both direct and indirect.
-func (loopAnalysis *LoopAnalysisResult) GetAllLoops() []Loop {
-	return slices.Concat(loopAnalysis.DirectLoops, loopAnalysis.IndirectLoops)
-}
-
-// Returns the number of detected loops that are indicative of a table-driven test
+// Returns the number of detected non-nested loops that are indicative of a table-driven test
 func (loopAnalysis *LoopAnalysisResult) CountTableDriven() int {
 	count := 0
-	for _, loop := range loopAnalysis.GetAllLoops() {
+	for _, loop := range loopAnalysis.Loops {
 		if loop.IndicatesTableDriven {
 			count++
 		}
@@ -74,34 +54,91 @@ func (loopAnalysis *LoopAnalysisResult) CountTableDriven() int {
 	return count
 }
 
-// Recursively detect loops inside a node based on the DST structure and type information, structuring nested loops hierarchically.
-// Ignores nodes that have already been visited to avoid double-counting.
-func analyzeLoopsInNode(node dst.Node, tc *TestCase, visited map[dst.Node]struct{}) []Loop {
-	if node == nil {
+// Recursively inspects a statement's DST structure (including expanded function calls) and type information to detect loops,
+// including nested loops and metadata features. Uses pre-built ExpandedStatements to expand function calls and avoid cycles.
+// Builds a hierarchy of loops by tracking a reference to the closest parent loop and modifying its fields in-place.
+// Avoids saving duplicate loops within each loop's nested slice, but allows repeats among different parent loops.
+// Returns a slice of all detected top-level (non-nested) loops if no parent is provided, or nil if a parent is provided.
+func analyzeStmt(expanded *ExpandedStatement, parentLoop *Loop, tc *TestCase, seen map[dst.Node]bool) []*Loop {
+	if expanded == nil || expanded.Stmt == nil {
 		return nil
 	}
-	var loops []Loop
+	var topLevelLoops []*Loop // only used if `parentLoop` is nil
 
-	dst.Inspect(node, func(n dst.Node) bool {
-		if n == nil {
+	dst.Inspect(expanded.Stmt, func(node dst.Node) bool {
+		if node == nil {
 			return false
 		}
-		if _, ok := visited[n]; ok {
-			return false // Skip already visited nodes
-		}
-
-		// Check if the node is a loop
-		switch n.(type) {
+		switch n := node.(type) {
 		case *dst.RangeStmt, *dst.ForStmt:
-			visited[n] = struct{}{} // Mark the node as visited
-			loops = append(loops, CreateLoop(n, tc, visited))
-			return false // Stop inspecting descendants because nested loops have already been handled
-		}
+			// Ignore loops that have already been analyzed directly under this parent
+			if seen[n] {
+				return false
+			}
 
-		// Not a loop, so continue descending
+			// Analyze the loop and detect any children using recursion
+			loop := CreateLoop(n, expanded.Children, tc)
+
+			// Save nested loops under their parent, or collect top-level loops to return
+			if parentLoop != nil {
+				parentLoop.NestedLoops = append(parentLoop.NestedLoops, loop)
+			} else {
+				topLevelLoops = append(topLevelLoops, loop)
+			}
+			seen[n] = true
+
+			// Stop inspecting descendants because the body has already been processed by `CreateLoop`
+			return false
+
+		case *dst.FuncLit:
+			// Only descend into the function literal if it is the subject of the current analysis
+			// (e.g., when analyzing a function literal argument to `t.Run`). Other function literals
+			// will be analyzed separately when they are called.
+			if exprStmt, ok := expanded.Stmt.(*dst.ExprStmt); ok && exprStmt.X == n {
+				return true
+			}
+			return false
+
+		case *dst.CallExpr:
+			// Check for new metadata features if this is happening inside a loop
+			if parentLoop != nil {
+				phase := categorizeCallExpr(n, tc)
+				isDelegated := parentLoop.Delegated || !tc.IsWithinTestFunction(n)
+
+				parentLoop.HasSubtest.register(phase == TestPhaseSubtest, isDelegated)
+				parentLoop.HasAssertion.register(phase == TestPhaseAssert, isDelegated)
+			}
+
+			// Expand the call's children, as found in the pre-computed ExpandedStatement tree of the most recently expanded
+			// function call or original statement. This is "equivalent" to expanding the statement anew, but avoids cycles
+			// and saves redundant processing. We must search the entire tree of children in case the `CallExpr` is nested
+			// inside another statement (e.g. an assignment) and isn't an immediate child of the original statement. This
+			// also allows us to match against the original statement itself.
+			// Note: from the ExpandedStatement internals, we expect that a `CallExpr` must be wrapped in `ExprStmt`.
+			var targetChildren []*ExpandedStatement
+			for estmt := range expanded.All() {
+				if exprStmt, ok := estmt.Stmt.(*dst.ExprStmt); ok && exprStmt.X == n {
+					targetChildren = estmt.Children
+					break
+				}
+			}
+
+			// Analyze the statements inside the expanded function call's children
+			for _, child := range targetChildren {
+				childLoops := analyzeStmt(child, parentLoop, tc, seen)
+				if parentLoop == nil {
+					// If any new top-level loops were found, save them to be returned
+					topLevelLoops = append(topLevelLoops, childLoops...)
+				}
+			}
+
+			// Stop inspecting descendants because we already manually analyzed all the call's children
+			return false
+		}
+		// Continue descending to search for loops or function calls
 		return true
 	})
-	return loops
+	return topLevelLoops
 }
 
 // TODO maybe add a way to save each Loop as a distinct CSV row, but this would be annoying to implement given the inherent split
@@ -109,9 +146,9 @@ func analyzeLoopsInNode(node dst.Node, tc *TestCase, visited map[dst.Node]struct
 
 // ================================================================================================
 
-// Represents a loop statement detected as part of a test case.
+// Represents metadata about a loop statement detected as part of a test case.
 type Loop struct {
-	// The detected loop structure
+	// The classification of the loop structure
 	LoopType LoopType `json:"loopType"`
 
 	// The DST code of the loop itself, converted to a string
@@ -120,34 +157,51 @@ type Loop struct {
 	// Whether the loop is indicative of a table-driven test
 	IndicatesTableDriven bool `json:"indicatesTableDriven"`
 
-	// Whether the loop defines subtests using the built-in `t.Run` method or a library-based equivalent.
-	HasSubtest bool `json:"hasSubtest"`
+	// Whether the loop defines subtests using the built-in `t.Run` method or a library-based equivalent
+	HasSubtest loopFeature `json:"hasSubtest"`
 
 	// Whether the loop contains an assertion, detected based on the presence of built-in or library-based test failure functions
-	HasAssertion bool `json:"hasAssertion"`
+	HasAssertion loopFeature `json:"hasAssertion"`
 
 	// Whether the loop directly mutates any data defined outside the loop
 	DoesExternalMutation bool `json:"doesExternalMutation"`
 
+	// Whether the loop itself or any of its relevant analysis statements are found outside the function body
+	Delegated bool `json:"delegated"`
+
 	// Additional loops that are contained within this loop, if any
-	NestedLoops []Loop `json:"nestedLoops,omitempty"`
+	NestedLoops []*Loop `json:"nestedLoops,omitempty"`
 }
 
-// Creates a Loop instance based on the provided DST node, the TestCase that uses it, and list of visited loops.
-// Processes nested Loops before analyzing this one, i.e. in a depth-first traversal.
-func CreateLoop(stmt dst.Node, tc *TestCase, visited map[dst.Node]struct{}) Loop {
-	loop := Loop{Content: asttools.NodeToString(stmt)}
-
-	switch s := stmt.(type) {
-	case *dst.RangeStmt:
-		loop.LoopType = classifyRangeLoop(s, tc)
-		loop.NestedLoops = analyzeLoopsInNode(s.Body, tc, visited)
-	case *dst.ForStmt:
-		loop.LoopType = classifyForLoop(s, tc)
-		loop.NestedLoops = analyzeLoopsInNode(s.Body, tc, visited)
+// Creates a Loop instance based on the provided DST node, pre-computed ExpandedStatement children, and the TestCase that uses it.
+// Note that `children` is expected to be a superset of the statements actually inside the loop body, since it should hold all the child
+// statements of the most recently expanded function call or original statement, and may include statements next to the loop.
+// Analyzes the loop's inner statements to detect nested loops and metadata features before finalizing, i.e. in a depth-first traversal.
+func CreateLoop(stmt dst.Node, children []*ExpandedStatement, tc *TestCase) *Loop {
+	loop := &Loop{
+		Content:   asttools.NodeToString(stmt),
+		Delegated: !tc.IsWithinTestFunction(stmt),
 	}
 
-	loop.analyze(stmt, tc)
+	// Inspect the structure of the loop itself
+	var body *dst.BlockStmt
+	switch loopStmt := stmt.(type) {
+	case *dst.RangeStmt:
+		loop.LoopType = classifyRangeLoop(loopStmt, tc)
+		body = loopStmt.Body
+	case *dst.ForStmt:
+		loop.LoopType = classifyForLoop(loopStmt, tc)
+		body = loopStmt.Body
+	}
+
+	// Analyze nested statements using a dummy ExpandedStatement representing the loop body, and reuse the containing statement's children.
+	// Use a fresh `seen` map to avoid duplicate loops within this new parent, but allow them to be repeated under different parents.
+	// Any detected nested loops or metadata features are automatically attached to this loop.
+	analyzeStmt(&ExpandedStatement{Stmt: body, Children: children}, loop, tc, make(map[dst.Node]bool))
+	loop.checkExternalMutation(stmt, tc)
+
+	// Make sure all metadata features are set correctly
+	loop.finalize()
 
 	return loop
 }
@@ -201,18 +255,53 @@ func classifyForLoop(stmt *dst.ForStmt, tc *TestCase) LoopType {
 	return LoopTypeIterativeNonIndexed
 }
 
-// Perform additional analysis based on the statements inside the loop, populating the corresponding fields
-func (loop *Loop) analyze(loopStmt dst.Node, tc *TestCase) {
-	if loop == nil || loopStmt == nil || tc == nil {
-		return
+// Represents a metadata feature of a loop, acting like a regular boolean with an additional flag indicating whether the feature could only be detected outside the original test function.
+// todo CLEANUP - maybe only Marshal the `Present` field (and make fields private) to hide the fact that this isn't just a boolean. This is simpler, but it obscures the source of the delegated flag.
+type loopFeature struct {
+	// Whether the feature is present in the loop or any of its children
+	Present bool `json:"present"`
+	// Whether the feature can only be detected outside the original test function
+	Delegated bool `json:"delegated"`
+}
+
+// Sets the metadata feature flag to `true` if the feature is present. Also inherits the delegated flag if the feature is first being registered,
+// or is set back to `false` if a local version is found later. If it's been found locally, it won't ever be set back to delegated.
+func (lf *loopFeature) register(present bool, isDelegated bool) {
+	if present {
+		lf.Present = true
+		lf.Delegated = isDelegated && (!lf.Present || lf.Delegated)
+	}
+}
+
+// Bubbles up detected metadata features from nested loops, and populates computed fields based on other analysis results
+func (loop *Loop) finalize() {
+	for _, child := range loop.NestedLoops {
+		// Bubble up any `true` attributes from nested loops, inheriting the delegated status of the entire child itself or the individual feature.
+		// If the feature gets set to delegated, it indicates that the feature could not be found locally inside the original test function.
+		loop.HasSubtest.register(child.HasSubtest.Present, child.Delegated || child.HasSubtest.Delegated)
+		loop.HasAssertion.register(child.HasAssertion.Present, child.Delegated || child.HasAssertion.Delegated)
 	}
 
-	// Bubble up flags from children if any of them are set to `true`
-	for _, nested := range loop.NestedLoops {
-		loop.HasSubtest = loop.HasSubtest || nested.HasSubtest
-		loop.HasAssertion = loop.HasAssertion || nested.HasAssertion
-		// DoesExternalMutation is not bubbled up because child loops may mutate variables defined in the parent loop, which is not considered an external mutation for the parent loop.
-		// This means DoesExternalMutation is recalculated for each loop independently, and the children's assignments are already included in the parent's analysis.
+	// If this loop isn't already delegated, it becomes delegated if any of its features are
+	if !loop.Delegated {
+		isSubtestDelegated := loop.HasSubtest.Present && loop.HasSubtest.Delegated
+		isAssertionDelegated := loop.HasAssertion.Present && loop.HasAssertion.Delegated
+
+		if isSubtestDelegated || isAssertionDelegated {
+			loop.Delegated = true
+		}
+	}
+
+	// Classify this loop based on its fully bubbled properties
+	if loop.HasSubtest.Present || (loop.HasAssertion.Present && !loop.DoesExternalMutation) {
+		loop.IndicatesTableDriven = true
+	}
+}
+
+// Inspects the loop body to check for any mutations of variables defined outside the loop's scope.
+func (loop *Loop) checkExternalMutation(loopStmt dst.Node, tc *TestCase) {
+	if loop == nil || loopStmt == nil || tc == nil {
+		return
 	}
 
 	loopScope := tc.GetNodeScope(loopStmt)
@@ -229,27 +318,6 @@ func (loop *Loop) analyze(loopStmt dst.Node, tc *TestCase) {
 		return
 	}
 
-	// Check for subtest and assertion function calls in the loop body
-	// TODO maybe use ExpandedStatement here to detect calls in helper funcs that don't themselves have loops?
-	dst.Inspect(body, func(n dst.Node) bool {
-		if loop.HasSubtest && loop.HasAssertion {
-			return false // Stop inspecting if both flags are already set
-		}
-
-		if callExpr, ok := n.(*dst.CallExpr); ok {
-			phase := categorizeCallExpr(callExpr, tc)
-
-			if phase == TestPhaseSubtest {
-				loop.HasSubtest = true
-			}
-			if phase == TestPhaseAssert {
-				loop.HasAssertion = true
-			}
-		}
-		// Always keep inspecting to ensure we inspect the full depth, e.g. to find assertions inside a subtest
-		return true
-	})
-
 	// Check for mutations via assignments and increment/decrement statements on variables outside the loop scope
 	if !loop.DoesExternalMutation {
 		for _, lhs := range asttools.FindModifiedExpressions(body) {
@@ -258,15 +326,6 @@ func (loop *Loop) analyze(loopStmt dst.Node, tc *TestCase) {
 				break
 			}
 		}
-	}
-
-	// Determine computed fields based on the other analysis results
-
-	// Check if the loop looks table-driven
-	if loop.HasSubtest || (loop.HasAssertion && !loop.DoesExternalMutation) {
-		// todo maybe add check on LoopType -- don't want to be overly restrictive and avoid new patterns
-		// already-supported are:   []LoopType{LoopTypeRangeStructs, LoopTypeRangeNonStructs, LoopTypeRangeMap, LoopTypeRangeInt, LoopTypeIterativeIndexed}
-		loop.IndicatesTableDriven = true
 	}
 }
 
@@ -589,3 +648,4 @@ func (lt *LoopType) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
+

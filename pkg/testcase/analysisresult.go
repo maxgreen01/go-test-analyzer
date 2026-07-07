@@ -18,7 +18,7 @@ type AnalysisResult struct {
 
 	// Analysis data
 	ScenarioSet      *ScenarioSet         // the set of scenarios defined in this test case, if it is table-driven
-	ParsedStatements []*ExpandedStatement // the list of parsed and fully-expanded statements in the test case
+	ParsedStatements []*ExpandedStatement // the list of parsed and fully-expanded statements in the test case, avoiding expansion of production functions
 	ImportedPackages []string             // the list of imported packages in the test case's file
 
 	// Refactoring result - only available after running `AttemptRefactoring()`
@@ -115,14 +115,9 @@ func (ar *AnalysisResult) GetCSVHeaders() []string {
 	if ar.LoopAnalysis != nil {
 		// insert before "importedPackages"
 		headers = slices.Insert(headers, len(headers)-1,
-			"directLoops",
-			"indirectLoops",
+			"localLoops",
+			"delegatedLoops",
 			"tableDrivenLoops",
-			// TODO CLEANUP maybe remove some of these extra fields to avoid bloated JSON
-			// "loopTypes",
-			// "numAssertionLoops",
-			// "numSubtestLoops",
-			// "numMutationLoops",
 		)
 	}
 	return headers
@@ -162,33 +157,10 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 	if ar.LoopAnalysis != nil {
 		// insert before "importedPackages"
 		row = slices.Insert(row, len(row)-1,
-			strconv.Itoa(ar.LoopAnalysis.NumDirectLoops),
-			strconv.Itoa(ar.LoopAnalysis.NumIndirectLoops),
+			strconv.Itoa(ar.LoopAnalysis.NumLocalLoops),
+			strconv.Itoa(ar.LoopAnalysis.NumDelegatedLoops),
 			strconv.Itoa(ar.LoopAnalysis.CountTableDriven()),
 		)
-		// TODO CLEANUP maybe remove some of these extra fields to avoid bloated JSON
-		// loopTypes := make([]string, 0)
-		// numAssertionLoops := 0
-		// numSubtestLoops := 0
-		// numMutationLoops := 0
-		// for _, loop := range ar.LoopAnalysis.GetAllLoops() {
-		// 	loopTypes = append(loopTypes, loop.LoopType.String())
-		// 	if loop.HasAssertion {
-		// 		numAssertionLoops++
-		// 	}
-		// 	if loop.HasSubtest {
-		// 		numSubtestLoops++
-		// 	}
-		// 	if loop.DoesExternalMutation {
-		// 		numMutationLoops++
-		// 	}
-		// }
-		// row = slices.Insert(row, len(row)-1,
-		// 	strings.Join(loopTypes, ", "),
-		// 	strconv.Itoa(numAssertionLoops),
-		// 	strconv.Itoa(numSubtestLoops),
-		// 	strconv.Itoa(numMutationLoops),
-		// )
 	}
 	return row
 }
