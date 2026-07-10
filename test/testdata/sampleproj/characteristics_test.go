@@ -19,7 +19,7 @@ func TestNameField(t *testing.T) {
 	}
 }
 
-// TestSubtestNameField uses a non-standard scenario name field that is used as the subtest name.
+// TestSubtestNameField uses a non-standard scenario name field that is used as the scenario name.
 func TestSubtestNameField(t *testing.T) {
 	tests := []struct {
 		identifier string

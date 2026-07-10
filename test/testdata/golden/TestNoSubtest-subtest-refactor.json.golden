@@ -1,0 +1,55 @@
+{
+  "ImportedPackages": [
+    "testing"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "tests := []struct {\n\tname  string\n\tinput int\n\twant  int\n}{\n\t{name: \"case1\", input: 1, want: 2},\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "t.Errorf(\"%s: got %d, want %d\", tc.name, tc.input*2, tc.want)"
+        }
+      ],
+      "stmt": "for _, tc := range tests {\n\tif tc.input*2 != tc.want {\n\t\tt.Errorf(\"%s: got %d, want %d\", tc.name, tc.input*2, tc.want)\n\t}\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "pass",
+    "refactoredTestResult": "pass",
+    "refactorings": [
+      {
+        "filePath": "",
+        "isHelper": false,
+        "refactored": "// TestNoSubtest executes scenarios without using subtests.\nfunc TestNoSubtest(t *testing.T) {\n\ttests := []struct {\n\t\tname  string\n\t\tinput int\n\t\twant  int\n\t}{\n\t\t{name: \"case1\", input: 1, want: 2},\n\t}\n\tfor _, tc := range tests {\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tif tc.input*2 != tc.want {\n\t\t\t\tt.Errorf(\"%s: got %d, want %d\", tc.name, tc.input*2, tc.want)\n\t\t\t}\n\t\t})\n\t}\n}"
+      }
+    ],
+    "status": "success",
+    "strategy": "subtest"
+  },
+  "ScenarioSet": {
+    "dataStructure": "structList",
+    "expectedFields": [
+      "want"
+    ],
+    "hasFunctionFields": false,
+    "isTableDriven": true,
+    "nameField": "name",
+    "runner": "for _, tc := range tests {\n\tif tc.input*2 != tc.want {\n\t\tt.Errorf(\"%s: got %d, want %d\", tc.name, tc.input*2, tc.want)\n\t}\n}",
+    "scenarioStructName": "tests",
+    "scenarioType": "struct{name string; input int; want int}",
+    "scenarios": [
+      "{name: \"case1\", input: 1, want: 2},"
+    ],
+    "usesSubtest": false
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestNoSubtest executes scenarios without using subtests.\nfunc TestNoSubtest(t *testing.T) {\n\ttests := []struct {\n\t\tname  string\n\t\tinput int\n\t\twant  int\n\t}{\n\t\t{name: \"case1\", input: 1, want: 2},\n\t}\n\tfor _, tc := range tests {\n\t\tif tc.input*2 != tc.want {\n\t\t\tt.Errorf(\"%s: got %d, want %d\", tc.name, tc.input*2, tc.want)\n\t\t}\n\t}\n}",
+    "importPath": "",
+    "name": "TestNoSubtest",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

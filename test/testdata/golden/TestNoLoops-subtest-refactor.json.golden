@@ -1,0 +1,45 @@
+{
+  "ImportedPackages": [
+    "testing"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "got := 1 + 1"
+    },
+    {
+      "children": [
+        {
+          "stmt": "t.Error(\"math is broken\")"
+        }
+      ],
+      "stmt": "if got != 2 {\n\tt.Error(\"math is broken\")\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "subtest"
+  },
+  "ScenarioSet": {
+    "dataStructure": "none",
+    "expectedFields": null,
+    "hasFunctionFields": false,
+    "isTableDriven": false,
+    "nameField": "",
+    "runner": "",
+    "scenarioStructName": "",
+    "scenarioType": "",
+    "scenarios": [],
+    "usesSubtest": false
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestNoLoops is a simple test with no loops at all.\nfunc TestNoLoops(t *testing.T) {\n\tgot := 1 + 1\n\tif got != 2 {\n\t\tt.Error(\"math is broken\")\n\t}\n}",
+    "importPath": "",
+    "name": "TestNoLoops",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

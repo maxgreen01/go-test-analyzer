@@ -1,0 +1,48 @@
+{
+  "ImportedPackages": [
+    "testing"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "tests := map[int]bool{\n\t2:  true,\n\t-1: false,\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "t.Errorf(\"got %t, want %t\", got, expected)"
+        }
+      ],
+      "stmt": "for input, expected := range tests {\n\tgot := input \u003e 0\n\tif got != expected {\n\t\tt.Errorf(\"got %t, want %t\", got, expected)\n\t}\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "badFields",
+    "strategy": "subtest"
+  },
+  "ScenarioSet": {
+    "dataStructure": "map",
+    "expectedFields": null,
+    "hasFunctionFields": false,
+    "isTableDriven": true,
+    "nameField": "",
+    "runner": "for input, expected := range tests {\n\tgot := input \u003e 0\n\tif got != expected {\n\t\tt.Errorf(\"got %t, want %t\", got, expected)\n\t}\n}",
+    "scenarioStructName": "tests",
+    "scenarioType": "bool",
+    "scenarios": [
+      "2: true,",
+      "-1: false,"
+    ],
+    "usesSubtest": false
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestMapRangeNonStruct uses a map of inputs to expected outputs, without a struct.\nfunc TestMapRangeNonStruct(t *testing.T) {\n\ttests := map[int]bool{\n\t\t2:  true,\n\t\t-1: false,\n\t}\n\tfor input, expected := range tests {\n\t\tgot := input \u003e 0\n\t\tif got != expected {\n\t\t\tt.Errorf(\"got %t, want %t\", got, expected)\n\t\t}\n\t}\n}",
+    "importPath": "",
+    "name": "TestMapRangeNonStruct",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

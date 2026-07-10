@@ -25,7 +25,22 @@ func TestSliceRange(t *testing.T) {
 	}
 }
 
-// TestMapRange uses a map keyed by test name. The struct value has no name field because the map key serves as the subtest name.
+// TestArrayRange uses a fixed-size array instead of a slice.
+func TestArrayRange(t *testing.T) {
+	tests := [2]scenario{
+		{name: "positive", input: 2, want: 4},
+		{name: "negative", input: -1, want: -2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.input * 2; got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestMapRange uses a map keyed by test name. The struct value has no name field because the map key serves as the scenario name.
 func TestMapRange(t *testing.T) {
 	tests := map[string]struct {
 		input int
@@ -43,18 +58,17 @@ func TestMapRange(t *testing.T) {
 	}
 }
 
-// TestArrayRange uses a fixed-size array instead of a slice.
-func TestArrayRange(t *testing.T) {
-	tests := [2]scenario{
-		{name: "positive", input: 2, want: 4},
-		{name: "negative", input: -1, want: -2},
+// TestMapRangeNonStruct uses a map of inputs to expected outputs, without a struct.
+func TestMapRangeNonStruct(t *testing.T) {
+	tests := map[int]bool {
+		2: true,
+		-1: false,
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.input * 2; got != tc.want {
-				t.Errorf("got %d, want %d", got, tc.want)
-			}
-		})
+	for input, expected := range tests {
+		got := input > 0
+		if got != expected {
+			t.Errorf("got %t, want %t", got, expected)
+		}
 	}
 }
 
