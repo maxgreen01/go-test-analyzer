@@ -124,6 +124,7 @@ func (ar *AnalysisResult) GetCSVHeaders() []string {
 }
 
 // Encode the AnalysisResult as a CSV row, returning the encoded data corresponding to the headers in `GetCSVHeaders()`.
+// todo CLEANUP maybe simplify this using `gocarina/gocsv` to automatically marshal the struct to CSV
 func (ar *AnalysisResult) EncodeAsCSV() []string {
 	// Replace nil fields with empty data to avoid nil pointer dereferences
 	tc := ar.TestCase

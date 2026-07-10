@@ -22,7 +22,7 @@ import (
 type StatisticsCommand struct {
 	// Input flags
 	globals *config.GlobalOptions // Avoid embedding this because the flag parser would treat it as duplicating the global options
-	statisticsOptions
+	StatisticsOptions
 
 	// Output file writer
 	output *filewriter.FileWriter
@@ -37,7 +37,7 @@ type StatisticsCommand struct {
 }
 
 // Command-line flags for the Statistics command specifically
-type statisticsOptions struct {
+type StatisticsOptions struct {
 }
 
 // Compile-time interface implementation check
@@ -65,7 +65,7 @@ func (cmd *StatisticsCommand) Clone() parser.Task {
 	globals := *cmd.globals
 	return &StatisticsCommand{
 		globals:           &globals,
-		statisticsOptions: cmd.statisticsOptions,
+		StatisticsOptions: cmd.StatisticsOptions,
 		output:            cmd.output,
 	}
 }

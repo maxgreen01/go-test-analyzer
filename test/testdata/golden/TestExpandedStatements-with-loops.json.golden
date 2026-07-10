@@ -1,0 +1,179 @@
+{
+  "ImportedPackages": [
+    "testing",
+    "github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper"
+  ],
+  "LoopAnalysis": {
+    "loops": [
+      {
+        "content": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n}",
+        "delegated": false,
+        "doesExternalMutation": false,
+        "hasAssertion": {
+          "delegated": false,
+          "present": true
+        },
+        "hasSubtest": {
+          "delegated": false,
+          "present": true
+        },
+        "indicatesTableDriven": true,
+        "loopType": "range structs",
+        "nestedLoops": [
+          {
+            "content": "for i := 0; i \u003c 5; i++ {\n\t_ = i\n}",
+            "delegated": true,
+            "doesExternalMutation": false,
+            "hasAssertion": {
+              "delegated": false,
+              "present": false
+            },
+            "hasSubtest": {
+              "delegated": false,
+              "present": false
+            },
+            "indicatesTableDriven": false,
+            "loopType": "iterative indexed"
+          }
+        ]
+      },
+      {
+        "content": "for _, tc := range tests {\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tassertScenario(t, tc)\n\t})\n}",
+        "delegated": true,
+        "doesExternalMutation": false,
+        "hasAssertion": {
+          "delegated": false,
+          "present": true
+        },
+        "hasSubtest": {
+          "delegated": false,
+          "present": true
+        },
+        "indicatesTableDriven": true,
+        "loopType": "range structs"
+      }
+    ],
+    "numDelegatedLoops": 1,
+    "numLocalLoops": 1
+  },
+  "ParsedStatements": [
+    {
+      "stmt": "tests := []scenario{\n\t{name: \"positive\", input: 2, want: 4},\n}"
+    },
+    {
+      "stmt": "localFunc := func(tc scenario) {\n\t// Production function should NOT be expanded\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tif got := Double(tc.input); got != tc.want {\n\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t}\n\t})\n\t// External function should NOT be expanded\n\ttesthelper.AssertScenarioExternal(t, testhelper.Scenario{Name: tc.name, Input: tc.input, Want: tc.want})\n}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "stmt": "Double(tc.input)"
+                        },
+                        {
+                          "stmt": "t.Errorf(\"got %d, want %d\", got, tc.want)"
+                        }
+                      ],
+                      "stmt": "if got := Double(tc.input); got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}"
+                    }
+                  ],
+                  "stmt": "func(t *testing.T) {\n\tif got := Double(tc.input); got != tc.want {\n\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t}\n}"
+                }
+              ],
+              "stmt": "// Production function should NOT be expanded\nt.Run(tc.name, func(t *testing.T) {\n\tif got := Double(tc.input); got != tc.want {\n\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t}\n})"
+            },
+            {
+              "stmt": "// External function should NOT be expanded\ntesthelper.AssertScenarioExternal(t, testhelper.Scenario{Name: tc.name, Input: tc.input, Want: tc.want})"
+            }
+          ],
+          "stmt": "localFunc(tc)"
+        },
+        {
+          "children": [
+            {
+              "stmt": "for i := 0; i \u003c 5; i++ {\n\t_ = i\n}"
+            }
+          ],
+          "stmt": "helperLoop()"
+        }
+      ],
+      "stmt": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "t.Helper()"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "stmt": "t.Helper()"
+                        },
+                        {
+                          "children": [
+                            {
+                              "stmt": "t.Errorf(\"got %d, want %d\", got, tc.want)"
+                            }
+                          ],
+                          "stmt": "if got := tc.input * 2; got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}"
+                        }
+                      ],
+                      "stmt": "assertScenario(t, tc)"
+                    }
+                  ],
+                  "stmt": "func(t *testing.T) {\n\tassertScenario(t, tc)\n}"
+                }
+              ],
+              "stmt": "t.Run(tc.name, func(t *testing.T) {\n\tassertScenario(t, tc)\n})"
+            }
+          ],
+          "stmt": "for _, tc := range tests {\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tassertScenario(t, tc)\n\t})\n}"
+        }
+      ],
+      "stmt": "// Same-package function with nested calls should be expanded recursively\nrunScenarios(t, tests)"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "none"
+  },
+  "ScenarioSet": {
+    "dataStructure": "structList",
+    "expectedFields": [
+      "want"
+    ],
+    "hasFunctionFields": false,
+    "isTableDriven": true,
+    "nameField": "name",
+    "runner": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n}",
+    "scenarioStructName": "tests",
+    "scenarioType": "struct{name string; input int; want int}",
+    "scenarios": [
+      "{name: \"positive\", input: 2, want: 4},"
+    ],
+    "usesSubtest": false
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestExpandedStatements calls multiple local, external, and production functions to verify their expansion behavior.\n// ! NOTE: known limitation - the nested subtest is not detected.\nfunc TestExpandedStatements(t *testing.T) {\n\ttests := []scenario{\n\t\t{name: \"positive\", input: 2, want: 4},\n\t}\n\tlocalFunc := func(tc scenario) {\n\t\t// Production function should NOT be expanded\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tif got := Double(tc.input); got != tc.want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t\t}\n\t\t})\n\t\t// External function should NOT be expanded\n\t\ttesthelper.AssertScenarioExternal(t, testhelper.Scenario{Name: tc.name, Input: tc.input, Want: tc.want})\n\t}\n\tfor _, tc := range tests {\n\t\t// Local function literal should be expanded\n\t\tlocalFunc(tc)\n\t\t// Same-package function should be expanded\n\t\thelperLoop()\n\t}\n\t// Same-package function with nested calls should be expanded recursively\n\trunScenarios(t, tests)\n}",
+    "importPath": "",
+    "name": "TestExpandedStatements",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

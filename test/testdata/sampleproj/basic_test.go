@@ -1,0 +1,119 @@
+// basic_test.go contains common table-driven test patterns covering the supported scenario data structures
+// (slice, map, or array of structs) and loop iteration styles (range, range-int, for-index).
+package sampleproj
+
+import "testing"
+
+type scenario struct {
+	name  string
+	input int
+	want  int
+}
+
+// TestSliceRange is a typical table-driven test: slice of structs, range loop, subtests.
+func TestSliceRange(t *testing.T) {
+	tests := []scenario{
+		{name: "positive", input: 2, want: 4},
+		{name: "negative", input: -1, want: -2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.input * 2; got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestMapRange uses a map keyed by test name. The struct value has no name field because the map key serves as the subtest name.
+func TestMapRange(t *testing.T) {
+	tests := map[string]struct {
+		input int
+		want  int
+	}{
+		"positive": {input: 2, want: 4},
+		"negative": {input: -1, want: -2},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := tc.input * 2; got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestArrayRange uses a fixed-size array instead of a slice.
+func TestArrayRange(t *testing.T) {
+	tests := [2]scenario{
+		{name: "positive", input: 2, want: 4},
+		{name: "negative", input: -1, want: -2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.input * 2; got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestInlineScenarios declares the scenario slice directly in the range clause.
+func TestInlineScenarios(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{name: "positive", input: 2, want: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.input * 2; got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRangeInt uses a range-over-int loop.
+func TestRangeInt(t *testing.T) {
+	tests := []scenario{
+		{name: "positive", input: 2, want: 4},
+	}
+	for i := range len(tests) {
+		t.Run(tests[i].name, func(t *testing.T) {
+			if got := tests[i].input * 2; got != tests[i].want {
+				t.Errorf("got %d, want %d", got, tests[i].want)
+			}
+		})
+	}
+}
+
+// TestForIndexed uses a three-clause for loop with len().
+func TestForIndexed(t *testing.T) {
+	tests := []scenario{
+		{name: "positive", input: 2, want: 4},
+	}
+	for i := 0; i < len(tests); i++ {
+		tc := tests[i]
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.input * 2; got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestIndexedNoAssign uses an indexed loop without assigning the current scenario to a variable.
+func TestIndexedNoAssign(t *testing.T) {
+	tests := []scenario{
+		{name: "positive", input: 2, want: 4},
+	}
+	for i := 0; i < len(tests); i++ {
+		t.Run(tests[i].name, func(t *testing.T) {
+			if got := tests[i].input * 2; got != tests[i].want {
+				t.Errorf("got %d, want %d", got, tests[i].want)
+			}
+		})
+	}
+}

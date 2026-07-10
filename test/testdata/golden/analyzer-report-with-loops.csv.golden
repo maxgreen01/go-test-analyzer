@@ -1,0 +1,39 @@
+project,filePath,importPath,name,isTableDriven,scenarioDataStructure,scenarioCount,scenarioNameField,scenarioExpectedFields,scenarioHasFunctionFields,scenarioUsesSubtest,refactorStrategy,refactorGenerationStatus,originalExecutionResult,refactoredExecutionResult,importedPackages,localLoops,delegatedLoops,tableDrivenLoops
+,,,TestSliceRange,true,structList,2,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestMapRange,true,map,2,map key,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestArrayRange,true,structList,2,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestInlineScenarios,true,structList,1,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestRangeInt,true,structList,1,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestForIndexed,true,structList,1,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestIndexedNoAssign,true,structList,1,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestNameField,true,structList,1,scenarioName,,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestSubtestNameField,true,structList,1,identifier,,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestMultipleExpected,true,structList,1,name,"expectedVal, result, expectStatus",false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestFunctionFields,true,structList,1,name,,true,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestNoSubtest,true,structList,1,name,want,false,false,none,none,notRun,notRun,testing,1,0,1
+,,,TestScenariosFromExternalPkg,false,structList,0,Name,Want,false,true,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,0,1
+,,,TestAssertInExternalPkg,true,structList,1,Name,Want,false,true,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,0,1
+,,,TestLoopInExternalPkg,false,none,0,,,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",0,0,0
+,,,TestEverythingInExternalPkg,false,none,0,,,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",0,0,0
+,,,TestScenariosFromHelper,false,structList,0,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestAssertInHelper,true,structList,1,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestLoopInHelper,false,none,0,,,false,false,none,none,notRun,notRun,testing,0,1,1
+,,,TestEverythingInHelper,false,none,0,,,false,false,none,none,notRun,notRun,testing,0,1,1
+,,,TestScenariosSameFile,true,structList,1,name,expected,false,true,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,0,1
+,,,TestScenariosOtherFile,false,structList,0,name,want,false,true,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,0,1
+,,,TestScenariosOtherPkg,false,structList,0,Name,Want,false,true,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,0,1
+,,,TestNoLoops,false,none,0,,,false,false,none,none,notRun,notRun,testing,0,0,0
+,,,TestNoLoopsSubtests,false,none,0,,,false,false,none,none,notRun,notRun,testing,0,0,0
+,,,TestSetupLoopOnly,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,0
+,,,TestAssertionLoopOnly,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,1
+,,,TestMutatedContainer,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,0
+,,,TestMutatedElement,true,structList,1,,,false,false,none,none,notRun,notRun,testing,1,0,0
+,,,TestUnusedScenarios,true,structList,1,,,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestZeroScenarios,false,structList,0,name,want,false,false,none,none,notRun,notRun,testing,1,0,1
+,,,TestZeroFields,true,structList,1,,,false,false,none,none,notRun,notRun,testing,1,0,0
+,,,TestNestedOuterTD,true,structList,1,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestNestedInnerTD,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,1
+,,,TestNestedBothTD,true,structList,1,groupName,,false,true,none,none,notRun,notRun,testing,1,0,1
+,,,TestMultipleLoops,false,map,0,,,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",3,0,1
+,,,TestMultipleTdLoops,true,structList,1,name,want,false,true,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",2,0,2
+,,,TestExpandedStatements,true,structList,1,name,want,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,1,2

@@ -43,7 +43,7 @@ func RefactorStrategyFromString(method string) RefactorStrategy {
 	switch strings.ToLower(method) {
 	case "subtest":
 		return RefactorStrategySubtest
-	case "none":
+	case "none", "":
 		return RefactorStrategyNone
 	default:
 		slog.Warn("Unknown refactoring strategy", "strategy", method)

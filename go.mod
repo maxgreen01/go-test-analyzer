@@ -4,10 +4,12 @@ go 1.24.5
 
 require (
 	github.com/dave/dst v0.27.4
+	github.com/gocarina/gocsv v0.0.0-20260628180327-50907998929c
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/lmittmann/tint v1.1.1
 	github.com/mattn/go-colorable v0.1.14
 	github.com/samber/slog-multi v1.4.0
+	github.com/sebdah/goldie/v2 v2.8.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/tools v0.41.0
 )
@@ -15,7 +17,9 @@ require (
 require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/samber/lo v1.49.1 // indirect
+	github.com/sergi/go-diff v1.2.0 // indirect
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
