@@ -230,12 +230,14 @@ func (tc *TestCase) GetPackageInfo() *decorator.Package { return tc.pkgInfo }
 // ========== Action Methods ==========
 //
 
-// Convenience method for getting the type of an expression (including identifiers) within the current TestCase's project.
-// Returns `nil` if the type information for the project is not available, or if the expression is not found.
 func (tc *TestCase) TypeOf(expr dst.Expr) types.Type {
 	typeInfo := tc.TypeInfo()
-	astExpr := tc.DstToAst(expr).(ast.Expr)
-	if typeInfo == nil || astExpr == nil {
+	astNode := tc.DstToAst(expr)
+	if typeInfo == nil || astNode == nil {
+		return nil
+	}
+	astExpr, ok := astNode.(ast.Expr)
+	if !ok {
 		return nil
 	}
 	return typeInfo.TypeOf(astExpr)
@@ -245,12 +247,17 @@ func (tc *TestCase) TypeOf(expr dst.Expr) types.Type {
 // Returns `nil` if the type information for the project is not available, or if the identifier is not found.
 func (tc *TestCase) ObjectOf(ident *dst.Ident) types.Object {
 	typeInfo := tc.TypeInfo()
-	astIdent := tc.DstToAst(ident).(*ast.Ident)
-	if typeInfo == nil || astIdent == nil {
+	astNode := tc.DstToAst(ident)
+	if typeInfo == nil || astNode == nil {
+		return nil
+	}
+	astIdent, ok := astNode.(*ast.Ident)
+	if !ok {
 		return nil
 	}
 	return typeInfo.ObjectOf(astIdent)
 }
+
 
 // Convenience method for getting the Scope corresponding to the TestCase's definition function.
 // Returns `nil` if the type information for the project is not available.

@@ -48,21 +48,35 @@ func TestAssertionLoopOnly(t *testing.T) {
 	}
 }
 
-// TestMutatedContainer mutates the scenario container inside the loop body.
-// ! NOTE: known limitation - this is falsely detected as table-driven.
-func TestMutatedContainer(t *testing.T) {
+// TestMutatedContainerIndexed mutates the scenario container inside the body of an indexed loop.
+func TestMutatedContainerIndexed(t *testing.T) {
 	items := []struct {
 		number int
 	}{
 		{number: -1},
 	}
-	for i := 0; i < len(items) && len(items) < 5; i++ {
-		items = append(items, struct{ number int }{number: i})
+	for i := 0; i < len(items); i++ {
+		if len(items) < 5 {
+			items = append(items, struct{ number int }{number: i})
+		}
 	}
 }
 
-// TestMutatedElement mutates the struct element inside the loop body using an indexed loop.
-// ! NOTE: known limitation - this is falsely detected as table-driven.
+// TestMutatedContainerRange mutates the scenario container inside the body of a range loop.
+func TestMutatedContainerRange(t *testing.T) {
+	items := []struct {
+		number int
+	}{
+		{number: -1},
+	}
+	for i := range items {
+		if len(items) < 5 {
+			items = append(items, struct{ number int }{number: i})
+		}
+	}
+}
+
+// TestMutatedElement mutates the struct element inside the body of an indexed loop.
 func TestMutatedElement(t *testing.T) {
 	items := []struct {
 		number int
@@ -75,7 +89,6 @@ func TestMutatedElement(t *testing.T) {
 }
 
 // TestUnusedScenarios loops over the length of a struct slice, but never actually reads its data inside the loop.
-// ! NOTE: known limitation - this is falsely detected as table-driven.
 func TestUnusedScenarios(t *testing.T) {
 	items := []struct {
 		number int

@@ -38,77 +38,48 @@ outerStmtLoop:
 		if ss.Runner == nil {
 			stmt := expanded.Stmt
 			// Detect the loop itself
-			if rangeStmt, ok := stmt.(*dst.RangeStmt); ok {
-				// slog.Debug("Found range statement in test case", "testCase", tc.TestName)
-
-				// Detect if the loop ranges over a valid data structure directly, e.g. `for _, s := range scenarios`
-				ss.detectScenarioDataStructure(rangeStmt.X)
-
-				// Found range over scenario data structure directly - easy case
-				if ss.DataStructure != ScenarioNoDS {
-					// Check if the scenario data structure is defined directly in the range statement
-					if _, ok := rangeStmt.X.(*dst.CompositeLit); ok {
-						if ss.IdentifyScenarios(rangeStmt.X, tc) {
-							slog.Debug("Found scenario definition directly in the range statement", "testCase", tc, "scenarios", len(ss.Scenarios))
-						}
-					}
-					ss.Runner = rangeStmt
-					continue outerStmtLoop // Move to the next test statement
-				}
-
-				// Check if the loop ranges over an integer that's used for accessing scenarios, e.g. `for i := range len(scenarios)`
-				// It's technically possible to do this without defining a range key variable, but that structure is intentionally not detected to limit false detections.
-				slog.Debug("Checking for range over int loop to access scenarios", "testCase", tc)
-				if rangeStmt.Key != nil {
-					// Detect if the loop ranges over `len(scenarios)`
-					ss.detectScenariosInLen(rangeStmt.X)
-					// todo probably should enforce the read-only index requirements even if scenarios are found in the condition, or maybe just don't check for len() directly?
-
-					// If a data structure is still not found, search the loop body based on the index variable
-					if ss.DataStructure == ScenarioNoDS {
-						var indexVarName string
-						if rangeKey, ok := rangeStmt.Key.(*dst.Ident); ok {
-							indexVarName = rangeKey.Name
-						}
-						ss.detectScenariosByIndex(rangeStmt.Body, indexVarName)
-					}
-				}
-
-				// If we still haven't found a valid scenario data structure, try analyzing a different statement
-				if ss.DataStructure == ScenarioNoDS {
-					slog.Debug("Detected a range loop in test case, but didn't find a valid scenario structure", "testCase", tc)
-					continue outerStmtLoop
-				}
-
-				ss.Runner = rangeStmt
-
-			} else if forStmt, ok := stmt.(*dst.ForStmt); ok {
-				// slog.Debug("Found index loop statement in test case", "testCase", tc.TestName)
-
-				// Detect if the loop uses `len(scenarios)` in the condition (assuming a binary comparison), e.g. `for i := 0; i < len(scenarios); i++`
-				if cond, ok := forStmt.Cond.(*dst.BinaryExpr); ok {
-					ss.detectScenariosInLen(cond.Y)
-					if ss.DataStructure == ScenarioNoDS {
-						ss.detectScenariosInLen(cond.X)
-					}
-				}
-				// todo probably should enforce the read-only index requirements even if scenarios are found in the condition, or maybe just don't check for len() directly?
-
-				// If a data structure is still not found, search the loop body based on the index variable
-				if ss.DataStructure == ScenarioNoDS {
-					if indexIdent := GetForStmtIndexIdent(forStmt); indexIdent != nil {
-						ss.detectScenariosByIndex(forStmt.Body, indexIdent.Name)
-					}
-				}
-
-				// If we still haven't found a valid scenario data structure, try analyzing a different statement
-				if ss.DataStructure == ScenarioNoDS {
-					slog.Debug("Detected an index loop in test case, but didn't find a valid scenario structure", "testCase", tc)
-					continue outerStmtLoop
-				}
-
-				ss.Runner = forStmt
+			var body *dst.BlockStmt
+			switch loop := stmt.(type) {
+			case *dst.RangeStmt:
+				body = loop.Body
+			case *dst.ForStmt:
+				body = loop.Body
 			}
+			if body == nil {
+				continue outerStmtLoop // not a loop, or empty body
+			}
+
+			// Check if the loop involves a scenario data structure
+			ds := ss.detectLoopScenarioDS(stmt)
+			if ds == nil {
+				slog.Debug("Detected a loop in test case, but didn't find a valid scenario structure", "testCase", tc)
+				continue outerStmtLoop
+			}
+
+			// Do supplementary checks before saving the data structure results
+
+			// Heuristic: the scenario data structure itself should never be mutated inside the loop body, e.g. `scenarios = append(scenarios, ...)`
+			if ds.structName != "" && isAssigned(dst.NewIdent(ds.structName), body.List) {
+				slog.Debug("Scenario data structure is mutated in loop body, so not table-driven", "testCase", tc, "variableName", ds.structName)
+				continue outerStmtLoop
+			}
+
+			// All checks passed, so save the detected values to the ScenarioSet
+			ss.Runner = stmt
+			ss.DataStructure = ds.dataStructure
+			ss.ScenarioType = ds.scenarioType
+			ss.ScenarioStructName = ds.structName
+			ss.NameField = ds.nameField
+
+			// Before moving to other statements, check if the scenarios are defined directly in the range statement we just found
+			if rangeStmt, ok := stmt.(*dst.RangeStmt); ok {
+				if _, ok := rangeStmt.X.(*dst.CompositeLit); ok {
+					if ss.IdentifyScenarios(rangeStmt.X, tc) {
+						slog.Debug("Found scenario definition directly in the range statement", "testCase", tc, "scenarios", len(ss.Scenarios))
+					}
+				}
+			}
+
 			continue outerStmtLoop // Move to the next test statement
 		} // end of check for Runner loop
 
@@ -160,24 +131,25 @@ outerStmtLoop:
 	return ss
 }
 
+// detectedDS is an intermediate representation of a detected scenario data structure found by one of the `detect...` methods.
+// The data stored in these structs could be transferred to the ScenarioSet fields if additional criteria are met.
+type detectedDS struct {
+	dataStructure ScenarioDataStructure
+	scenarioType  types.Type
+	structName    string
+	nameField     string
+}
+
 // Checks if the provided expression represents a data structure used to store scenarios in a
 // table-driven test based on the underlying data type (usually a struct) used to define scenarios.
 // Also checks if the key of a map structure is used to define each scenario's name.
-//
-// Saves the detected ScenarioDataStructure category, the original (not underlying) type used to
-// define each scenario, and the name of the variable that holds the scenarios (if the provided
-// expression is an identifier) to the `ScenarioSet`.
-func (ss *ScenarioSet) detectScenarioDataStructure(expr dst.Expr) {
+func (ss *ScenarioSet) detectScenarioDataStructure(expr dst.Expr) *detectedDS {
 	typ := ss.TestCase.TypeOf(expr)
 	if typ == nil {
-		return
+		return nil
 	}
-
-	// To avoid interference with running this multiple times, reset the relevant ScenarioSet fields before proceeding
-	ss.DataStructure = ScenarioNoDS
-	ss.ScenarioType = nil
-	ss.ScenarioStructName = ""
-
+	
+	var ds *detectedDS
 	// Check the underlying type of the whole data structure
 	switch x := typ.Underlying().(type) {
 
@@ -185,30 +157,30 @@ func (ss *ScenarioSet) detectScenarioDataStructure(expr dst.Expr) {
 		// Check for []struct or [N]struct
 		elemType := x.(asttools.Elemer).Elem()
 		if _, ok := asttools.UnderlyingType(elemType).(*types.Struct); ok {
-			ss.DataStructure, ss.ScenarioType = ScenarioStructListDS, elemType // save the original data type, not the underlying one
+			ds = &detectedDS{dataStructure: ScenarioStructListDS, scenarioType: elemType} // save the original data type, not the underlying one
 		}
 
 	case *types.Map:
 		// Check for map[any]any
 		// map[any]struct is expected most of the time, but something like map[string]bool is fine too
-		ss.DataStructure = ScenarioMapDS
-		ss.ScenarioType = x.Elem()
+		ds = &detectedDS{dataStructure: ScenarioMapDS, scenarioType: x.Elem()}
 
 		// If the map key is a string (not considering underlying type), assume it's the scenario name
 		if asttools.IsBasicType(x.Key(), types.IsString) {
-			ss.NameField = "map key"
+			ds.nameField = "map key"
 		}
 	default:
 		// Not a recognized data structure type
-		return
+		return nil
 	}
 
 	// If this is a recognized scenario data structure, the provided expression represents the scenarios themselves.
 	// This name could be empty if scenarios are defined directly in a range statement (e.g. as a CompositeLit or CallExpr) without being
 	// assigned to a separate variable, but this means the range statement should already have a value expression to reference the current scenario.
-	if ident, ok := expr.(*dst.Ident); ss.DataStructure != ScenarioNoDS && ok {
-		ss.ScenarioStructName = ident.Name
+	if ident, ok := expr.(*dst.Ident); ds != nil && ok {
+		ds.structName = ident.Name
 	}
+	return ds
 }
 
 // Checks whether an expression has the same original (not underlying) type as the ScenarioType, and if so, saves the scenarios from the expression.
@@ -317,54 +289,121 @@ func isAssigned(target dst.Expr, body []dst.Stmt) bool {
 	return false
 }
 
-// Checks if the expression is a call to `len(x)`, where x represents a valid scenario data structure
-// based on `detectScenarioDataStructure()`. Saves the data structure to the `ScenarioSet` if found.
-func (ss *ScenarioSet) detectScenariosInLen(expr dst.Expr) {
-	if callExpr, ok := expr.(*dst.CallExpr); ok {
-		if ident, ok := callExpr.Fun.(*dst.Ident); ok && ident.Name == "len" && len(callExpr.Args) > 0 {
-			arg := callExpr.Args[0]
-			ss.detectScenarioDataStructure(arg)
+// detectLoopScenarioDS extracts the scenario data structure descriptor from a loop statement (either RangeStmt or ForStmt).
+// Returns nil if no valid scenario data structure is found.
+func (ss *ScenarioSet) detectLoopScenarioDS(stmt dst.Stmt) *detectedDS {
+	var indexVarName string
+	var possibleLenExprs []dst.Expr
+	var body *dst.BlockStmt
+
+	switch loop := stmt.(type) {
+
+	case *dst.RangeStmt:
+		// Easy case: check for range directly over a valid scenario data structure, e.g. `for _, s := range scenarios`
+		if ds := ss.detectScenarioDataStructure(loop.X); ds != nil {
+			return ds
 		}
+
+		// Try using the loop index (key) variable to find a scenario data structure in the loop body, e.g. in `for i := range len(scenarios)`.
+		// The index variable can technically be defined outside the loop, but that case is intentionally ignored to limit false detections.
+		if loop.Key != nil {
+			if keyIdent, ok := loop.Key.(*dst.Ident); ok {
+				indexVarName = keyIdent.Name
+			}
+		}
+		possibleLenExprs = []dst.Expr{loop.X}
+		body = loop.Body
+
+	case *dst.ForStmt:
+		// Try using the inferred loop index variable to find a scenario data structure in the loop body, e.g. in `for i := 0; i < len(scenarios); i++`.
+		if indexIdent := GetForStmtIndexIdent(loop); indexIdent != nil {
+			indexVarName = indexIdent.Name
+		}
+		if cond, ok := loop.Cond.(*dst.BinaryExpr); ok {
+			possibleLenExprs = []dst.Expr{cond.Y, cond.X}
+		}
+		body = loop.Body
 	}
+
+	if indexVarName == "" || body == nil {
+		return nil
+	}
+
+	// First, find all valid scenario data structures that are indexed using the key/index variable.
+	// If this loop is a range over the len() of a valid data structure or has a len() check in the
+	// condition, prioritize that variable. Otherwise, fallback to the first detected structure.
+	if indexedStructures := ss.detectScenariosByIndex(body, indexVarName); len(indexedStructures) > 0 {
+		// Prioritize the argument to len()
+		for _, expr := range possibleLenExprs {
+			if lenArg := getLenArgName(expr); lenArg != "" {
+				for _, ds := range indexedStructures {
+					if ds.structName == lenArg {
+						return ds
+					}
+				}
+			}
+		}
+		// Fallback to the first detected structure
+		return indexedStructures[0]
+	}
+
+	// No valid scenario data structure found, even after checking indexing
+	return nil
 }
 
-// Searches through a block statement to find an index statement on a valid scenario data structure
-// based on `detectScenarioDataStructure()` using the given index variable name. The index expression
-// must never appear on the LHS of an assignment, since scenario data should be read-only. Saves the
-// data structure to the `ScenarioSet` if found.
-func (ss *ScenarioSet) detectScenariosByIndex(body *dst.BlockStmt, indexVarName string) {
-	if indexVarName == "" || indexVarName == "_" || body == nil {
-		return
-	}
-	dst.Inspect(body, func(n dst.Node) bool {
-		// Stop iterating if we've already found a valid scenario data structure
-		if ss.DataStructure != ScenarioNoDS {
-			return false
+// Checks if the expression is a call to `len(x)`, and returns the name of the argument `x` if it is an identifier.
+func getLenArgName(expr dst.Expr) string {
+	if callExpr, ok := expr.(*dst.CallExpr); ok {
+		if ident, ok := callExpr.Fun.(*dst.Ident); ok && ident.Name == "len" && len(callExpr.Args) > 0 {
+			if argIdent, ok := callExpr.Args[0].(*dst.Ident); ok {
+				return argIdent.Name
+			}
 		}
+	}
+	return ""
+}
 
+// Searches through a block statement to find all index statements on valid scenario data structures
+// based on `detectScenarioDataStructure()` using the given index variable name. The index expression
+// must never appear on the LHS of an assignment, since scenario data should be read-only.
+// Returns a slice of detected structures in the order that they appear based on a DST traversal.
+func (ss *ScenarioSet) detectScenariosByIndex(body *dst.BlockStmt, indexVarName string) []*detectedDS {
+	if indexVarName == "" || indexVarName == "_" || body == nil {
+		return nil
+	}
+	
+	// Keep track of all the valid scenario data structures that have been found already
+	var found []*detectedDS
+	seen := make(map[string]bool)
+
+	dst.Inspect(body, func(n dst.Node) bool {
 		// Index expression like `container[indexVarName]`
 		if indexExpr, ok := n.(*dst.IndexExpr); ok {
 			if indexIdent, ok := indexExpr.Index.(*dst.Ident); ok && indexIdent.Name == indexVarName {
 				if containerIdent, ok := indexExpr.X.(*dst.Ident); ok {
+					if seen[containerIdent.Name] {
+						return true
+					}
 					// Ignore this expression if the variable is ever on the LHS of assignment in the body (must be read-only)
 					if isAssigned(containerIdent, body.List) {
 						return true
 					}
 					// Try to detect scenario data structure of the container
-					ss.detectScenarioDataStructure(containerIdent)
-					if ss.DataStructure != ScenarioNoDS {
-						return false // Stop descending
+					if ds := ss.detectScenarioDataStructure(containerIdent); ds != nil {
+						seen[containerIdent.Name] = true
+						found = append(found, ds)
 					}
 				}
 			}
 		}
 		return true
 	})
+	return found
 }
 
 // Searches through a declaration for variable assignments matching the detected scenario data structure
-// using `IdentifyScenarios()`. Returns true and saves the scenarios to the `ScenarioSet` if a matching
-// assignment is found.
+// by checking the `ScenarioStructName` and using `IdentifyScenarios()`. Returns true and saves the
+// scenarios to the `ScenarioSet` if a matching assignment is found.
 func (ss *ScenarioSet) identifyScenariosFromDecl(decl dst.Decl) bool {
 	if decl == nil {
 		return false
@@ -377,7 +416,12 @@ func (ss *ScenarioSet) identifyScenariosFromDecl(decl dst.Decl) bool {
 	// Loop over the right-hand side expressions of each variable declaration
 	for _, spec := range genDecl.Specs {
 		if valueSpec, ok := spec.(*dst.ValueSpec); ok {
-			for _, expr := range valueSpec.Values {
+			for i, expr := range valueSpec.Values {
+				nameIdent := valueSpec.Names[i]
+				if ss.ScenarioStructName == "" || nameIdent == nil || nameIdent.Name != ss.ScenarioStructName {
+					// Skip if the variable name doesn't match the detected data structure name
+					continue
+				}
 				found := ss.IdentifyScenarios(expr, ss.TestCase)
 				if found {
 					return true
