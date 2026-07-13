@@ -144,12 +144,12 @@ type RefactoredFunction struct {
 	FilePath string    `json:"filePath"` // The path to the file containing the refactored function
 	IsHelper bool      `json:"isHelper"` // Whether this function is a helper function rather than the test function itself
 
-	cleanup func() error // A function to restore the original function declaration if necessary
+	cleanup func(revertAST bool) error // A function to restore the original function declaration in memory, not affecting the file on disk
 	// todo CLEANUP maybe replace with storing the original DST function and file and performing the cleanup based on that
 }
 
 // Creates a new RefactoredFunction with the provided DST data.
-func NewRefactoredFunction(fn *dst.FuncDecl, file *dst.File, filePath string, isHelper bool, cleanupFunc func() error) *RefactoredFunction {
+func NewRefactoredFunction(fn *dst.FuncDecl, file *dst.File, filePath string, isHelper bool, cleanupFunc func(revertAST bool) error) *RefactoredFunction {
 	if fn == nil || file == nil {
 		slog.Error("Cannot create RefactoredFunction with nil syntax data", "funcDecl", fn, "file", file)
 		return nil
@@ -176,11 +176,17 @@ func (rf *RefactoredFunction) UpdateStringRepresentation() {
 	rf.RefactoredString = asttools.NodeToString(rf.Refactored)
 }
 
-// Cleans up the refactored function by restoring the original DST function declaration, if possible.
-// Does not affect the file on the disk.
-func (rf *RefactoredFunction) Cleanup() {
+// Cleans up the refactored function in-memory, but does not affect the file on disk. This functionality
+// must be implemented by the `cleanup` function provided when the RefactoredFunction is created.
+// 
+// If `revertAST` is false, this skips reverting the AST File declaration for test functions themselves
+// (so subsequent test refactorings in the same file accumulate changes), but still restores TestCase and
+// ScenarioSet DST references so they represent the original state of the code before refactoring.
+// If `revertAST` is true (or if this is a helper function), this reverts the AST File declaration and
+// restores the TestCase & ScenarioSet references to avoid interference if the helper is used in multiple tests.
+func (rf *RefactoredFunction) Cleanup(revertAST bool) {
 	if rf.cleanup != nil {
-		if err := rf.cleanup(); err != nil {
+		if err := rf.cleanup(revertAST || rf.IsHelper); err != nil {
 			slog.Error("Error cleaning up refactored function", "err", err, "function", rf.Refactored.Name.Name, "filePath", rf.FilePath)
 		}
 	}

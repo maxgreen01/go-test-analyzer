@@ -76,13 +76,15 @@ func checkGoldenAnalyzeJSON(t *testing.T, results *analyzerResults, cases []test
 			}
 
 			// Sanitize the dynamic identifying fields
+			var funcDecl string
 			if tcMap, ok := data["TestCase"].(map[string]any); ok {
 				tcMap["project"] = ""
 				tcMap["filePath"] = ""
 				tcMap["importPath"] = ""
+				funcDecl = tcMap["funcDecl"].(string)
 			}
 
-			// Possibly check for the refactored code on disk, and sanitize the dynamic paths inside refactorings list
+			// Check whether the refactored code does or doesn't exist on disk, and sanitize the dynamic paths inside refactorings list
 			if refactorResult, ok := data["RefactorResult"].(map[string]any); ok {
 				if refactorings, ok := refactorResult["refactorings"].([]any); ok {
 					for _, r := range refactorings {
@@ -98,6 +100,7 @@ func checkGoldenAnalyzeJSON(t *testing.T, results *analyzerResults, cases []test
 								continue
 							}
 
+							// Get the saved code on disk
 							content, err := os.ReadFile(filePath)
 							if err != nil {
 								t.Fatalf("Failed to read source file %s: %v", filePath, err)
@@ -107,6 +110,7 @@ func checkGoldenAnalyzeJSON(t *testing.T, results *analyzerResults, cases []test
 							content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
 							refactoredCode = strings.ReplaceAll(refactoredCode, "\r\n", "\n")
 
+							// Check for the presence or absence of the refactored code on disk
 							containsRefactored := bytes.Contains(content, []byte(refactoredCode))
 							if opts.KeepRefactoredFiles {
 								if !containsRefactored {
@@ -116,6 +120,11 @@ func checkGoldenAnalyzeJSON(t *testing.T, results *analyzerResults, cases []test
 								if containsRefactored {
 									t.Errorf("Expected file %s to NOT contain the refactored code", filePath)
 								}
+							}
+
+							// Also make sure the refactored code isn't found in the original TestCase function declaration
+							if funcDecl != "" && strings.Contains(funcDecl, refactoredCode) {
+								t.Errorf("Refactored code should not be present in the original TestCase function declaration")
 							}
 						}
 					}

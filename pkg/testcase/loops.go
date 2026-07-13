@@ -268,8 +268,10 @@ type loopFeature struct {
 // or is set back to `false` if a local version is found later. If it's been found locally, it won't ever be set back to delegated.
 func (lf *loopFeature) register(present bool, isDelegated bool) {
 	if present {
+		// The value of `isDelegated` only gets stored when the feature is first registered, or if the feature was already delegated.
+		// If the feature is already delegated, it will stay delegated until a local version is found.
+		lf.Delegated = (!lf.Present || lf.Delegated) && isDelegated
 		lf.Present = true
-		lf.Delegated = isDelegated && (!lf.Present || lf.Delegated)
 	}
 }
 

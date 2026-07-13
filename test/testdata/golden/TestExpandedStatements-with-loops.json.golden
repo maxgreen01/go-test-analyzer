@@ -42,11 +42,11 @@
         "delegated": true,
         "doesExternalMutation": false,
         "hasAssertion": {
-          "delegated": false,
+          "delegated": true,
           "present": true
         },
         "hasSubtest": {
-          "delegated": false,
+          "delegated": true,
           "present": true
         },
         "indicatesTableDriven": true,

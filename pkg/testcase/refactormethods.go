@@ -91,14 +91,10 @@ func (ar *AnalysisResult) AttemptRefactoring(strategy RefactorStrategy, keepRefa
 	// all the files on the disk using the new refactored DST data
 	originalFileContents := make(map[string][]byte)
 	for _, refactoring := range rr.Refactorings {
-		// Whenever this function exits, restore the original AST File data (and any dependents) to ensure that refactorings
-		// don't interfere with each other. If the user requested to keep the refactored changes, skip the AST cleanup for the
-		// test functions themselves so that their changes accumulate and do not get overwritten when subsequent tests in the
-		// same file are saved. Always clean up helper functions to avoid interference if the helper is used in multiple tests.
-		// The actual file contents is restored later in this function.
-		if !keepRefactoredFiles || refactoring.IsHelper {
-			defer refactoring.Cleanup()
-		}
+		// Whenever this function exits, restore the TestCase and ScenarioSet DST references to represent the pre-refactored code.
+		// If the keepRefactoredFiles is false, also restore the original AST File data to ensure that refactorings don't interfere
+		// with each other. The actual contents of the refactored files on disk are restored later in this function.
+		defer refactoring.Cleanup(!keepRefactoredFiles)
 
 		filePath := refactoring.FilePath
 		if _, ok := originalFileContents[filePath]; ok {
@@ -527,11 +523,14 @@ func cloneSurroundingFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunc
 	}
 
 	// Create a closure to restore the original function declaration within the DST file
-	restoreFuncDecl := func() error {
-		if err := asttools.ReplaceFuncDecl(copiedFunc, originalFunc, enclosingFile); err != nil {
-			return fmt.Errorf("restoring original function declaration: %w", err)
+	restoreFuncDecl := func(revertAST bool) error {
+		if revertAST {
+			if err := asttools.ReplaceFuncDecl(copiedFunc, originalFunc, enclosingFile); err != nil {
+				return fmt.Errorf("restoring original function declaration: %w", err)
+			}
 		}
 		if !isHelper {
+			// originalFunc is the statement containing the given statement, not necessarily the test function itself
 			tc.funcDecl = originalFunc
 		}
 		return nil
@@ -543,7 +542,7 @@ func cloneSurroundingFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunc
 	if err != nil {
 		slog.Error("Failed to update ScenarioSet runner statement reference", "err", err, "function", originalFunc.Name.Name, "test", tc)
 		// If something went wrong, we need to restore the original function declaration to bring everything back to the original state
-		if err := restoreFuncDecl(); err != nil {
+		if err := restoreFuncDecl(true); err != nil {
 			slog.Error("Failed to restore original function declaration", "err", err)
 		}
 		return nil
@@ -551,11 +550,12 @@ func cloneSurroundingFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunc
 	ss.Runner = copiedRunner
 
 	// Create a closure to restore the original function declaration and all DST ScenarioSet references once all refactoring is done
-	cleanupFunc := func() error {
+	cleanupFunc := func(revertAST bool) error {
 		slog.Debug("Restoring original function declaration", "function", originalFunc.Name.Name, "test", tc)
-		if err := restoreFuncDecl(); err != nil {
+		if err := restoreFuncDecl(revertAST); err != nil {
 			return err
 		}
+		// The runner doesn't necessarily have to be inside the test function itself, so it should be restored even if it's inside a helper function
 		ss.Runner = originalRunner
 		return nil
 	}
