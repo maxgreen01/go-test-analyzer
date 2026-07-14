@@ -2,7 +2,10 @@
 // (slice, map, or array of structs) and loop iteration styles (range, range-int, for-index).
 package sampleproj
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 type scenario struct {
 	name  string
@@ -60,8 +63,8 @@ func TestMapRange(t *testing.T) {
 
 // TestMapRangeNonStruct uses a map of inputs to expected outputs, without a struct.
 func TestMapRangeNonStruct(t *testing.T) {
-	tests := map[int]bool {
-		2: true,
+	tests := map[int]bool{
+		2:  true,
 		-1: false,
 	}
 	for input, expected := range tests {
@@ -127,6 +130,33 @@ func TestIndexedNoAssign(t *testing.T) {
 		t.Run(tests[i].name, func(t *testing.T) {
 			if got := tests[i].input * 2; got != tests[i].want {
 				t.Errorf("got %d, want %d", got, tests[i].want)
+			}
+		})
+	}
+}
+
+// TestRangeNonStruct uses a range statement over a non-struct slice, with subtests.
+func TestRangeNonStruct(t *testing.T) {
+	for _, str := range []string{"a", "b", "c"} {
+		t.Run(str, func(t *testing.T) {
+			if got := len(str); got != 1 {
+				t.Errorf("got len %d, want len 1", got)
+			}
+		})
+	}
+}
+
+// TestRangeOther uses a range statement over a non-categorized data structure (e.g. a channel), with subtests.
+func TestRangeOther(t *testing.T) {
+	ch := make(chan int, 3)
+	ch <- 1
+	ch <- 2
+	ch <- 3
+	close(ch)
+	for val := range ch {
+		t.Run(fmt.Sprintf("val=%d", val), func(t *testing.T) {
+			if val < 0 {
+				t.Errorf("got %d, want >= 0", val)
 			}
 		})
 	}

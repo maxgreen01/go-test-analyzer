@@ -96,9 +96,7 @@ func TestUnusedScenarios(t *testing.T) {
 		{number: 1},
 	}
 	for i := 0; i < len(items); i++ {
-		t.Run("static", func(t *testing.T) {
-			t.Log("hello")
-		})
+		t.Log("hello")
 	}
 }
 

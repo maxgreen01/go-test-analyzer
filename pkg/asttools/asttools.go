@@ -299,32 +299,29 @@ func ReplaceFuncDecl(old, new *dst.FuncDecl, file *dst.File) error {
 	return fmt.Errorf("could not find function declaration %q in package %s", old.Name.Name, file.Name.Name)
 }
 
-// Returns the index of the given statement within a function body, or an error if the statement is not found.
-// The contents of the statement (but not necessarily its underlying pointers) must exactly match a statement in the provided body.
-func FindStmtInBody(stmt dst.Stmt, body []dst.Stmt) (int, error) {
+// Searches for a statement within the given node that is structurally identical to the provided statement (i.e. not requiring
+// the same underlying pointers). The provided node should typically be a BlockStmt, e.g. a function body.
+func FindStmtInNode(stmt dst.Stmt, node dst.Node) (dst.Stmt, error) {
 	if stmt == nil {
-		return -1, fmt.Errorf("cannot find nil stmt in function body")
+		return nil, fmt.Errorf("cannot find nil stmt in parent node")
 	}
-	for i, s := range body {
-		// Deep compare based on contents
-		if dstequal.Stmt(stmt, s) {
-			return i, nil
+	var found dst.Stmt
+	dst.Inspect(node, func(n dst.Node) bool {
+		if found != nil {
+			return false
 		}
+		if childStmt, ok := n.(dst.Stmt); ok {
+			if dstequal.Stmt(stmt, childStmt) {
+				found = childStmt
+				return false
+			}
+		}
+		return true
+	})
+	if found != nil {
+		return found, nil
 	}
-	return -1, fmt.Errorf("could not find stmt in function body")
-}
-
-// Returns the i-th statement in the new body, where i is the index of the provided statement within its own parent body.
-// For example, if the given statement is at index 2 in its parent body, this returns the statement at index 2 in the new body.
-func GetStmtWithSameIndex(stmt dst.Stmt, parentBody, newBody []dst.Stmt) (dst.Stmt, error) {
-	index, err := FindStmtInBody(stmt, parentBody)
-	if err != nil {
-		return nil, fmt.Errorf("finding statement in parent body: %w", err)
-	}
-	if index < 0 || index >= len(newBody) {
-		return nil, fmt.Errorf("statement index %d out of bounds for new body containing %d statements", index, len(newBody))
-	}
-	return newBody[index], nil
+	return nil, fmt.Errorf("could not find stmt in parent node")
 }
 
 // Returns the name of the first detected parameter in the function declaration that exactly matches any of the
@@ -503,7 +500,6 @@ func UnderlyingType(t types.Type) types.Type {
 	}
 	return Unpointer(t).Underlying()
 }
-
 
 // Returns whether a type is an empty interface (i.e. `interface{}` or `any`).
 func IsEmptyInterface(t types.Type) bool {

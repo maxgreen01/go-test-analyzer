@@ -30,6 +30,13 @@ func AssertScenarioExternal(t *testing.T, tc Scenario) {
 func RunScenariosExternal(t *testing.T, tests []Scenario) {
 	t.Helper()
 	for _, tc := range tests {
+		AssertScenarioExternal(t, tc)
+	}
+}
+
+func RunScenariosSubtestExternal(t *testing.T, tests []Scenario) {
+	t.Helper()
+	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
 			AssertScenarioExternal(t, tc)
 		})
@@ -39,4 +46,9 @@ func RunScenariosExternal(t *testing.T, tests []Scenario) {
 func RunTestExternal(t *testing.T) {
 	t.Helper()
 	RunScenariosExternal(t, MakeScenariosExternal())
+}
+
+func RunTestSubtestExternal(t *testing.T) {
+	t.Helper()
+	RunScenariosSubtestExternal(t, MakeScenariosExternal())
 }

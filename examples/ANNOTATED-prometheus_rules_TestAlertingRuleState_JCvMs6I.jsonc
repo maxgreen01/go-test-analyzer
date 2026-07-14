@@ -55,6 +55,8 @@
     // 
     // If scenarios are defined using a slice or array of structs, this will be "structList".
     // If scenarios are defined using a map, this will be "map".
+    // If scenarios are defined using a slice or array of non-struct elements, this will be "nonStructList".
+    // If scenarios are defined using any other data structure, this will be "other".
     // If the test is not table-driven, this will be "none".
     "dataStructure": "structList",
     

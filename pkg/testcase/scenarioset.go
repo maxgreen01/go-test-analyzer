@@ -42,10 +42,31 @@ type ScenarioSet struct {
 type ScenarioDataStructure int
 
 const (
-	ScenarioNoDS         ScenarioDataStructure = iota // no table-driven test structure detected
-	ScenarioStructListDS                              // table-driven test using a slice or array of structs
-	ScenarioMapDS                                     // table-driven test using a map
+	ScenarioNoDS ScenarioDataStructure = iota // no table-driven test structure detected
+
+	// Primary data structures:
+	// These are the most common data structures used to define table-driven tests, and are prioritized during detection.
+
+	ScenarioStructListDS // table-driven test using a slice or array of structs
+	ScenarioMapDS        // table-driven test using a map
+
+	// Secondary data structures:
+	// In contrast to primary data structures, these are fallback cases that are only detected during the second detection
+	// pass in loops containing subtest definitions.
+
+	ScenarioNonStructListDS // table-driven test using a slice or array of non-struct values (e.g. []string, []int)
+	ScenarioOtherDS         // table-driven test using an unstructured runner (e.g. integer range loop)
 )
+
+// IsPrimary returns true if this is a primary data structure, as described above.
+func (sds ScenarioDataStructure) IsPrimary() bool {
+	switch sds {
+	case ScenarioStructListDS, ScenarioMapDS:
+		return true
+	default:
+		return false
+	}
+}
 
 func (sds ScenarioDataStructure) String() string {
 	switch sds {
@@ -53,6 +74,10 @@ func (sds ScenarioDataStructure) String() string {
 		return "structList"
 	case ScenarioMapDS:
 		return "map"
+	case ScenarioNonStructListDS:
+		return "nonStructList"
+	case ScenarioOtherDS:
+		return "other"
 	default:
 		return "none"
 	}
@@ -72,6 +97,10 @@ func (sds *ScenarioDataStructure) UnmarshalJSON(data []byte) error {
 		*sds = ScenarioStructListDS
 	case "map":
 		*sds = ScenarioMapDS
+	case "nonStructList":
+		*sds = ScenarioNonStructListDS
+	case "other":
+		*sds = ScenarioOtherDS
 	default:
 		*sds = ScenarioNoDS
 	}
@@ -191,7 +220,7 @@ func (ss *ScenarioSet) detectFunctionFields() bool {
 	return false
 }
 
-// Returns a bool indicating whether `t.Run()` is called inside the loop body, as well as a reference to the `t.Run()` statement
+// Returns a bool indicating whether `t.Run()` is called inside the loop body (possibly nested), as well as a reference to the `t.Run()` statement
 func (ss *ScenarioSet) detectSubtest() (bool, *dst.CallExpr) {
 	tc := ss.TestCase
 	// Detect the name of the `testing.T` parameter instead of hardcoding "t"
@@ -202,9 +231,22 @@ func (ss *ScenarioSet) detectSubtest() (bool, *dst.CallExpr) {
 	}
 
 	statements := ss.GetRunnerStatements()
+	var detected *dst.CallExpr
 	for _, stmt := range statements {
-		if ok, callExpr := asttools.IsSelectorFuncCall(stmt, tVarName, "Run"); ok {
-			return true, callExpr
+		dst.Inspect(stmt, func(n dst.Node) bool {
+			if stmt == nil || detected != nil {
+				return false
+			}
+			if callExpr, ok := n.(*dst.CallExpr); ok {
+				if asttools.MatchSelectorExpr(callExpr.Fun, tVarName, "Run") {
+					detected = callExpr
+					return false
+				}
+			}
+			return true
+		})
+		if detected != nil {
+			return true, detected
 		}
 	}
 	return false, nil
@@ -253,12 +295,16 @@ func (ss *ScenarioSet) IsTableDriven() bool {
 		return false
 	}
 
-	// HEURISTIC: if a map doesn't have a string key or an explicit "name" field, it's probably not a table-driven test
-	// FIXME
+	// Heuristic: looped subtests are always indicative of table-driven tests, even without a valid scenario type or defined scenarios
+	if ss.Runner != nil && ss.UsesSubtest {
+		return true
+	}
+
+	// Heuristic: if a map doesn't have a string key or an explicit "name" field, it's probably not a table-driven test
+	// TODO note - this is probably not an accurate statement
 	// if !asttools.IsBasicType(x.Key(), types.IsString) && ss.NameField == "" {
 	// 	ss.DataStructure, ss.ScenarioType = ScenarioNoDS, nil
 	// }
-
 	return ss.DataStructure != ScenarioNoDS && ss.ScenarioType != nil && len(ss.Scenarios) > 0
 }
 

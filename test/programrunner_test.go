@@ -3,11 +3,15 @@ package test
 // This file contains helper functions for running the analyzer against a sample project and reading its outputs.
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gocarina/gocsv"
+	slogmulti "github.com/samber/slog-multi"
 
 	"github.com/maxgreen01/go-test-analyzer/internal/config"
 	"github.com/maxgreen01/go-test-analyzer/internal/parsercommands"
@@ -54,6 +58,18 @@ func runAnalyzer(t *testing.T, opts parsercommands.AnalyzeOptions) *analyzerResu
 	}
 	// todo LATER do we need applyGlobals()? can't access things like BuildTags if not
 
+	// Capture the log output so it can be checked in tests if needed, and also log to stderr (like usual) for compatibility with `go test -v`.
+	// Note that reusing `oldDefault` inside the fanout causes the program to hang, so we must create a new text handler instead.
+	var logBuf bytes.Buffer
+	oldDefault := slog.Default()
+	slog.SetDefault(slog.New(slogmulti.Fanout(
+		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}),
+		slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{}),
+	)))
+	t.Cleanup(func() {
+		slog.SetDefault(oldDefault)
+	})
+
 	// Run the Analyze command directly
 	cmd := parsercommands.NewAnalyzeCommand(cmdOpts)
 	cmd.AnalyzeOptions = opts
@@ -67,7 +83,7 @@ func runAnalyzer(t *testing.T, opts parsercommands.AnalyzeOptions) *analyzerResu
 		t.Fatalf("Failed to read CSV report: %v", err)
 	}
 
-	return &analyzerResults{rows: rows, projectDir: projectDir, outputDir: outputDir}
+	return &analyzerResults{rows: rows, projectDir: projectDir, outputDir: outputDir, logBuf: logBuf}
 }
 
 // readReportCSV reads the analyzer's CSV report and converts the data into structs.
@@ -87,9 +103,10 @@ func readReportCSV(path string) ([]csvRow, error) {
 
 // analyzerResults holds the parsed output of one execution of the Analyze command.
 type analyzerResults struct {
-	rows       []csvRow // CSV report rows in parsed order
-	projectDir string   // the copied project directory where the code was analyzed and refactored
-	outputDir  string   // output directory for this execution, e.g. containing per-package JSON files
+	rows       []csvRow     // CSV report rows in parsed order
+	projectDir string       // the copied project directory where the code was analyzed and refactored
+	outputDir  string       // output directory for this execution, e.g. containing per-package JSON files
+	logBuf     bytes.Buffer // captured log output from this execution
 }
 
 // jsonFile reads the contents of the generated JSON file for a given test case.
@@ -110,6 +127,15 @@ func (r *analyzerResults) jsonFile(t *testing.T, testName string) []byte {
 		t.Fatalf("Failed to read JSON file for test %q at %q: %v", testName, path, err)
 	}
 	return data
+}
+
+// checkErrorLog searches for any ERROR-level log entries in the captured log output, and fails the test if any are found.
+func (r *analyzerResults) checkErrorLog(t *testing.T) {
+	for line := range strings.SplitSeq(strings.TrimSpace(r.logBuf.String()), "\n") {
+		if strings.Contains(line, `"level":"ERROR"`) {
+			t.Errorf("Unexpected error log detected: %s", line)
+		}
+	}
 }
 
 // csvRow represents a single row in the analyzer's CSV report.

@@ -19,6 +19,13 @@ func assertScenario(t *testing.T, tc scenario) {
 func runScenarios(t *testing.T, tests []scenario) {
 	t.Helper()
 	for _, tc := range tests {
+		assertScenario(t, tc)
+	}
+}
+
+func runScenariosSubtest(t *testing.T, tests []scenario) {
+	t.Helper()
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			assertScenario(t, tc)
 		})
@@ -30,9 +37,22 @@ func runTest(t *testing.T) {
 	runScenarios(t, makeScenarios())
 }
 
-// TestScenariosFromHelper defines scenarios via a same-package helper function.
+func runTestSubtest(t *testing.T) {
+	t.Helper()
+	runScenariosSubtest(t, makeScenarios())
+}
+
+// TestScenariosFromHelper defines scenarios via a same-package helper function, WITHOUT subtests.
 // ! NOTE: known limitation - this is not detected as table-driven.
 func TestScenariosFromHelper(t *testing.T) {
+	tests := makeScenarios()
+	for _, tc := range tests {
+		assertScenario(t, tc)
+	}
+}
+
+// TestScenariosFromHelperSubtest defines scenarios via a same-package helper function, WITH subtests.
+func TestScenariosFromHelperSubtest(t *testing.T) {
 	tests := makeScenarios()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -41,8 +61,18 @@ func TestScenariosFromHelper(t *testing.T) {
 	}
 }
 
-// TestAssertInHelper delegates the assertion to a same-package helper function.
+// TestAssertInHelper delegates the assertion to a same-package helper function, WITHOUT subtests.
 func TestAssertInHelper(t *testing.T) {
+	tests := []scenario{
+		{name: "delegated", input: 1, want: 2},
+	}
+	for _, tc := range tests {
+		assertScenario(t, tc)
+	}
+}
+
+// TestAssertInHelperSubtest delegates the assertion to a same-package helper function, WITH subtests.
+func TestAssertInHelperSubtest(t *testing.T) {
 	tests := []scenario{
 		{name: "delegated", input: 1, want: 2},
 	}
@@ -53,7 +83,7 @@ func TestAssertInHelper(t *testing.T) {
 	}
 }
 
-// TestLoopInHelper delegates the entire runner loop to a same-package helper function.
+// TestLoopInHelper delegates the entire runner loop to a same-package helper function WITHOUT subtests.
 // ! NOTE: known limitation - this is not detected as table-driven.
 func TestLoopInHelper(t *testing.T) {
 	tests := []scenario{
@@ -62,8 +92,23 @@ func TestLoopInHelper(t *testing.T) {
 	runScenarios(t, tests)
 }
 
-// TestEverythingInHelper delegates the entire test to a same-package helper function.
+// TestLoopInHelperSubtest delegates the entire runner loop to a same-package helper function WITH subtests.
+// ! NOTE: known limitation - this is not detected as table-driven.
+func TestLoopInHelperSubtest(t *testing.T) {
+	tests := []scenario{
+		{name: "delegated", input: 1, want: 2},
+	}
+	runScenariosSubtest(t, tests)
+}
+
+// TestEverythingInHelper delegates the entire test to a same-package helper function WITHOUT subtests.
 // ! NOTE: known limitation - this is not detected as table-driven.
 func TestEverythingInHelper(t *testing.T) {
 	runTest(t)
+}
+
+// TestEverythingInHelperSubtest delegates the entire test to a same-package helper function WITH subtests.
+// ! NOTE: known limitation - this is not detected as table-driven.
+func TestEverythingInHelperSubtest(t *testing.T) {
+	runTestSubtest(t)
 }

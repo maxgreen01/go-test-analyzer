@@ -38,7 +38,7 @@
         ]
       },
       {
-        "content": "for _, tc := range tests {\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tassertScenario(t, tc)\n\t})\n}",
+        "content": "for _, tc := range tests {\n\tassertScenario(t, tc)\n}",
         "delegated": true,
         "doesExternalMutation": false,
         "hasAssertion": {
@@ -46,8 +46,8 @@
           "present": true
         },
         "hasSubtest": {
-          "delegated": true,
-          "present": true
+          "delegated": false,
+          "present": false
         },
         "indicatesTableDriven": true,
         "loopType": "range structs"
@@ -115,31 +115,21 @@
             {
               "children": [
                 {
+                  "stmt": "t.Helper()"
+                },
+                {
                   "children": [
                     {
-                      "children": [
-                        {
-                          "stmt": "t.Helper()"
-                        },
-                        {
-                          "children": [
-                            {
-                              "stmt": "t.Errorf(\"got %d, want %d\", got, tc.want)"
-                            }
-                          ],
-                          "stmt": "if got := tc.input * 2; got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}"
-                        }
-                      ],
-                      "stmt": "assertScenario(t, tc)"
+                      "stmt": "t.Errorf(\"got %d, want %d\", got, tc.want)"
                     }
                   ],
-                  "stmt": "func(t *testing.T) {\n\tassertScenario(t, tc)\n}"
+                  "stmt": "if got := tc.input * 2; got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}"
                 }
               ],
-              "stmt": "t.Run(tc.name, func(t *testing.T) {\n\tassertScenario(t, tc)\n})"
+              "stmt": "assertScenario(t, tc)"
             }
           ],
-          "stmt": "for _, tc := range tests {\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tassertScenario(t, tc)\n\t})\n}"
+          "stmt": "for _, tc := range tests {\n\tassertScenario(t, tc)\n}"
         }
       ],
       "stmt": "// Same-package function with nested calls should be expanded recursively\nrunScenarios(t, tests)"

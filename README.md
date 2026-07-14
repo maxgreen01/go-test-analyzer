@@ -231,10 +231,16 @@ go-test-analyzer v1.2.2
 
 The project includes a number of black-box tests that verify the analysis engine's overall functionality and detect regressions. These tests run the entire analysis engine on a sample project in [`./test/testdata/sampleproj`](./test/testdata/sampleproj), and rely on golden files (pre-computed reference outputs) to verify the program's behavior.
 
-To execute these black-box tests, run:
+To execute the full suite of these black-box tests, run:
 
 ```bash
 go test ./test
+```
+
+To inspect the output of the analysis in more detail, you can run the test suite using the `-v` flag (`go test ./test -v`) to enable verbose logging, or run the analysis engine directly on the sample project, e.g.:
+
+```bash
+go-test-analyzer analyze --project ./test/testdata/sampleproj --analyze-loops
 ```
 
 ### Managing Golden Files

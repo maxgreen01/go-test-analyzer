@@ -102,7 +102,7 @@ func main() {
 	}
 }
 
-// Validate (in-place) and apply global flags such as logging level and color output
+// Validate (in-place) and apply global flags, and set up the global logger
 func applyGlobals(opts *config.GlobalOptions) {
 	//
 	// =========== Validate flag values ===========
@@ -214,7 +214,7 @@ func applyGlobals(opts *config.GlobalOptions) {
 
 	var handlers []slog.Handler
 
-	// Crate `stderr` handler (with color output support)
+	// Create `stderr` handler (with color output support)
 	handlers = append(handlers,
 		tint.NewHandler(colorable.NewColorableStderr(), &tint.Options{
 			Level:      level,

@@ -538,7 +538,7 @@ func cloneSurroundingFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunc
 
 	// Now that the copied data is spliced into the file, update the DST references in the ScenarioSet to use the corresponding copied statements
 	originalRunner := ss.Runner // Save a copy of the original reference so it can be restored later
-	copiedRunner, err := asttools.GetStmtWithSameIndex(ss.Runner, originalFunc.Body.List, copiedFunc.Body.List)
+	copiedRunner, err := asttools.FindStmtInNode(ss.Runner, copiedFunc.Body)
 	if err != nil {
 		slog.Error("Failed to update ScenarioSet runner statement reference", "err", err, "function", originalFunc.Name.Name, "test", tc)
 		// If something went wrong, we need to restore the original function declaration to bring everything back to the original state

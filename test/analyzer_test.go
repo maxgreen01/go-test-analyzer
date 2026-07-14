@@ -12,6 +12,8 @@ import (
 func TestAnalyzeWithLoops(t *testing.T) {
 	opts := parsercommands.AnalyzeOptions{AnalyzeLoops: true}
 	results := runAnalyzer(t, opts)
+	
+	results.checkErrorLog(t)
 	checkGoldenAnalyzeCSV(t, results, "analyzer-report-with-loops.csv")
 
 	// More detailed JSON file assertions
@@ -26,6 +28,11 @@ func TestAnalyzeWithLoops(t *testing.T) {
 			testName:   "TestThirdPartyPackage",
 			goldenName: "TestThirdPartyPackage-with-loops.json",
 		},
+		{
+			// Check table-driven detection of secondary data structure
+			testName:   "TestRangeNonStruct",
+			goldenName: "TestRangeNonStruct-with-loops.json",
+		},
 	}, opts)
 }
 
@@ -37,6 +44,7 @@ func TestRefactorSubtest(t *testing.T) {
 	}
 	results := runAnalyzer(t, opts)
 
+	results.checkErrorLog(t)
 	checkGoldenAnalyzeCSV(t, results, "analyzer-report-refactor-subtest.csv")
 
 	checkGoldenAnalyzeJSON(t, results, []testCaseAssertion{
@@ -66,6 +74,7 @@ func TestRefactorSubtestDoNotKeep(t *testing.T) {
 	}
 	results := runAnalyzer(t, opts)
 
+	results.checkErrorLog(t)
 	checkGoldenAnalyzeJSON(t, results, []testCaseAssertion{
 		{
 			// Should be "success" refactor status

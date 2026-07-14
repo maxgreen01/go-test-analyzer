@@ -1,0 +1,86 @@
+{
+  "ImportedPackages": [
+    "fmt",
+    "testing"
+  ],
+  "LoopAnalysis": {
+    "loops": [
+      {
+        "content": "for _, str := range []string{\"a\", \"b\", \"c\"} {\n\tt.Run(str, func(t *testing.T) {\n\t\tif got := len(str); got != 1 {\n\t\t\tt.Errorf(\"got len %d, want len 1\", got)\n\t\t}\n\t})\n}",
+        "delegated": false,
+        "doesExternalMutation": false,
+        "hasAssertion": {
+          "delegated": false,
+          "present": true
+        },
+        "hasSubtest": {
+          "delegated": false,
+          "present": true
+        },
+        "indicatesTableDriven": true,
+        "loopType": "range non-structs"
+      }
+    ],
+    "numDelegatedLoops": 0,
+    "numLocalLoops": 1
+  },
+  "ParsedStatements": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "stmt": "len(str)"
+                    },
+                    {
+                      "stmt": "t.Errorf(\"got len %d, want len 1\", got)"
+                    }
+                  ],
+                  "stmt": "if got := len(str); got != 1 {\n\tt.Errorf(\"got len %d, want len 1\", got)\n}"
+                }
+              ],
+              "stmt": "func(t *testing.T) {\n\tif got := len(str); got != 1 {\n\t\tt.Errorf(\"got len %d, want len 1\", got)\n\t}\n}"
+            }
+          ],
+          "stmt": "t.Run(str, func(t *testing.T) {\n\tif got := len(str); got != 1 {\n\t\tt.Errorf(\"got len %d, want len 1\", got)\n\t}\n})"
+        }
+      ],
+      "stmt": "for _, str := range []string{\"a\", \"b\", \"c\"} {\n\tt.Run(str, func(t *testing.T) {\n\t\tif got := len(str); got != 1 {\n\t\t\tt.Errorf(\"got len %d, want len 1\", got)\n\t\t}\n\t})\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "none"
+  },
+  "ScenarioSet": {
+    "dataStructure": "nonStructList",
+    "expectedFields": null,
+    "hasFunctionFields": false,
+    "isTableDriven": true,
+    "nameField": "",
+    "runner": "for _, str := range []string{\"a\", \"b\", \"c\"} {\n\tt.Run(str, func(t *testing.T) {\n\t\tif got := len(str); got != 1 {\n\t\t\tt.Errorf(\"got len %d, want len 1\", got)\n\t\t}\n\t})\n}",
+    "scenarioStructName": "",
+    "scenarioType": "string",
+    "scenarios": [
+      "\"a\"",
+      "\"b\"",
+      "\"c\""
+    ],
+    "usesSubtest": true
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestRangeNonStruct uses a range statement over a non-struct slice, with subtests.\nfunc TestRangeNonStruct(t *testing.T) {\n\tfor _, str := range []string{\"a\", \"b\", \"c\"} {\n\t\tt.Run(str, func(t *testing.T) {\n\t\t\tif got := len(str); got != 1 {\n\t\t\t\tt.Errorf(\"got len %d, want len 1\", got)\n\t\t\t}\n\t\t})\n\t}\n}",
+    "importPath": "",
+    "name": "TestRangeNonStruct",
+    "package": "sampleproj",
+    "project": ""
+  }
+}
