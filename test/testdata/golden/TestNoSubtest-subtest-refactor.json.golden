@@ -29,7 +29,7 @@
     "strategy": "subtest"
   },
   "ScenarioSet": {
-    "dataStructure": "structList",
+    "dataStructure": "struct list",
     "expectedFields": [
       "want"
     ],

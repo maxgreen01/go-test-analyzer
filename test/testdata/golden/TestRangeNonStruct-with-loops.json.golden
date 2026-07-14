@@ -60,7 +60,7 @@
     "strategy": "none"
   },
   "ScenarioSet": {
-    "dataStructure": "nonStructList",
+    "dataStructure": "non-struct list",
     "expectedFields": null,
     "hasFunctionFields": false,
     "isTableDriven": true,

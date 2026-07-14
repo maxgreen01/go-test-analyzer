@@ -71,11 +71,11 @@ func (sds ScenarioDataStructure) IsPrimary() bool {
 func (sds ScenarioDataStructure) String() string {
 	switch sds {
 	case ScenarioStructListDS:
-		return "structList"
+		return "struct list"
 	case ScenarioMapDS:
 		return "map"
 	case ScenarioNonStructListDS:
-		return "nonStructList"
+		return "non-struct list"
 	case ScenarioOtherDS:
 		return "other"
 	default:
@@ -93,11 +93,11 @@ func (sds *ScenarioDataStructure) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	switch str {
-	case "structList":
+	case "struct list":
 		*sds = ScenarioStructListDS
 	case "map":
 		*sds = ScenarioMapDS
-	case "nonStructList":
+	case "non-struct list":
 		*sds = ScenarioNonStructListDS
 	case "other":
 		*sds = ScenarioOtherDS
