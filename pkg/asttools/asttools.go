@@ -25,11 +25,21 @@ import (
 // ========== Conversion Functions ==========
 //
 
-// Converts a DST node to a string representation, or returns an empty string if formatting fails
+// Converts a DST node to a formatted string representation, or returns an empty string if formatting fails.
+// This is unfortunately somewhat slow because there isn't a convenient way to format a single DST node directly.
+// Note that `dst.Fprint()` prints a dump of the raw DST structure instead of formatting.
 // todo CLEANUP should return actual errors
 func NodeToString(node dst.Node) string {
 	if node == nil || reflect.ValueOf(node).IsNil() {
 		return ""
+	}
+
+	// Easy cases
+	switch n := node.(type) {
+	case *dst.Ident:
+		return n.Name
+	case *dst.BasicLit:
+		return n.Value
 	}
 
 	// Marker decorations to identify the node being processed if it has to be wrapped before printing
@@ -255,21 +265,24 @@ func GetEnclosingFile(pos token.Pos, packageFiles []*ast.File) *ast.File {
 	return nil
 }
 
-// Returns the AST function declaration (and corresponding file) enclosing the given position in the provided package files.
-// Returns nil if no function declaration is found, or if none of the provided files contain the position.
-func GetEnclosingFunction(pos token.Pos, packageFiles []*ast.File) (*ast.FuncDecl, *ast.File) {
+// Returns a slice of AST function declarations (and corresponding file) enclosing the given position in the provided
+// package files. Elements of the returned slice are always either `*ast.FuncDecl` or `*ast.FuncLit` nodes, where
+// the innermost function is the first element of the slice, and the outermost function is the last element.
+// Returns an empty slice if no function declarations are found, or if none of the provided files contain the position.
+func GetEnclosingFunctions(pos token.Pos, packageFiles []*ast.File) ([]ast.Node, *ast.File) {
 	file := GetEnclosingFile(pos, packageFiles)
 	if file == nil {
 		return nil, nil
 	}
 	path, _ := astutil.PathEnclosingInterval(file, pos, pos)
-	for i := len(path) - 1; i >= 0; i-- {
-		// Iterate backward to find the highest-level function declaration first
-		if fn, ok := path[i].(*ast.FuncDecl); ok {
-			return fn, file
+	var funcs []ast.Node
+	for _, p := range path {
+		switch fn := p.(type) {
+		case *ast.FuncDecl, *ast.FuncLit:
+			funcs = append(funcs, fn)
 		}
 	}
-	return nil, nil
+	return funcs, file
 }
 
 // Replace the reference to the `old` FuncDecl in its parent file with a reference to the `new` FuncDecl,

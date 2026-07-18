@@ -12,7 +12,7 @@ import (
 func TestAnalyzeWithLoops(t *testing.T) {
 	opts := parsercommands.AnalyzeOptions{AnalyzeLoops: true}
 	results := runAnalyzer(t, opts)
-	
+
 	results.checkErrorLog(t)
 	checkGoldenAnalyzeCSV(t, results, "analyzer-report-with-loops.csv")
 
@@ -32,6 +32,29 @@ func TestAnalyzeWithLoops(t *testing.T) {
 			// Check table-driven detection of secondary data structure
 			testName:   "TestRangeNonStruct",
 			goldenName: "TestRangeNonStruct-with-loops.json",
+		},
+	}, opts)
+}
+
+// TestAnalyzeWithConditionals verifies that conditional statement analysis works as expected.
+func TestAnalyzeWithConditionals(t *testing.T) {
+	opts := parsercommands.AnalyzeOptions{AnalyzeConditionals: true}
+	results := runAnalyzer(t, opts)
+
+	results.checkErrorLog(t)
+	checkGoldenAnalyzeCSV(t, results, "analyzer-report-with-conditionals.csv")
+
+	// More detailed JSON file assertions
+	checkGoldenAnalyzeJSON(t, results, []testCaseAssertion{
+		{
+			// Check complex & nested conditionals
+			testName:   "TestConditionals",
+			goldenName: "TestConditionals-with-conditionals.json",
+		},
+		{
+			// Check with lots of loops
+			testName:   "TestExpandedStatements",
+			goldenName: "TestExpandedStatements-with-conditionals.json",
 		},
 	}, opts)
 }

@@ -21,17 +21,21 @@ type AnalysisResult struct {
 	ParsedStatements []*ExpandedStatement // the list of parsed and fully-expanded statements in the test case, avoiding expansion of production functions
 	ImportedPackages []string             // the list of imported packages in the test case's file
 
-	// Refactoring result - only available after running `AttemptRefactoring()`
+	// Refactoring result;  only available after running `AttemptRefactoring()`
 	RefactorResult RefactorResult // the result of refactoring the test case
 
-	// Loop Analysis result - only available if `--analyze-loops` option is set.
+	// Loop Analysis result;  only available if `--analyze-loops` option is set.
 	// Use `omitempty` instead of `omitzero` so the field is always marshalled if the option is set.
 	LoopAnalysis *LoopAnalysisResult `json:",omitempty"`
 	// TODO cleanup maybe find a cleaner way to pass around supplementary analysis fields and variables like LoopAnalysis
+	
+	// Conditional Analysis result;  only available if `--analyze-conditionals` option is set.
+	// Use `omitempty` instead of `omitzero` so the field is always marshalled if the option is set.
+	IfElseAnalysis *IfElseAnalysisResult `json:",omitempty"`
 }
 
 // Extracts relevant information about a TestCase and saves the results to a new AnalysisResult instance
-func Analyze(tc *TestCase, analyzeLoops bool) *AnalysisResult {
+func Analyze(tc *TestCase, analyzeLoops bool, analyzeConditionals bool) *AnalysisResult {
 	slog.Debug("Analyzing TestCase", "testCase", tc)
 
 	// Initialize the AnalysisResult
@@ -74,6 +78,11 @@ func Analyze(tc *TestCase, analyzeLoops bool) *AnalysisResult {
 	// Perform a loop analysis if requested
 	if analyzeLoops {
 		result.LoopAnalysis = AnalyzeLoops(tc, result.ParsedStatements)
+	}
+
+	// Perform a conditionals analysis inside the runner loop if requested
+	if analyzeConditionals {
+		result.IfElseAnalysis = AnalyzeConditionals(tc, result.ScenarioSet, result.ParsedStatements)
 	}
 
 	return result
@@ -120,6 +129,12 @@ func (ar *AnalysisResult) GetCSVHeaders() []string {
 			"tableDrivenLoops",
 		)
 	}
+	if ar.IfElseAnalysis != nil {
+		// insert before "importedPackages"
+		headers = slices.Insert(headers, len(headers)-1,
+			"numConditionals",
+		)
+	}
 	return headers
 }
 
@@ -161,6 +176,12 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 			strconv.Itoa(ar.LoopAnalysis.NumLocalLoops),
 			strconv.Itoa(ar.LoopAnalysis.NumDelegatedLoops),
 			strconv.Itoa(ar.LoopAnalysis.CountTableDriven()),
+		)
+	}
+	if ar.IfElseAnalysis != nil {
+		// insert before "importedPackages"
+		row = slices.Insert(row, len(row)-1,
+			strconv.Itoa(ar.IfElseAnalysis.NumConditionals),
 		)
 	}
 	return row

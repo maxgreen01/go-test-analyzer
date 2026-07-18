@@ -292,6 +292,13 @@ func (tc *TestCase) IsWithinTestFunction(node dst.Node) bool {
 	return astFunc.Pos() <= pos && pos < astFunc.End()
 }
 
+// Convenience method for getting the AST functions enclosing a given DST node within the current TestCase's package.
+// Equivalent to calling `asttools.GetEnclosingFunctions(tc.DstStartPos(node), tc.GetPackageFiles())`.
+func (tc *TestCase) GetEnclosingFunctions(node dst.Node) ([]ast.Node, *ast.File) {
+	return asttools.GetEnclosingFunctions(tc.DstStartPos(node), tc.GetPackageFiles())
+}
+
+
 // Returns the `types.Object` corresponding to the given identifier (which includes its location information),
 // and whether the object's package matches the current test case's package.
 func (tc *TestCase) GetIdentDefinition(ident *dst.Ident) (types.Object, bool, error) {

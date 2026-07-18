@@ -13,6 +13,7 @@
           "delegated": false,
           "present": true
         },
+        "hasEarlyExit": false,
         "hasSubtest": {
           "delegated": false,
           "present": true

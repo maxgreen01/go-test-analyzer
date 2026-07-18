@@ -5,11 +5,12 @@ project,filePath,importPath,name,isTableDriven,scenarioDataStructure,scenarioCou
 ,,,TestAssertInHelper,true,struct list,1,name,want,false,false,none,none,notRun,notRun,testing,1,0,1
 ,,,TestAssertInHelperSubtest,true,struct list,1,name,want,false,true,none,none,notRun,notRun,testing,1,0,1
 ,,,TestAssertionLoopOnly,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,1
+,,,TestConditionals,true,struct list,2,name,want,false,false,none,none,notRun,notRun,"strconv, strings, testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,0,0
 ,,,TestEverythingInExternalPkg,false,none,0,,,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",0,0,0
 ,,,TestEverythingInExternalPkgSubtest,false,none,0,,,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",0,0,0
 ,,,TestEverythingInHelper,false,none,0,,,false,false,none,none,notRun,notRun,testing,0,1,1
 ,,,TestEverythingInHelperSubtest,false,none,0,,,false,false,none,none,notRun,notRun,testing,0,1,1
-,,,TestExpandedStatements,true,struct list,1,name,want,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",1,1,2
+,,,TestExpandedStatements,true,struct list,1,name,want,false,false,none,none,notRun,notRun,"strconv, strings, testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",2,1,2
 ,,,TestForIndexed,true,struct list,1,name,want,false,true,none,none,notRun,notRun,"fmt, testing",1,0,1
 ,,,TestFunctionFields,true,struct list,1,name,,true,true,none,none,notRun,notRun,testing,1,0,1
 ,,,TestIndexedNoAssign,true,struct list,1,name,want,false,true,none,none,notRun,notRun,"fmt, testing",1,0,1
@@ -21,8 +22,8 @@ project,filePath,importPath,name,isTableDriven,scenarioDataStructure,scenarioCou
 ,,,TestMapRange,true,map,2,map key,want,false,true,none,none,notRun,notRun,"fmt, testing",1,0,1
 ,,,TestMapRangeNonStruct,true,map,2,,,false,false,none,none,notRun,notRun,"fmt, testing",1,0,1
 ,,,TestMultipleExpected,true,struct list,1,name,"expectedVal, result, expectStatus",false,true,none,none,notRun,notRun,testing,1,0,1
-,,,TestMultipleLoops,false,map,0,,,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",3,0,1
-,,,TestMultipleTdLoops,true,struct list,1,name,want,false,true,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",2,0,2
+,,,TestMultipleLoops,false,map,0,,,false,false,none,none,notRun,notRun,"strconv, strings, testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",3,0,1
+,,,TestMultipleTdLoops,true,struct list,1,name,want,false,true,none,none,notRun,notRun,"strconv, strings, testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",2,0,2
 ,,,TestMutatedContainerIndexed,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,0
 ,,,TestMutatedContainerRange,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,0
 ,,,TestMutatedElement,false,none,0,,,false,false,none,none,notRun,notRun,testing,1,0,0

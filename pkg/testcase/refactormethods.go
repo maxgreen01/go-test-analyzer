@@ -4,6 +4,7 @@ package testcase
 
 import (
 	"fmt"
+	"go/ast"
 	"go/token"
 	"go/types"
 	"log/slog"
@@ -485,12 +486,19 @@ func cloneSurroundingFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunc
 	tc := ar.TestCase
 	ss := ar.ScenarioSet
 
-	originalAstFunc, enclosingAstFile := asttools.GetEnclosingFunction(tc.DstStartPos(stmt), tc.GetPackageFiles())
+	enclosingFuncs, enclosingAstFile := tc.GetEnclosingFunctions(stmt)
 
-	if originalAstFunc == nil || enclosingAstFile == nil {
+	if len(enclosingFuncs) == 0 || enclosingAstFile == nil {
 		slog.Warn("Cannot clone the function surrounding a statement that is not in the test's package", "statement", fmt.Sprintf("%T", stmt), "test", tc)
 		return nil
 	}
+	// Save the outermost function because we need to replace it in the file's declarations directly
+	originalAstFunc, ok := enclosingFuncs[len(enclosingFuncs)-1].(*ast.FuncDecl)
+	if !ok {
+		slog.Warn("Outermost enclosing function is not a FuncDecl", "test", tc)
+		return nil
+	}
+	
 	fset := tc.FileSet()
 	if fset == nil {
 		slog.Warn("Cannot clone a function because FileSet is nil", "function", originalAstFunc.Name.Name, "test", tc)

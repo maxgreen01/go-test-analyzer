@@ -34,6 +34,7 @@ type AnalyzeCommand struct {
 	refactorGenerationSuccesses int // number of test cases that were successfully refactored in some way
 	refactorSuccesses           int // number of test cases whose execution results matched before and after refactoring
 	tableDrivenLoops            int // if `--analyze-loops` is set, number of tests with loops that look table-driven
+	tableDrivenConditionals     int // if `--analyze-conditionals` is set, number of table-driven tests with conditionals
 }
 
 // Command-line flags for the Analyze command specifically
@@ -42,6 +43,7 @@ type AnalyzeOptions struct {
 	RefactorStrategy    string `long:"refactor" description:"The type of refactoring to perform on the detected test cases" choice:"none" choice:"subtest" default:"none"`
 	KeepRefactoredFiles bool   `long:"keep-refactored-files" description:"Whether to retain the results of refactored test cases by NOT restoring the original source files after refactoring"`
 	AnalyzeLoops        bool   `long:"analyze-loops" description:"Whether to perform an additional, more detailed analysis of all the loops detected in each test case"`
+	AnalyzeConditionals bool   `long:"analyze-conditionals" description:"Whether to perform an additional, more detailed analysis of all the if/else chains detected in table-driven tests"`
 }
 
 // Compile-time interface implementation check
@@ -147,7 +149,7 @@ func (cmd *AnalyzeCommand) Visit(file *dst.File, pkg *decorator.Package) {
 		tc := testcase.CreateTestCase(fn, file, pkg, projectName)
 
 		// Analyze and store the test case
-		analysisResult := testcase.Analyze(&tc, cmd.AnalyzeLoops)
+		analysisResult := testcase.Analyze(&tc, cmd.AnalyzeLoops, cmd.AnalyzeConditionals)
 		cmd.testCases = append(cmd.testCases, analysisResult)
 
 		if analysisResult.IsTableDriven() {
@@ -176,6 +178,11 @@ func (cmd *AnalyzeCommand) Visit(file *dst.File, pkg *decorator.Package) {
 		// Only count loop analysis statistics if the `--analyze-loops` option is set
 		if cmd.AnalyzeLoops && analysisResult.LoopAnalysis.CountTableDriven() > 0 {
 			cmd.tableDrivenLoops++
+		}
+
+		// Only count conditional analysis statistics if the `--analyze-conditionals` option is set
+		if cmd.AnalyzeConditionals && analysisResult.IfElseAnalysis.NumConditionals > 0 {
+			cmd.tableDrivenConditionals++
 		}
 
 		// Write all results to a JSON file
@@ -220,6 +227,13 @@ func (cmd *AnalyzeCommand) ReportResults() error {
 			reportLines = append(reportLines,
 				"\n",
 				fmt.Sprintf("Tests with table-driven loops: %d\n", cmd.tableDrivenLoops),
+			)
+		}
+
+		if cmd.AnalyzeConditionals {
+			reportLines = append(reportLines,
+				"\n",
+				fmt.Sprintf("Table-driven tests with conditionals: %d\n", cmd.tableDrivenConditionals),
 			)
 		}
 	}

@@ -15,6 +15,8 @@
 // and saves them in a new folder named like "<package>" in the same directory as the main `output` file.
 // These normally have the plain ".json" extension, but this annotated example is ".jsonc" to allow for comments.
 // 
+// This example is based on the real-world `TestAlertingRuleState` test in the Prometheus project, with some minor
+// modifications to more thoroughly illustrate all possible features of the JSON output.
 // 
 // 
 // Each of these JSON files represents a test at the time that it was analyzed, and are not modified unless the
@@ -39,7 +41,7 @@
     "project": "prometheus",
     
     // The original declaration of the test function, based on its AST representation.
-    "funcDecl": "func TestAlertingRuleState(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tactive map[uint64]*Alert\n\t\twant   AlertState\n\t}{\n\t\t{\n\t\t\tname: \"MaxStateFiring\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StatePending},\n\t\t\t\t1: {State: StateFiring},\n\t\t\t},\n\t\t\twant: StateFiring,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStatePending\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StatePending},\n\t\t\t},\n\t\t\twant: StatePending,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStateInactive\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StateInactive},\n\t\t\t},\n\t\t\twant: StateInactive,\n\t\t},\n\t}\n\n\tfor i, test := range tests {\n\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\trule.active = test.active\n\t\tgot := rule.State()\n\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t}\n}"
+    "funcDecl": "func TestAlertingRuleState(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tactive map[uint64]*Alert\n\t\twant   AlertState\n\t}{\n\t\t{\n\t\t\tname: \"MaxStateFiring\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StatePending},\n\t\t\t\t1: {State: StateFiring},\n\t\t\t},\n\t\t\twant: StateFiring,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStatePending\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StatePending},\n\t\t\t},\n\t\t\twant: StatePending,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStateInactive\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StateInactive},\n\t\t\t},\n\t\t\twant: StateInactive,\n\t\t},\n\t}\n\n\tfor i, test := range tests {\n\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\trule.active = test.active\n\t\tgot := rule.State()\n\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t\tvalidateState(t, got)\n\t}\n}"
   },
   
   // The "ScenarioSet" object contains information about the table-driven features of a test, if applicable.
@@ -68,7 +70,7 @@
     ],
     
     // The loop statement that executes each of the test scenarios, based on its AST representation.
-    "runner": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
+    "runner": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\tvalidateState(t, got)\n}",
     
     // The name of the variable representing the scenario data structure, which is iterated over by the runner loop
     "scenarioStructName": "tests",
@@ -115,7 +117,7 @@
       "stmt": "tests := []struct {\n\tname   string\n\tactive map[uint64]*Alert\n\twant   AlertState\n}{\n\t{\n\t\tname: \"MaxStateFiring\",\n\t\tactive: map[uint64]*Alert{\n\t\t\t0: {State: StatePending},\n\t\t\t1: {State: StateFiring},\n\t\t},\n\t\twant: StateFiring,\n\t},\n\t{\n\t\tname: \"MaxStatePending\",\n\t\tactive: map[uint64]*Alert{\n\t\t\t0: {State: StateInactive},\n\t\t\t1: {State: StatePending},\n\t\t},\n\t\twant: StatePending,\n\t},\n\t{\n\t\tname: \"MaxStateInactive\",\n\t\tactive: map[uint64]*Alert{\n\t\t\t0: {State: StateInactive},\n\t\t\t1: {State: StateInactive},\n\t\t},\n\t\twant: StateInactive,\n\t},\n}"
     },
     {
-      "stmt": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
+      "stmt": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\tvalidateState(t, got)\n}",
       "children": [
         {
           "stmt": "NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)",
@@ -136,6 +138,36 @@
         },
         {
           "stmt": "require.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)"
+        },
+        {
+          "stmt": "validateState(t, got)",
+          "children": [
+            {
+              "stmt": "for i := 0; i \u003c 3; i++ {\n\tif other := AlertState(i); other == state {\n\t\tif other.String() != state.String() {\n\t\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t\t}\n\t}\n}",
+              "children": [
+                {
+                  "stmt": "AlertState(i)"
+                },
+                {
+                  "stmt": "other.String()"
+                },
+                {
+                  "stmt": "state.String()"
+                },
+                {
+                  "stmt": "t.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())",
+                  "children": [
+                    {
+                      "stmt": "other.String()"
+                    },
+                    {
+                      "stmt": "state.String()"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     }
@@ -212,6 +244,42 @@
     "refactoredTestResult": "pass"
   },
 
+
+  // 
+  // -----------------------------------------------------------------------------------------
+  // The following fields correspond to additional, more detailed analyses of various aspects
+  // of the test case, and are only included if the corresponding command options are set.
+  // -----------------------------------------------------------------------------------------
+  // 
+  // 
+  // Some fields in these objects are "metadata features", which represent specific
+  // characteristics of the structures being analyzed. These features have a consistent
+  // output format across the different fields where they are used.
+  // 
+  // Metadata features that are not detected are saved as "false".
+  // Metadata features that *are* detected are saved using the following object structure:
+  // {
+  //   "present": "true",             // Indicates that the feature appears in the structure or any of its children.
+  //   "delegated": ["true"|"false"]  // Whether the feature can only be detected outside the original test function.
+  // }
+  // 
+  // 
+  // These features typically "bubble up" from nested structures to their parents, but the
+  // details may vary slightly depending on the context. Similarly, the interpretation of
+  // each feature's fields may vary depending on the context.
+  // 
+  // 
+  // In these analyses, a feature is considered "delegated" if it can only be detected
+  // outside the original test function, i.e. in a helper function. Features detected
+  // inside a closure that is itself inside the test function are not considered delegated.
+  // 
+  // Additionally, a structure containing metadata features is considered delegated if the
+  // structure itself is located outside the original test function, or if any of its
+  // detected metadata features are delegated. In other words, a delegated structure 
+  // "relies on" external helper functions for its features to be detected.
+  // 
+
+
   // The "LoopAnalysis" object contains information about the loops detected in the test case. This field
   // is only present if the `--analyze-loops` option is set.
   "LoopAnalysis": {
@@ -229,7 +297,6 @@
       {
         // The classification of the loop's structure.
         // 
-        // - If no loop was detected, this will be "none".
         // - For a range loop over a slice/array of structs,   e.g. `for _, s := range []struct{...}`,
         //   this will be "range structs".
         // - For a range loop over a slice/array of non-struct elements,   e.g. `for _, x := range []int{...}`,
@@ -248,50 +315,206 @@
         //   this will be "condition-only".
         // - For a loop with no clauses,   e.g. `for { ... }`,   this will be "infinite".
         // - For a loop with an unrecognized structure, this will be "unknown".
+        // - If no loop was detected, this will be "none".
         "loopType": "range structs",
         
         // The loop's content, based on its AST representation.
-        "content": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n}",
+        "content": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\tvalidateState(t, got)\n}",
 
         // A boolean indicating whether the loop is indicative of a table-driven test. Note that this is
         // determined based on this object's analysis fields, so this may differ from the "isTableDriven"
         // field in the "ScenarioSet" object, which is determined using different criteria.
         "indicatesTableDriven": true,
         
-        // An object indicating whether the loop defines subtests using the built-in `t.Run` method or
-        // a library-based equivalent.
-        "hasSubtest": {
-          // Whether the feature appears in the loop or any of its children.
-          "present": false,
-          // Whether the feature can only be detected outside the original test function.
-          "delegated": false
-        },
+        // A boolean indicating whether the loop structure or any of its metadata features are delegated.
+        "delegated": false,
+
+        // A metadata feature indicating whether the loop defines subtests using the built-in `t.Run`
+        // method or a library-based equivalent.
+        "hasSubtest": false,
         
-        // An object indicating whether the loop contains an assertion, detected based on the presence
-        // of built-in or library-based test failure or assertion functions.
+        // A metadata feature indicating whether the loop contains an assertion, detected based on
+        // the presence of built-in or library-based test failure or assertion functions.
         "hasAssertion": {
-          // Whether the feature appears in the loop or any of its children.
           "present": true,
-          // Whether the feature can only be detected outside the original test function.
           "delegated": false
         },
+
+        // A metadata feature indicating whether the loop contains a return statement that exits the
+        // loop's enclosing function. Being delegated only indicates that the loop is in a helper function.
+        "hasEarlyExit": false,
         
         // A boolean indicating whether the loop directly mutates any data defined outside the loop.
         // This does not include mutations that may occur indirectly through function calls.
+        // This cannot be delegated because it is determined based on the loop's own scope.
         "doesExternalMutation": false,
-        
-        // A boolean indicating whether the loop itself or any of its detected metadata features
-        // can only be found outside the test function itself, e.g. in a helper function. Features
-        // detected in a helper function that itself is located inside the test function are not
-        // considered delegated. A delegated loop can be interpreted as "relying on" external
-        // helper functions for its features to be detected.
-        "delegated": false,
         
         // Information about any additional loops that are contained within this loop, if any.
         // Nested loops follow the same structure as non-nested ones, and are recursively expanded
-        // in the same way. This field is usually omitted if no nested loops are detected, but is
-        // included here for documentation purposes.
-        "nestedLoops": null
+        // in the same way.
+        "nestedLoops": [
+          {
+            "loopType": "iterative indexed",
+            "content": "for i := 0; i < 3; i++ {\n\tif other := AlertState(i); other == state {\n\t\tif other.String() != state.String() {\n\t\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t\t}\n\t}\n}",
+            "indicatesTableDriven": true,
+            "delegated": true,
+            "hasSubtest": false,
+            "hasAssertion": {
+              "present": true,
+              "delegated": true
+            },
+            "hasEarlyExit": false,
+            "doesExternalMutation": false
+          }
+        ]
+      }
+    ]
+  },
+
+  // The "IfElseAnalysis" object contains information about the if/else chains detected in the runner
+  // loop of a table-driven test. This field is only present if the `--analyze-conditionals` option is set.
+  "IfElseAnalysis": {
+    // The number of non-nested if/else chains detected in the test, including those in helper functions.
+    "numConditionals": 1,
+
+    // Information about all detected if/else chains in the test, or "null" if none were detected.
+    // If/else chains that appear within other if/else clauses are considered to be nested within the
+    // corresponding parent clause.
+    "conditionals": [
+      {
+        // The entire if/else chain's content, based on its AST representation.
+        "content": "if other := AlertState(i); other == state {\n\tif other.String() != state.String() {\n\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t}\n}",
+
+        // A boolean indicating whether the if/else chain is located outside of the test function itself.
+        "inHelper": true,
+
+        // Information about each individual clause of this if/else chain.
+        "clauses": [
+          {
+            // The classification of the clause's type. Either "then", "else if", or "else".
+            "type": "then",
+
+            // The condition corresponding to this clause, based on its AST representation.
+            // This is omitted for "else" clauses.
+            "condition": "other := AlertState(i); other == state",
+
+            // Information about each of the variables and fields used inside this clause's condition.
+            "variables": [
+              {
+                // The name of the variable or field.
+                "name": "other",
+                
+                // The classification of the location where the variable is defined.
+                // 
+                // - If the variable is the detected scenario data structure or one of its fields, this will be "scenario".
+                // - If the variable is defined in the initialization statement of this clause, this will be "if scope".
+                // - If the variable is defined in the surrounding table-driven runner loop, this will be "loop scope".
+                // - If the variable is defined in the surrounding test function, this will be "test scope".
+                // - If the variable is defined as a global variable in this package or imported from another package,
+                //   this will be "package".
+                // - If the variable's source cannot be determined, this will be "unknown".
+                "source": "if scope",
+
+                // The classifications of the ways that this variable is used in the clause's condition.
+                // 
+                // - For a direct boolean check,    e.g. `if tt.ok` or `if !localBool`,   this will be "direct check".
+                // - For a binary comparison check,    e.g. `if tt.val == 5`,   this will be "comparison".
+                // - For a method call receiver,    e.g. `if tt.field.IsValid()`,   this will be "method receiver".
+                // - For a local function call,    e.g. `if tt.setup()` or `if localFunc()`,   this will be "function call".
+                // - For a function call argument,    e.g. `if helper(tt.val)`,   this will be "function argument".
+                // - For a value involved in a computation,    e.g. `if val/2 > 10`,   this will be "computation".
+                // - For a variable assigned in the clause's initialization statement, e.g. `if got := ...`,   this
+                //   will be "variable creation".
+                // - For a variable usage that cannot be classified, this will be "other".
+                "usages": [
+                  "variable creation",
+                  "comparison"
+                ]
+              },
+              {
+                "name": "i",
+                "source": "package",
+                "usages": [
+                  "function argument"
+                ]
+              },
+              {
+                "name": "state",
+                "source": "package",
+                "usages": [
+                  "comparison"
+                ]
+              }
+            ],
+
+            // The number of statements contained directly in this clause, not including nested statements.
+            "length": 1,
+            
+            // A boolean indicating whether the clause or any of its metadata features are delegated.
+            "delegated": true,
+            
+            // A metadata feature indicating whether the clause defines subtests using the built-in `t.Run`
+            // method or a library-based equivalent.
+            "hasSubtest": false,
+            
+            // A metadata feature indicating whether the clause contains an assertion, detected based on
+            // the presence of built-in or library-based test failure or assertion functions.
+            "hasAssertion": {
+              "present": true,
+              "delegated": true
+            },
+            
+            // A metadata feature indicating whether the clause contains a return statement that exits the
+            // clause's enclosing function. Being delegated only indicates that the clause is in a helper function.
+            "hasEarlyExit": false,
+            
+            // A boolean indicating whether the clause directly mutates any data defined outside the clause.
+            // This does not include mutations that may occur indirectly through function calls.
+            // This cannot be delegated because it is determined based on the clause's own scope.
+            "doesExternalMutation": false,
+
+            // Information about any additional if/else chains that are contained within this clause, if any.
+            // Nested conditionals follow the same structure as non-nested ones, and are recursively expanded
+            // in the same way.
+            "nestedConditionals": [
+              {
+                "content": "if other.String() != state.String() {\n\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n}",
+                "inHelper": true,
+                "clauses": [
+                  {
+                    "type": "then",
+                    "condition": "other.String() != state.String()",
+                    "variables": [
+                      {
+                        "name": "other",
+                        "source": "package",
+                        "usages": [
+                          "method receiver"
+                        ]
+                      },
+                      {
+                        "name": "state",
+                        "source": "package",
+                        "usages": [
+                          "method receiver"
+                        ]
+                      }
+                    ],
+                    "length": 1,
+                    "delegated": true,
+                    "hasSubtest": false,
+                    "hasAssertion": {
+                      "present": true,
+                      "delegated": true
+                    },
+                    "hasEarlyExit": false,
+                    "doesExternalMutation": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
     ]
   }

@@ -2,6 +2,8 @@
 package sampleproj
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper"
@@ -65,7 +67,9 @@ func TestMultipleTdLoops(t *testing.T) {
 
 func helperLoop() {
 	for i := 0; i < 5; i++ {
-		_ = i
+		if true {
+			_ = i
+		}
 	}
 }
 
@@ -91,6 +95,70 @@ func TestExpandedStatements(t *testing.T) {
 		// Same-package function should be expanded
 		helperLoop()
 	}
+	// Functions called in the loop header should be expanded
+	startFunc := func() int { return 0 }
+	condFunc := func(i int) bool {
+		for range -1 {
+		}
+		return i < 5
+	}
+	for i := startFunc(); condFunc(i); i += func() int { return 1 }() {
+	}
 	// Same-package function with nested calls should be expanded recursively
 	runScenarios(t, tests)
+}
+
+func helperConditional(tc *scenario) int {
+	if tc.input < 0 {
+		if tc.want < 0 {
+			return 1
+		} else {
+			// do nothing
+		}
+	} else if len(testhelper.MakeScenariosExternal()) > 0 {
+		return 2
+	} else {
+	}
+	if strings.Contains(tc.name, strconv.Itoa(tc.input)) {
+		return 3
+	}
+	return 0
+}
+
+// TestConditionals has multiple complex if/else chains and nested conditionals both inside and outside the runner loop.
+func TestConditionals(t *testing.T) {
+	flag := false
+	threshold := 10
+	if threshold < 0 {
+		t.Fatalf("unexpected negative threshold: %d", threshold)
+	} else if threshold == 0 {
+		flag = true
+		t.Log("zero threshold")
+	}
+	tests := []scenario{
+		{name: "small", input: 4, want: 8},
+		{name: "medium", input: 6, want: 12},
+	}
+	for _, tc := range tests {
+		if tc.input < 0 {
+			t.Fatalf("input should not be negative: %d", tc.input)
+		} else if flag {
+			return // skip remaining tests
+		} else if tc.input < threshold/2 {
+			continue // skip small inputs
+		} else {
+			if got := Double(tc.input); got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		}
+
+		if tc.input%2 == 0 {
+			if got := Double(tc.input); got < tc.want {
+				t.Errorf("got %d, want at least %d", got, tc.want)
+			}
+		} else if helperConditional(&tc) == 1 {
+			flag = false
+		}
+		helperConditional(&tc)
+	}
 }

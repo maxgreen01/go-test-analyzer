@@ -148,7 +148,7 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 		// Find the definition of the function being called
 		definition, err := FindDefinition(callExpr.Fun, tc, testOnly)
 		if err != nil {
-			slog.Error("Error finding definition for function call", "err", err, "position", fset.Position(tc.DstStartPos(callExpr)), "test", tc)
+			slog.Error("Could not find definition of function call", "err", err, "position", fset.Position(tc.DstStartPos(callExpr)), "test", tc)
 			return false
 		}
 		if definition == nil {
@@ -231,9 +231,16 @@ type ExpressionDefinition struct {
 }
 
 // Memoization cache for FindDefinition to avoid redundant lookups.
-// Keys are strings formatted as "<position>-<project>-<package>-<testOnly>".
+// Keys are strings formatted as "<pkgInfoAddress>-<position>-<project>-<package>-<testOnly>".
 // Values are pointers to ExpressionDefinition structs.
-// This is the concurrent-safe version of a `map[string]*ExpressionDefinition`
+// This is the concurrent-safe version of a `map[string]*ExpressionDefinition`.
+//
+// Note: this cache is never cleared, so it may contain stale entries. If the same
+// package is analyzed multiple times in the same program execution, this could lead
+// to false cache hits referencing nodes from a previous analysis. This is avoided by
+// including the memory address of the TestCase's `decorator.Package` in the key, which
+// is assumed to be unique for each package, including across different analysis runs.
+// todo CLEANUP - using a pointer key is a little hacky - probably better to clear the stale values when each project is finished running
 var findDefinitionMemo sync.Map
 
 // Return the DST definition and of the expression within the specified TestCase's package, if it exists.
@@ -275,7 +282,7 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 	pos := obj.Pos()
 
 	// Check the memoization cache to see if the definition has already been found
-	cacheKey := fmt.Sprintf("%d-%s-%s-%v", pos, tc.ImportPath, tc.ProjectName, testOnly)
+	cacheKey := fmt.Sprintf("%p-%d-%s-%s-%v", tc.pkgInfo, pos, tc.ImportPath, tc.ProjectName, testOnly)
 	if cached, ok := findDefinitionMemo.Load(cacheKey); ok {
 		// Definition already found, so return it
 		if definition, ok := cached.(*ExpressionDefinition); ok {
@@ -393,6 +400,19 @@ func (es *ExpandedStatement) push(yield func(*ExpandedStatement) bool) bool {
 	return true
 }
 
+// Returns the ExpandedStatement corresponding to the given statement by searching within the provided ExpandedStatements.
+// Must be the exact same object (not just equivalent) to be found. Returns nil if not found.
+func findExpandedStmt(stmt dst.Stmt, parsedStmts []*ExpandedStatement) *ExpandedStatement {
+	for _, estmt := range parsedStmts {
+		for node := range estmt.All() {
+			if node.Stmt == stmt {
+				return node
+			}
+		}
+	}
+	return nil
+}
+
 //
 // =============== Output Methods ===============
 //
@@ -453,4 +473,58 @@ func (es *ExpandedStatement) UnmarshalJSON(data []byte) error {
 		Children: jsonData.Children,
 	}
 	return nil
+}
+
+// WalkExpanded recursively visits all statements in an ExpandedStatement tree, and inspects each node within each statement.
+// Follows the same ordering and expansion rules as `ExpandStatement()`: expanding call expressions, only expanding function
+// literals when they're called, and avoiding recursive calls.
+//
+// The callback function `visit` is invoked for each non-nil node that is found, where `node` is a node found directly within
+// the expanded statement, and `children` are the children of the most recent ExpandedStatement.
+// If `visit` returns false, the walker will not descend into the node's children.
+func WalkExpanded(expanded *ExpandedStatement, visit func(node dst.Node, children []*ExpandedStatement) bool) {
+	if expanded == nil || expanded.Stmt == nil {
+		return
+	}
+	dst.Inspect(expanded.Stmt, func(node dst.Node) bool {
+		if node == nil {
+			return false
+		}
+
+		// Only descend into a function literal if it's the root of the expanded statement, meaning it's the
+		// subject of the current analysis. Other function literals will be analyzed separately when they are called.
+		if funcLit, ok := node.(*dst.FuncLit); ok {
+			if exprStmt, ok := expanded.Stmt.(*dst.ExprStmt); ok && exprStmt.X == funcLit {
+				return visit(funcLit, expanded.Children)
+			}
+			return false
+		}
+
+		// Manually process function calls so the function's body and the CallExpr's direct children can be expanded properly
+		if callExpr, ok := node.(*dst.CallExpr); ok {
+			// First, visit the CallExpr itself
+			if !visit(callExpr, expanded.Children) {
+				return false
+			}
+
+			// Next, find and recursively walk the CallExpr's children in the expanded tree
+			var targetChildren []*ExpandedStatement
+			for estmt := range expanded.All() {
+				// From the ExpandedStatement internals, we expect that a `CallExpr` must be wrapped in `ExprStmt`
+				if exprStmt, ok := estmt.Stmt.(*dst.ExprStmt); ok && exprStmt.X == callExpr {
+					targetChildren = estmt.Children
+					break
+				}
+			}
+			for _, child := range targetChildren {
+				WalkExpanded(child, visit)
+			}
+
+			// Stop inspecting descendants because we already manually analyzed all the CallExpr's children
+			return false
+		}
+
+		// Only continue descending if the provided callback returns true
+		return visit(node, expanded.Children)
+	})
 }
