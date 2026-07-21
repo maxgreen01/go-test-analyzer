@@ -42,7 +42,8 @@
           }
         ],
         "content": "if got := Double(tc.input); got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}",
-        "inHelper": false
+        "inHelper": false,
+        "totalLength": 1
       },
       {
         "clauses": [
@@ -58,7 +59,8 @@
           }
         ],
         "content": "if true {\n\t_ = i\n}",
-        "inHelper": true
+        "inHelper": true,
+        "totalLength": 1
       }
     ],
     "numConditionals": 2

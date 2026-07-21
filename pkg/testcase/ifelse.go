@@ -2,12 +2,14 @@ package testcase
 
 import (
 	"encoding/json"
+	"go/ast"
 	"go/token"
 	"go/types"
 	"slices"
 
 	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
+	"github.com/maxgreen01/go-test-analyzer/pkg/features"
 )
 
 // IfElseAnalysisResult represents the result analyzing the if/else statements in a table-driven test.
@@ -80,7 +82,7 @@ func analyzeStmtConditionals(expanded *ExpandedStatement, parentClause *IfClause
 		default:
 			// Check function calls (which have already been expanded) and any other non-nil nodes for metadata features
 			if parentClause != nil {
-				parentClause.RegisterNode(node, tc)
+				RegisterNode(&parentClause.FeatureSet, node, tc)
 			}
 		}
 
@@ -95,20 +97,10 @@ func analyzeStmtConditionals(expanded *ExpandedStatement, parentClause *IfClause
 
 // IfStmt represents an entire if/else chain detected in a table-driven test.
 type IfStmt struct {
-	Content  string      `json:"content"`  // The DST code of the full statement, converted to a string
-	InHelper bool        `json:"inHelper"` // True if the statement is physically located in a helper function outside the test function
-	Clauses  []*IfClause `json:"clauses"`  // List of all branches in the statement
-}
-
-// IfClause represents one branch of a if/else chain detected in a table-driven test.
-type IfClause struct {
-	Type      IfClauseType     `json:"type"`                // Type of this clause with respect to the if/else chain (then, else if, else)
-	Condition string           `json:"condition,omitempty"` // String representation of the condition expression, if any
-	Variables []*IfVarBehavior `json:"variables,omitempty"` // Variables and fields used in the condition, if any
-	Length    int              `json:"length"`              // Number of statements in this clause
-	// todo cleanup maybe add field/method for total num statements, including nested clauses
-	FeatureSet                   // Detected metadata features, embedded because it saves an unnecessary layer of nesting
-	NestedConditionals []*IfStmt `json:"nestedConditionals,omitempty"` // Additional if/else statements that are contained within this branch, if any
+	Content     string      `json:"content"`     // The DST code of the full statement, converted to a string
+	TotalLength int         `json:"totalLength"` // Total number of statements in this if/else chain, including inside nested conditionals
+	InHelper    bool        `json:"inHelper"`    // True if the statement is physically located in a helper function outside the test function
+	Clauses     []*IfClause `json:"clauses"`     // List of all branches in the statement
 }
 
 // Creates an IfStmt instance representing an entire if/else chain, and analyzes the clause's inner statements to detect nested conditionals
@@ -152,7 +144,32 @@ func CreateIfStmt(stmt *dst.IfStmt, tc *TestCase, scenarioType types.Type, loopS
 		}
 	}
 
+	// Compute calculated fields based on finished clauses
+	for _, clause := range ifStmt.Clauses {
+		ifStmt.TotalLength += clause.TotalLength()
+	}
+
 	return ifStmt
+}
+
+// MaxDepth returns the maximum depth of nested conditionals in this if/else chain.
+// Returns 0 if there are no nested conditionals, and increments by 1 for each level of nesting.
+func (ifs *IfStmt) MaxDepth() int {
+	maxDepth := 0
+	for _, clause := range ifs.Clauses {
+		maxDepth = max(maxDepth, clause.MaxDepth()) // don't add 1 here because the clause itself isn't a new level of nesting
+	}
+	return maxDepth
+}
+
+// IfClause represents one branch of a if/else chain detected in a table-driven test.
+type IfClause struct {
+	Type                IfClauseType     `json:"type"`                // Type of this clause with respect to the if/else chain (then, else if, else)
+	Condition           string           `json:"condition,omitempty"` // String representation of the condition expression, if any
+	Variables           []*IfVarBehavior `json:"variables,omitempty"` // Variables and fields used in the condition, if any
+	Length              int              `json:"length"`              // Number of statements in this clause
+	features.FeatureSet                  // Detected metadata features, embedded because it saves an unnecessary layer of nesting
+	NestedConditionals  []*IfStmt        `json:"nestedConditionals,omitempty"` // Additional if/else statements that are contained within this branch, if any
 }
 
 // Creates an IfClause instance representing a single branch of an if/else chain, and analyzes the clause's inner statements to detect
@@ -161,13 +178,13 @@ func CreateIfStmt(stmt *dst.IfStmt, tc *TestCase, scenarioType types.Type, loopS
 // Note that `children` is expected to be a superset of the statements actually inside the clause, since it should hold all the child
 // statements of the most recently expanded function call or original statement, so it may include statements next to the if/else chain.
 func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, tc *TestCase, scenarioType types.Type, loopScope *types.Scope, children []*ExpandedStatement, seen map[dst.Node]bool) *IfClause {
-	clause := &IfClause{
-		Type: clauseType,
-	}
-	clause.Delegated = !tc.IsWithinTestFunction(clauseStmt)
-	clause.scope = tc.GetNodeScope(clauseStmt)
+	var enclosingFunc ast.Node
 	if astFuncs, _ := tc.GetEnclosingFunctions(clauseStmt); len(astFuncs) > 0 {
-		clause.enclosingFunc = astFuncs[0]
+		enclosingFunc = astFuncs[0]
+	}
+	clause := &IfClause{
+		Type:       clauseType,
+		FeatureSet: features.NewFeatureSet(tc.GetNodeScope(clauseStmt), enclosingFunc, !tc.IsWithinTestFunction(clauseStmt)),
 	}
 
 	// Handle different logic for a "then" or "else if" clause, compared to an "else" clause
@@ -208,9 +225,28 @@ func (clause *IfClause) finalize() {
 	// Bubble up features and delegated status from nested conditionals
 	for _, child := range clause.NestedConditionals {
 		for _, childClause := range child.Clauses {
-			bubbleFeatures(&clause.FeatureSet, &childClause.FeatureSet)
+			features.BubbleUp(&clause.FeatureSet, &childClause.FeatureSet)
 		}
 	}
+}
+
+// TotalLength returns the total number of statements in this if/else clause, including inside nested conditionals.
+func (clause *IfClause) TotalLength() int {
+	total := clause.Length
+	for _, nested := range clause.NestedConditionals {
+		total += nested.TotalLength
+	}
+	return total
+}
+
+// MaxDepth returns the maximum depth of nested conditionals in this if/else clause.
+// Returns 0 if there are no nested conditionals, and increments by 1 for each level of nesting.
+func (clause *IfClause) MaxDepth() int {
+	maxDepth := 0
+	for _, nested := range clause.NestedConditionals {
+		maxDepth = max(maxDepth, 1+nested.MaxDepth())
+	}
+	return maxDepth
 }
 
 // IfVarBehavior stores behavior details and source scope for a variable in a condition.
@@ -252,6 +288,9 @@ func analyzeCondition(stmt *dst.IfStmt, tc *TestCase, scenarioType types.Type, l
 		}
 		if target == nil {
 			return true // No applicable variable to analyze, so move on
+		}
+		if ident, ok := target.(*dst.Ident); ok && ident.Name == "_" {
+			return true // Ignore blank identifier
 		}
 
 		// Find the variable behavior struct corresponding to this variable (reused across identifier instances), or create a new one
@@ -510,7 +549,7 @@ const (
 	IfVarSourceIfScope               // Defined within the initialization statement of the if/else clause,   e.g. in `if val := helper(); val > 0`
 	IfVarSourceLoopScope             // Defined within the surrounding table-driven runner loop body
 	IfVarSourceTestScope             // Defined within the surrounding test function
-	IfVarSourcePackage               // Defined as a global variable in this package or imported from another package
+	IfVarSourcePackage               // Defined as a global variable in this package, imported from another package, or defined in a helper function
 )
 
 func (vs IfVarSource) String() string {

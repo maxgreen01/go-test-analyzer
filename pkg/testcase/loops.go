@@ -5,11 +5,11 @@ import (
 	"go/ast"
 	"go/types"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/dave/dst"
 	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
+	"github.com/maxgreen01/go-test-analyzer/pkg/features"
 )
 
 // Represents the result of analyzing the loops found in a test case.
@@ -90,7 +90,7 @@ func analyzeStmtLoops(expanded *ExpandedStatement, parentLoop *Loop, tc *TestCas
 		default:
 			// Check function calls (which have already been expanded) and any other non-nil nodes for metadata features
 			if parentLoop != nil {
-				parentLoop.RegisterNode(node, tc)
+				RegisterNode(&parentLoop.FeatureSet, node, tc)
 			}
 		}
 
@@ -118,7 +118,7 @@ type Loop struct {
 	IndicatesTableDriven bool `json:"indicatesTableDriven"`
 
 	// Detected metadata features, embedded because it saves an unnecessary layer of nesting
-	FeatureSet
+	features.FeatureSet
 
 	// Additional loops that are contained within this loop, if any
 	NestedLoops []*Loop `json:"nestedLoops,omitempty"`
@@ -129,13 +129,13 @@ type Loop struct {
 // Note that `children` is expected to be a superset of the statements actually inside the loop body, since it should hold all the child
 // statements of the most recently expanded function call or original statement, so it may include statements next to the loop.
 func CreateLoop(stmt dst.Node, children []*ExpandedStatement, tc *TestCase) *Loop {
-	loop := &Loop{
-		Content: asttools.NodeToString(stmt),
-	}
-	loop.Delegated = !tc.IsWithinTestFunction(stmt)
-	loop.scope = tc.GetNodeScope(stmt)
+	var enclosingFunc ast.Node
 	if astFuncs, _ := tc.GetEnclosingFunctions(stmt); len(astFuncs) > 0 {
-		loop.enclosingFunc = astFuncs[0]
+		enclosingFunc = astFuncs[0]
+	}
+	loop := &Loop{
+		Content:    asttools.NodeToString(stmt),
+		FeatureSet: features.NewFeatureSet(tc.GetNodeScope(stmt), enclosingFunc, !tc.IsWithinTestFunction(stmt)),
 	}
 
 	// Inspect the structure of the loop itself
@@ -172,13 +172,23 @@ func CreateLoop(stmt dst.Node, children []*ExpandedStatement, tc *TestCase) *Loo
 func (loop *Loop) finalize() {
 	// Bubble up features and delegated status from nested loops
 	for _, child := range loop.NestedLoops {
-		bubbleFeatures(&loop.FeatureSet, &child.FeatureSet)
+		features.BubbleUp(&loop.FeatureSet, &child.FeatureSet)
 	}
 
 	// Classify this loop based on its fully bubbled properties
 	if loop.HasSubtest.Present || (loop.HasAssertion.Present && !loop.DoesExternalMutation) {
 		loop.IndicatesTableDriven = true
 	}
+}
+
+// MaxDepth returns the maximum depth of nested loops inside this loop.
+// Returns 0 if there are no nested conditionals, and increments by 1 for each level of nesting.
+func (loop *Loop) MaxDepth() int {
+	maxDepth := 0
+	for _, nested := range loop.NestedLoops {
+		maxDepth = max(maxDepth, 1+nested.MaxDepth())
+	}
+	return maxDepth
 }
 
 // Classifies a range statements into one of the LoopTypeRange[...] types based on the type of the data being ranged over.
@@ -230,67 +240,27 @@ func classifyForLoop(stmt *dst.ForStmt, tc *TestCase) LoopType {
 	return LoopTypeIterativeNonIndexed
 }
 
-// Represents a metadata feature detected during a supplementary analysis, acting like a regular boolean with an additional flag indicating
-// whether the feature could only be detected outside the original test function.
-type analysisFeature struct {
-	// Whether the feature is present in the analyzed block or any of its children
-	Present bool `json:"present"`
-	// Whether the feature can only be detected outside the original test function (i.e. could not be found locally inside the original test function)
-	Delegated bool `json:"delegated"`
-}
-
-// Sets the metadata feature flag to `true` if the feature is present. Also inherits the delegated flag if the feature is first being registered,
-// or is set back to `false` if a local version is found later. If it's been found locally, it won't ever be set back to delegated.
-func (af *analysisFeature) register(present bool, isDelegated bool) {
-	if present {
-		// The value of `isDelegated` only gets stored when the feature is first registered, or if the feature was already delegated.
-		// If the feature is already delegated, it will stay delegated until a local version is found.
-		af.Delegated = (!af.Present || af.Delegated) && isDelegated
-		af.Present = true
-	}
-}
-
-// todo CLEANUP maybe this marshaling logic is too convoluted
-// Marshal as "false" for a feature that is not present, or the full struct for a feature that is present.
-func (af analysisFeature) MarshalJSON() ([]byte, error) {
-	if !af.Present {
-		return json.Marshal(false)
-	}
-	// Marshal the whole struct, avoiding infinite recursion using a copy type.
-	// Details:  https://boldlygo.tech/posts/2020-12-12-go-json-self-referencing-marshaler/
-	type analysisFeatureCopy analysisFeature
-	return json.Marshal(analysisFeatureCopy(af))
-}
-
-// FeatureSet groups the standard supplementary analysis features shared by loops and conditional branches.
-type FeatureSet struct {
-	Delegated            bool            `json:"delegated"`            // True if the block itself is in a helper function, or if any of its features are delegated to helper functions
-	HasSubtest           analysisFeature `json:"hasSubtest"`           // Whether the block defines subtests using the built-in `t.Run` method or a library-based equivalent
-	HasAssertion         analysisFeature `json:"hasAssertion"`         // Whether the block contains an assertion, detected based on the presence of built-in or library-based test failure functions
-	HasEarlyExit         analysisFeature `json:"hasEarlyExit"`         // Whether the block contains a return statement that exits the block's enclosing function. Being delegated only indicates that the block is in a helper function.
-	DoesExternalMutation bool            `json:"doesExternalMutation"` // Whether the block directly mutates any data defined outside its own scope. Doesn't have a delegated flag because it's recalculated for each block independently.
-
-	scope         *types.Scope `json:"-"` // The scope corresponding to this block, used for finding external mutations
-	enclosingFunc ast.Node     `json:"-"` // The innermost AST function enclosing this block, used for determining whether statements are inside local function literals
-}
+// ================================================================================================
+// TODO SOON - move this whole section to `features` package once we can separate it from TestCase circular dependency
 
 // RegisterNode inspects a DST node and updates the FeatureSet's features accordingly.
-func (fs *FeatureSet) RegisterNode(node dst.Node, tc *TestCase) {
+// TODO SOON - make this back into a FeatureSet method once we can separate it from TestCase circular dependency
+func RegisterNode(fs *features.FeatureSet, node dst.Node, tc *TestCase) {
 	isDelegated := fs.Delegated || !tc.IsWithinTestFunction(node)
 	switch n := node.(type) {
 	case *dst.CallExpr:
 		phase := categorizeCallExpr(n, tc)
-		fs.HasSubtest.register(phase == TestPhaseSubtest, isDelegated)
-		fs.HasAssertion.register(phase == TestPhaseAssert, isDelegated)
+		fs.HasSubtest.Register(phase == features.TestPhaseSubtest, isDelegated)
+		fs.HasAssertion.Register(phase == features.TestPhaseAssert, isDelegated)
 		// Note: `panic` calls would be detected here (or in categorizeCallExpr)
 	case *dst.AssignStmt:
 		for _, lhs := range n.Lhs {
-			if isExternalMutation(lhs, tc, fs.scope) {
+			if isExternalMutation(lhs, tc, fs.Scope) {
 				fs.DoesExternalMutation = true
 			}
 		}
 	case *dst.IncDecStmt:
-		if isExternalMutation(n.X, tc, fs.scope) {
+		if isExternalMutation(n.X, tc, fs.Scope) {
 			fs.DoesExternalMutation = true
 		}
 	case *dst.ReturnStmt:
@@ -300,8 +270,8 @@ func (fs *FeatureSet) RegisterNode(node dst.Node, tc *TestCase) {
 		// A return statement that is "delegated" in the usual sense fundamentally doesn't make sense, because return
 		// statements can't be used to exit a function from within a different function.
 		astFuncs, _ := tc.GetEnclosingFunctions(n)
-		if fs.enclosingFunc != nil && len(astFuncs) > 0 && astFuncs[0] == fs.enclosingFunc {
-			fs.HasEarlyExit.register(true, isDelegated)
+		if fs.EnclosingFunc != nil && len(astFuncs) > 0 && astFuncs[0] == fs.EnclosingFunc {
+			fs.HasEarlyExit.Register(true, isDelegated)
 		}
 	}
 	// todo LATER - we currently don't track `break` or `continue` statements for HasEarlyExit because determining when to bubble up would involve
@@ -310,49 +280,11 @@ func (fs *FeatureSet) RegisterNode(node dst.Node, tc *TestCase) {
 	//   not with nested conditionals
 }
 
-// Bubbles up any detected features from a child to its parent, and updates the parent's delegated status accordingly.
-// This modifies the parent in-place, and should be called from bottom up on the FeatureSet tree to propagate correctly.
-func bubbleFeatures(parent, child *FeatureSet) {
-	// Bubble up any `Present` features, inheriting the delegated status of the entire child or the individual feature
-	parent.HasSubtest.register(child.HasSubtest.Present, child.Delegated || child.HasSubtest.Delegated)
-	parent.HasAssertion.register(child.HasAssertion.Present, child.Delegated || child.HasAssertion.Delegated)
-
-	// Only bubble up HasEarlyExit if the parent and child are within the same innermost enclosing function,
-	// since an early exit inside a helper function doesn't exit the parent's function
-	if parent.enclosingFunc == child.enclosingFunc {
-		parent.HasEarlyExit.register(child.HasEarlyExit.Present, child.Delegated || child.HasEarlyExit.Delegated)
-	}
-
-	// Note: DoesExternalMutation is never bubbled up because child blocks may mutate variables defined in the parent, which is not
-	// considered an external mutation for the parent block. This means DoesExternalMutation is recalculated for each block independently,
-	// which works because the assignments that happen inside the child are checked again during the parent's own analysis.
-
-	// If the block is located inside the test function (not delegated already), it should become delegated if
-	// any of its features are delegated, since they've already undergone all the relevant logic
-	parentFeats := []analysisFeature{parent.HasSubtest, parent.HasAssertion, parent.HasEarlyExit}
-	anyFeaturesDelegated := slices.ContainsFunc(parentFeats, func(af analysisFeature) bool {
-		return af.Present && af.Delegated
-	})
-	parent.Delegated = parent.Delegated || anyFeaturesDelegated
-}
-
-// TestPhase is used to categorize test statements into the test phases.
-// TODO this is very basic & temporary/underused for now
-type TestPhase int
-
-const (
-	TestPhaseUnknown TestPhase = iota
-	TestPhaseArrange           // setup or initialization code
-	TestPhaseSubtest           // subtest execution via `t.Run()`
-	TestPhaseAct               // production code under test
-	TestPhaseAssert            // assertion or test failure functions
-)
-
 // Determine which test phase a call expression falls into.
 // TODO make this more robust and return fewer "unknown"
-func categorizeCallExpr(callExpr *dst.CallExpr, tc *TestCase) TestPhase {
+func categorizeCallExpr(callExpr *dst.CallExpr, tc *TestCase) features.TestPhase {
 	if tc == nil {
-		return TestPhaseUnknown
+		return features.TestPhaseUnknown
 	}
 
 	// Get the identifier holding the name of the function being called
@@ -363,166 +295,45 @@ func categorizeCallExpr(callExpr *dst.CallExpr, tc *TestCase) TestPhase {
 	case *dst.SelectorExpr:
 		ident = x.Sel
 	default:
-		return TestPhaseUnknown // no easy way to get an identifier
+		return features.TestPhaseUnknown // no easy way to get an identifier
 	}
 
 	// Find the package containing the called function, even if a named import is used
 	obj, _, err := tc.GetIdentDefinition(ident)
 	if err != nil {
 		slog.Warn("Could not find definition of function call being categorized", "ident", ident, "error", err)
-		return TestPhaseUnknown
+		return features.TestPhaseUnknown
 	}
 
 	// Ensure we are dealing with a function call
 	function, ok := obj.(*types.Func)
 	if !ok {
-		return TestPhaseUnknown
+		return features.TestPhaseUnknown
 	}
 	pkg := obj.Pkg()
 	if pkg == nil {
-		return TestPhaseUnknown // Built-in function
+		return features.TestPhaseUnknown // Built-in function
 	}
 
 	pkgPath := pkg.Path()
 
 	// Standard library functions
 	if pkgPath == "testing" {
-		return categorizeStandardTestingMethod(function.Name())
+		return features.CategorizeStandardTestingMethod(function.Name())
 	}
 
 	// Try to detect third-party test harness libraries by shape.
 	// An assertion function must interact with a test harness somehow
-	if containsTestHarness(function.Type().(*types.Signature)) {
-		if phase := categorizeStandardTestingMethod(function.Name()); phase != TestPhaseUnknown {
+	if features.ContainsTestHarness(function.Type().(*types.Signature)) {
+		if phase := features.CategorizeStandardTestingMethod(function.Name()); phase != features.TestPhaseUnknown {
 			return phase
 		}
-		if isLikelyAssertion(function) {
-			return TestPhaseAssert
+		if features.IsLikelyAssertion(function) {
+			return features.TestPhaseAssert
 		}
 	}
 
-	return TestPhaseUnknown
-}
-
-// Maps standard `testing.TB` methods to their respective test phases.
-func categorizeStandardTestingMethod(name string) TestPhase {
-	switch name {
-	// Check for failure functions
-	case "Error", "Errorf", "Fatal", "Fatalf", "Fail", "FailNow":
-		return TestPhaseAssert
-	// Check for subtest definition
-	case "Run":
-		return TestPhaseSubtest
-	default:
-		return TestPhaseUnknown
-	}
-}
-
-// Determines whether a function represents an assertion function based on semantic and structural heuristics.
-// Assumes the function is already identified as involving a test harness.
-func isLikelyAssertion(function *types.Func) bool {
-	signature, ok := function.Type().(*types.Signature)
-	if !ok {
-		return false
-	}
-
-	// Try to distinguish between assertion functions and other non-assertion functions
-
-	// Check for substring match of keywords within the function name
-	// TODO this might be brittle, but not totally sure how else to do it without knowing the internals of the library function
-	funcName := strings.ToLower(function.Name())
-	assertionKeywords := []string{"assert", "require", "check", "verify", "expect", "test", "should", "must", "error", "fail", "equal", "nil", "true", "false", "len", "panic"}
-	for _, keyword := range assertionKeywords {
-		if strings.Contains(funcName, keyword) {
-			return true
-		}
-	}
-
-	// Heuristic: check for an `any` or `...any` parameter, e.g. as the value being asserted or messages to be printed on failure
-	params := signature.Params()
-	for i := range params.Len() {
-		param := params.At(i).Type()
-
-		// Regular `any` parameter
-		if asttools.IsEmptyInterface(param) {
-			return true
-		}
-		// Variadic `...any` as the last parameter
-		if signature.Variadic() && i == params.Len()-1 {
-			if slice, ok := param.(*types.Slice); ok {
-				if asttools.IsEmptyInterface(slice.Elem()) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
-}
-
-// Checks if a function signature uses a test harness type through its parameters or receiver,
-// based on structural rules rather than relying on package names.
-func containsTestHarness(signature *types.Signature) bool {
-	// Check if the function is a method of a test harness
-	if recv := signature.Recv(); recv != nil {
-		if checkForTestHarnessType(recv.Type(), 0) {
-			return true
-		}
-	}
-	// Check if the function takes a test harness as a parameter
-	for param := range signature.Params().Variables() {
-		if checkForTestHarnessType(param.Type(), 0) {
-			return true
-		}
-	}
-	return false
-}
-
-const maxTestHarnessRecursionDepth = 5
-
-// Recursively checks if a type acts as a testing harness or contains a testing harness as a struct field,
-// based on structural rules rather than relying on package names.
-func checkForTestHarnessType(t types.Type, depth int) bool {
-	if t == nil {
-		return false
-	}
-	// todo add memoization using sync.Map - make sure to guard the key like with findDefinitionMemo
-
-	// Prevent infinite recursion on cyclic structs (e.g., linked lists)
-	if depth > maxTestHarnessRecursionDepth {
-		return false
-	}
-
-	// Check if the type itself looks like a test runner.
-	// Handles *testing.T, interfaces like testify's TestingT, and structs with an embedded harness.
-	if isDuckTypedTestHarness(t) {
-		return true
-	}
-
-	// Recursively check struct fields (both named and anonymous)
-	if structType, ok := asttools.UnderlyingType(t).(*types.Struct); ok {
-		for field := range structType.Fields() {
-			if checkForTestHarnessType(field.Type(), depth+1) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// Checks if a type acts like a `testing.T` test harness based on the methods it provides.
-func isDuckTypedTestHarness(t types.Type) bool {
-	if t == nil {
-		return false
-	}
-	// Get the type's method set, including interface methods and promoted methods from embedded structs.
-	mset := types.NewMethodSet(t)
-
-	// Heuristic: test harnesses should at least be able to fail tests
-	return mset.Lookup(nil, "Errorf") != nil ||
-		mset.Lookup(nil, "Fatalf") != nil ||
-		mset.Lookup(nil, "FailNow") != nil
+	return features.TestPhaseUnknown
 }
 
 // Determines if an expression involves modifying a variable defined outside the loop's scope.

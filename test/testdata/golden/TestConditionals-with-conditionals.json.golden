@@ -125,14 +125,16 @@
                   }
                 ],
                 "content": "if got := Double(tc.input); got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}",
-                "inHelper": false
+                "inHelper": false,
+                "totalLength": 1
               }
             ],
             "type": "else"
           }
         ],
         "content": "if tc.input \u003c 0 {\n\tt.Fatalf(\"input should not be negative: %d\", tc.input)\n} else if flag {\n\treturn // skip remaining tests\n} else if tc.input \u003c threshold/2 {\n\tcontinue // skip small inputs\n} else {\n\tif got := Double(tc.input); got != tc.want {\n\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t}\n}",
-        "inHelper": false
+        "inHelper": false,
+        "totalLength": 5
       },
       {
         "clauses": [
@@ -189,7 +191,8 @@
                   }
                 ],
                 "content": "if got := Double(tc.input); got \u003c tc.want {\n\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n}",
-                "inHelper": false
+                "inHelper": false,
+                "totalLength": 1
               }
             ],
             "type": "then",
@@ -261,7 +264,8 @@
                           }
                         ],
                         "content": "if tc.want \u003c 0 {\n\treturn 1\n} else {\n\t// do nothing\n}",
-                        "inHelper": true
+                        "inHelper": true,
+                        "totalLength": 1
                       }
                     ],
                     "type": "then",
@@ -299,7 +303,8 @@
                   }
                 ],
                 "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
-                "inHelper": true
+                "inHelper": true,
+                "totalLength": 3
               },
               {
                 "clauses": [
@@ -334,7 +339,8 @@
                   }
                 ],
                 "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
-                "inHelper": true
+                "inHelper": true,
+                "totalLength": 1
               }
             ],
             "type": "else if",
@@ -350,7 +356,8 @@
           }
         ],
         "content": "if tc.input%2 == 0 {\n\tif got := Double(tc.input); got \u003c tc.want {\n\t\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n\t}\n} else if helperConditional(\u0026tc) == 1 {\n\tflag = false\n}",
-        "inHelper": false
+        "inHelper": false,
+        "totalLength": 7
       },
       {
         "clauses": [
@@ -401,7 +408,8 @@
                   }
                 ],
                 "content": "if tc.want \u003c 0 {\n\treturn 1\n} else {\n\t// do nothing\n}",
-                "inHelper": true
+                "inHelper": true,
+                "totalLength": 1
               }
             ],
             "type": "then",
@@ -439,7 +447,8 @@
           }
         ],
         "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
-        "inHelper": true
+        "inHelper": true,
+        "totalLength": 3
       },
       {
         "clauses": [
@@ -474,7 +483,8 @@
           }
         ],
         "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
-        "inHelper": true
+        "inHelper": true,
+        "totalLength": 1
       }
     ],
     "numConditionals": 4
