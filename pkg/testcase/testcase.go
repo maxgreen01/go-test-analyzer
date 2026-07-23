@@ -258,7 +258,6 @@ func (tc *TestCase) ObjectOf(ident *dst.Ident) types.Object {
 	return typeInfo.ObjectOf(astIdent)
 }
 
-
 // Convenience method for getting the Scope corresponding to the TestCase's definition function.
 // Returns `nil` if the type information for the project is not available.
 func (tc *TestCase) GetFunctionScope() *types.Scope {
@@ -275,7 +274,6 @@ func (tc *TestCase) GetNodeScope(node dst.Node) *types.Scope {
 	}
 	return typeInfo.Scopes[astNode]
 }
-
 
 // Determines whether a given DST node is located within the test function body.
 // Returns `false` if the node is `nil` or does not have a corresponding AST node.
@@ -297,7 +295,6 @@ func (tc *TestCase) IsWithinTestFunction(node dst.Node) bool {
 func (tc *TestCase) GetEnclosingFunctions(node dst.Node) ([]ast.Node, *ast.File) {
 	return asttools.GetEnclosingFunctions(tc.DstStartPos(node), tc.GetPackageFiles())
 }
-
 
 // Returns the `types.Object` corresponding to the given identifier (which includes its location information),
 // and whether the object's package matches the current test case's package.

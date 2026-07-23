@@ -83,7 +83,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "length": 1,
-            "nestedConditionals": [
+            "nestedStatements": [
               {
                 "clauses": [
                   {
@@ -149,7 +149,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "length": 1,
-            "nestedConditionals": [
+            "nestedStatements": [
               {
                 "clauses": [
                   {
@@ -214,7 +214,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "length": 1,
-            "nestedConditionals": [
+            "nestedStatements": [
               {
                 "clauses": [
                   {
@@ -228,7 +228,7 @@
                     },
                     "hasSubtest": false,
                     "length": 1,
-                    "nestedConditionals": [
+                    "nestedStatements": [
                       {
                         "clauses": [
                           {
@@ -372,7 +372,7 @@
             },
             "hasSubtest": false,
             "length": 1,
-            "nestedConditionals": [
+            "nestedStatements": [
               {
                 "clauses": [
                   {

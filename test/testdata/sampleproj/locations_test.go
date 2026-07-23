@@ -23,6 +23,7 @@ func TestScenariosSameFile(t *testing.T) {
 		}
 	}
 }
+
 // TestScenariosSameFileSubtest uses a package-level scenario variable defined in this file, WITH subtests.
 func TestScenariosSameFileSubtest(t *testing.T) {
 	for _, tc := range sameFileScenarios {

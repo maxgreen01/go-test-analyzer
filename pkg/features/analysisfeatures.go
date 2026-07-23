@@ -43,8 +43,10 @@ func (af analysisFeature) MarshalJSON() ([]byte, error) {
 	return json.Marshal(analysisFeatureCopy(af))
 }
 
-// FeatureSet groups the standard supplementary analysis features shared by loops and conditional branches.
+// FeatureSet groups the standard supplementary analysis features shared by ControlFlowStatement blocks.
 type FeatureSet struct {
+	Length      int `json:"length"`      // Number of statements directly contained in this block, not including nested statements
+
 	Delegated            bool            `json:"delegated"`            // True if the block itself is in a helper function, or if any of its features are delegated to helper functions
 	HasSubtest           analysisFeature `json:"hasSubtest"`           // Whether the block defines subtests using the built-in `t.Run` method or a library-based equivalent
 	HasAssertion         analysisFeature `json:"hasAssertion"`         // Whether the block contains an assertion, detected based on the presence of built-in or library-based test failure functions
@@ -67,7 +69,7 @@ func NewFeatureSet(scope *types.Scope, enclosingFunc ast.Node, delegated bool) F
 
 // Bubbles up any detected features from a child to its parent, and updates the parent's delegated status accordingly.
 // This modifies the parent in-place, and should be called from bottom up on the FeatureSet tree to propagate correctly.
-func BubbleUp(parent, child *FeatureSet) {
+func BubbleUp(parent *FeatureSet, child FeatureSet) {
 	// Bubble up any `Present` features, inheriting the delegated status of the entire child or the individual feature
 	parent.HasSubtest.Register(child.HasSubtest.Present, child.Delegated || child.HasSubtest.Delegated)
 	parent.HasAssertion.Register(child.HasAssertion.Present, child.Delegated || child.HasAssertion.Delegated)

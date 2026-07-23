@@ -178,7 +178,7 @@ func (rf *RefactoredFunction) UpdateStringRepresentation() {
 
 // Cleans up the refactored function in-memory, but does not affect the file on disk. This functionality
 // must be implemented by the `cleanup` function provided when the RefactoredFunction is created.
-// 
+//
 // If `revertAST` is false, this skips reverting the AST File declaration for test functions themselves
 // (so subsequent test refactorings in the same file accumulate changes), but still restores TestCase and
 // ScenarioSet DST references so they represent the original state of the code before refactoring.

@@ -27,15 +27,20 @@ type AnalysisResult struct {
 	// Loop Analysis result;  only available if `--analyze-loops` option is set.
 	// Use `omitempty` instead of `omitzero` so the field is always marshalled if the option is set.
 	LoopAnalysis *LoopAnalysisResult `json:",omitempty"`
-	// TODO cleanup maybe find a cleaner way to pass around supplementary analysis fields and variables like LoopAnalysis
-	
+	// TODO cleanup maybe find a cleaner way to pass around supplementary analysis fields and variables like LoopAnalysis,
+	//   and likewise for calling the analysis functions and adjusting the CSV results accordingly
+
 	// Conditional Analysis result;  only available if `--analyze-conditionals` option is set.
 	// Use `omitempty` instead of `omitzero` so the field is always marshalled if the option is set.
 	IfElseAnalysis *IfElseAnalysisResult `json:",omitempty"`
+
+	// Control Flow Analysis result; only available if `--analyze-control-flow` option is set.
+	// Use `omitzero` so the field is still marshalled if it's empty, but omitted if it's nil (option not set).
+	ControlFlowStatements []ControlFlowStatement `json:",omitzero"`
 }
 
 // Extracts relevant information about a TestCase and saves the results to a new AnalysisResult instance
-func Analyze(tc *TestCase, analyzeLoops bool, analyzeConditionals bool) *AnalysisResult {
+func Analyze(tc *TestCase, analyzeLoops bool, analyzeConditionals bool, analyzeControlFlow bool) *AnalysisResult {
 	slog.Debug("Analyzing TestCase", "testCase", tc)
 
 	// Initialize the AnalysisResult
@@ -75,14 +80,19 @@ func Analyze(tc *TestCase, analyzeLoops bool, analyzeConditionals bool) *Analysi
 		slog.Error("Cannot extract imported packages in TestCase because File is nil", "testCase", tc)
 	}
 
+	// ===== Additional analyses =====
+
 	// Perform a loop analysis if requested
 	if analyzeLoops {
 		result.LoopAnalysis = AnalyzeLoops(tc, result.ParsedStatements)
 	}
-
 	// Perform a conditionals analysis inside the runner loop if requested
 	if analyzeConditionals {
 		result.IfElseAnalysis = AnalyzeConditionals(tc, result.ScenarioSet, result.ParsedStatements)
+	}
+	// Perform a control flow analysis inside the runner loop if requested
+	if analyzeControlFlow {
+		result.ControlFlowStatements = AnalyzeControlFlow(tc, result.ScenarioSet, result.ParsedStatements)
 	}
 
 	return result
@@ -135,6 +145,12 @@ func (ar *AnalysisResult) GetCSVHeaders() []string {
 			"numConditionals",
 		)
 	}
+	if ar.ControlFlowStatements != nil {
+		// insert before "importedPackages"
+		headers = slices.Insert(headers, len(headers)-1,
+			"numControlFlowStatements",
+		)
+	}
 	return headers
 }
 
@@ -182,6 +198,18 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 		// insert before "importedPackages"
 		row = slices.Insert(row, len(row)-1,
 			strconv.Itoa(ar.IfElseAnalysis.NumConditionals),
+		)
+	}
+	if ar.ControlFlowStatements != nil {
+		numStatements := 0
+		if len(ar.ControlFlowStatements) > 0 {
+			// output the number of control flow statements inside the runner loop, not counting the runner loop itself (which is always the first detected statement)
+			numStatements = len(ar.ControlFlowStatements[0].GetNestedStmts())
+		}
+
+		// insert before "importedPackages"
+		row = slices.Insert(row, len(row)-1,
+			strconv.Itoa(numStatements),
 		)
 	}
 	return row

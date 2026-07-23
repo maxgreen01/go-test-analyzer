@@ -23,7 +23,7 @@ func TestThirdPartyPackage(t *testing.T) {
 	for _, tc := range tests {
 		// Testify assertion
 		assert.Equal(t, tc.want, tc.input)
-		
+
 		// Quicktest subtest & assertion
 		c.Run(tc.name, func(c *qt.C) {
 			c.Assert(tc.input, qt.DeepEquals, tc.want)

@@ -498,7 +498,7 @@ func cloneSurroundingFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunc
 		slog.Warn("Outermost enclosing function is not a FuncDecl", "test", tc)
 		return nil
 	}
-	
+
 	fset := tc.FileSet()
 	if fset == nil {
 		slog.Warn("Cannot clone a function because FileSet is nil", "function", originalAstFunc.Name.Name, "test", tc)

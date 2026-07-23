@@ -46,15 +46,46 @@ func TestAnalyzeWithConditionals(t *testing.T) {
 
 	// More detailed JSON file assertions
 	checkGoldenAnalyzeJSON(t, results, []testCaseAssertion{
+		// Check tests with mixed loops and conditionals inside each other
 		{
-			// Check complex & nested conditionals
 			testName:   "TestConditionals",
 			goldenName: "TestConditionals-with-conditionals.json",
 		},
 		{
-			// Check with lots of loops
 			testName:   "TestExpandedStatements",
 			goldenName: "TestExpandedStatements-with-conditionals.json",
+		},
+		// Non-table-driven tests should have no detected control flow statements
+		{
+			testName:   "TestAssertionLoopOnly",
+			goldenName: "TestAssertionLoopOnly-with-conditionals.json",
+		},
+	}, opts)
+}
+
+// TestAnalyzeWithControlFlow verifies that unified control flow analysis works as expected.
+func TestAnalyzeWithControlFlow(t *testing.T) {
+	opts := parsercommands.AnalyzeOptions{AnalyzeControlFlow: true}
+	results := runAnalyzer(t, opts)
+
+	results.checkErrorLog(t)
+	checkGoldenAnalyzeCSV(t, results, "analyzer-report-with-control-flow.csv")
+
+	// More detailed JSON file assertions
+	checkGoldenAnalyzeJSON(t, results, []testCaseAssertion{
+		// Check tests with mixed loops and conditionals inside each other
+		{
+			testName:   "TestConditionals",
+			goldenName: "TestConditionals-with-control-flow.json",
+		},
+		{
+			testName:   "TestExpandedStatements",
+			goldenName: "TestExpandedStatements-with-control-flow.json",
+		},
+		// Non-table-driven tests should have no detected control flow statements
+		{
+			testName:   "TestAssertionLoopOnly",
+			goldenName: "TestAssertionLoopOnly-with-control-flow.json",
 		},
 	}, opts)
 }

@@ -19,78 +19,18 @@ type IfElseAnalysisResult struct {
 	Conditionals    []*IfStmt `json:"conditionals"`    // Detected conditionals found in the test case, with nested conditionals stored internally
 }
 
-// Detects and analyzes all conditionals found inside the scenario runner loop body of a table-driven test case, including those called in expanded function calls.
+// Detects and analyzes all conditionals found inside the scenario runner loop of a table-driven test case,
+// including conditionals found in expanded function calls.
 // todo LATER - maybe add support for detecting switch statements
 func AnalyzeConditionals(tc *TestCase, scenarioSet *ScenarioSet, parsedStmts []*ExpandedStatement) *IfElseAnalysisResult {
 	result := &IfElseAnalysisResult{}
-	seen := make(map[dst.Node]bool)
 
-	if scenarioSet == nil || scenarioSet.Runner == nil {
-		// Not table-driven
-		return result
-	}
-	scenarioType := scenarioSet.ScenarioType
-	loopScope := tc.GetNodeScope(scenarioSet.Runner)
-
-	// Analyze each ExpandedStatement inside the scenario runner loop body.
-	// We unfortunately can't use `scenarioSet.GetRunnerStatements()` here because individual statements might not have
-	// their own corresponding ExpandedStatement nodes (e.g. an if/else statement itself).
-	// todo CLEANUP this would be made slightly easier if ExpandedStatements were stored in the ScenarioSet directly
-	runnerExpanded := findExpandedStmt(scenarioSet.Runner, parsedStmts)
-	if runnerExpanded != nil {
-		ifs := analyzeStmtConditionals(runnerExpanded, nil, tc, scenarioType, loopScope, seen)
-		result.Conditionals = append(result.Conditionals, ifs...)
-	}
+	cfs := analyzeRunnerControlFlow(tc, scenarioSet, parsedStmts, true, false)
+	result.Conditionals = append(result.Conditionals, filterTyped[*IfStmt](cfs)...)
 
 	result.NumConditionals = len(result.Conditionals)
 
 	return result
-}
-
-// Recursively inspects a statement's DST structure (including expanded function calls) and type information to detect if/else,
-// statements, including nested conditionals and metadata features. Uses pre-built ExpandedStatements to expand function calls
-// and avoid cycles. Builds a hierarchy of conditionals by tracking a reference to the closest parent conditional and modifying
-// its fields in-place. Avoids saving duplicate conditionals within each conditional's nested slice, but allows repeats among
-// different parent conditionals. Returns a slice of all detected top-level (non-nested) conditionals if no parent is provided,
-// or nil if a parent is provided.
-func analyzeStmtConditionals(expanded *ExpandedStatement, parentClause *IfClause, tc *TestCase, scenarioType types.Type, loopScope *types.Scope, seen map[dst.Node]bool) []*IfStmt {
-	var topLevelIfs []*IfStmt // only used if `parentClause` is nil
-
-	// Walk the expanded statement tree and inspect each non-nil node within each statement
-	WalkExpanded(expanded, func(node dst.Node, children []*ExpandedStatement) bool {
-		switch n := node.(type) {
-		case *dst.IfStmt:
-			// Ignore conditionals that have already been analyzed directly under this parent
-			if seen[n] {
-				return false
-			}
-
-			// Analyze the conditional and detect any children using recursion
-			ifStmt := CreateIfStmt(n, tc, scenarioType, loopScope, children, seen)
-
-			// Save nested conditionals under their parent, or collect top-level conditionals to return
-			if parentClause != nil {
-				parentClause.NestedConditionals = append(parentClause.NestedConditionals, ifStmt)
-			} else {
-				topLevelIfs = append(topLevelIfs, ifStmt)
-			}
-			seen[n] = true
-
-			// Stop inspecting descendants because the body has already been processed by `CreateIfStmt`
-			return false
-
-		default:
-			// Check function calls (which have already been expanded) and any other non-nil nodes for metadata features
-			if parentClause != nil {
-				RegisterNode(&parentClause.FeatureSet, node, tc)
-			}
-		}
-
-		// Continue descending to search for additional conditionals
-		return true
-	})
-
-	return topLevelIfs
 }
 
 // ================================================================================================
@@ -98,34 +38,38 @@ func analyzeStmtConditionals(expanded *ExpandedStatement, parentClause *IfClause
 // IfStmt represents an entire if/else chain detected in a table-driven test.
 type IfStmt struct {
 	Content     string      `json:"content"`     // The DST code of the full statement, converted to a string
-	TotalLength int         `json:"totalLength"` // Total number of statements in this if/else chain, including inside nested conditionals
+	TotalLength int         `json:"totalLength"` // Total number of statements in this if/else chain, including inside nested statements
 	InHelper    bool        `json:"inHelper"`    // True if the statement is physically located in a helper function outside the test function
 	Clauses     []*IfClause `json:"clauses"`     // List of all branches in the statement
 }
 
-// Creates an IfStmt instance representing an entire if/else chain, and analyzes the clause's inner statements to detect nested conditionals
-// and metadata features in a depth-first traversal.
+// Compile-time interface check
+var _ ControlFlowStatement = (*IfStmt)(nil)
+
+// Creates an IfStmt instance representing an entire if/else chain, and analyzes the clause's inner statements in a depth-first traversal
+// to detect nested control flow statements and metadata features.
 //
 // Note that `children` is expected to be a superset of the statements actually inside the clauses, since it should hold all the child
 // statements of the most recently expanded function call or original statement, so it may include statements next to the if/else chain.
-func CreateIfStmt(stmt *dst.IfStmt, tc *TestCase, scenarioType types.Type, loopScope *types.Scope, children []*ExpandedStatement, seen map[dst.Node]bool) *IfStmt {
+func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer, children []*ExpandedStatement) *IfStmt {
 	ifStmt := &IfStmt{
 		Content:  asttools.NodeToString(stmt),
-		InHelper: !tc.IsWithinTestFunction(stmt),
+		InHelper: !cfa.tc.IsWithinTestFunction(stmt),
 	}
 
-	// Convert nested DST "else if" chains into a flat slice of IfClause elements, and analyze nested statements within each clause
+	// Convert nested DST "else" branches into a flat slice of IfClause elements, and analyze the statements within each clause
 
-	// Track the current branch. Expected to be an IfStmt ("then" or "else if"), BlockStmt ("else"), or nil (end of chain w/o "else").
+	// Track the current clause, where `curr` should be an IfStmt ("then" or "else if"), BlockStmt ("else"),
+	// or nil (end of chain w/o "else").
 	curr := stmt
 	for curr != nil {
-		// The first IfStmt clause is considered the "then" clause, subsequent ones are "else if"
+		// The first IfStmt clause is considered the "then" clause, and subsequent ones are "else if"
 		clauseType := IfClauseTypeElseIf
 		if curr == stmt {
 			clauseType = IfClauseTypeThen
 		}
 
-		ifClause := CreateIfClause(curr, clauseType, tc, scenarioType, loopScope, children, seen)
+		ifClause := CreateIfClause(curr, clauseType, cfa, children)
 		ifStmt.Clauses = append(ifStmt.Clauses, ifClause)
 
 		// Move to the next clause in the chain
@@ -135,7 +79,7 @@ func CreateIfStmt(stmt *dst.IfStmt, tc *TestCase, scenarioType types.Type, loopS
 
 		} else if elseBlock, ok := curr.Else.(*dst.BlockStmt); ok {
 			// Finish looping with the "else" clause
-			elseClause := CreateIfClause(elseBlock, IfClauseTypeElse, tc, scenarioType, loopScope, children, seen)
+			elseClause := CreateIfClause(elseBlock, IfClauseTypeElse, cfa, children)
 			ifStmt.Clauses = append(ifStmt.Clauses, elseClause)
 			break
 		} else {
@@ -145,49 +89,65 @@ func CreateIfStmt(stmt *dst.IfStmt, tc *TestCase, scenarioType types.Type, loopS
 	}
 
 	// Compute calculated fields based on finished clauses
-	for _, clause := range ifStmt.Clauses {
-		ifStmt.TotalLength += clause.TotalLength()
-	}
+	ifStmt.TotalLength = TotalLength(ifStmt)
 
 	return ifStmt
 }
 
-// MaxDepth returns the maximum depth of nested conditionals in this if/else chain.
-// Returns 0 if there are no nested conditionals, and increments by 1 for each level of nesting.
-func (ifs *IfStmt) MaxDepth() int {
-	maxDepth := 0
+// GetNestedStmts returns the nested control flow statements within this statement.
+func (ifs *IfStmt) GetNestedStmts() []ControlFlowStatement {
+	var nested []ControlFlowStatement
 	for _, clause := range ifs.Clauses {
-		maxDepth = max(maxDepth, clause.MaxDepth()) // don't add 1 here because the clause itself isn't a new level of nesting
+		nested = append(nested, clause.NestedStatements...)
 	}
-	return maxDepth
+	return nested
+}
+
+// GetFeatureSets returns the metadata feature sets associated with this control flow statement.
+func (ifs *IfStmt) GetFeatureSets() []features.FeatureSet {
+	var featureSets []features.FeatureSet
+	for _, clause := range ifs.Clauses {
+		featureSets = append(featureSets, clause.FeatureSet)
+	}
+	return featureSets
+}
+
+// GetLength returns the number of DST statements inside this control flow statement, NOT including nested statements.
+func (ifs *IfStmt) GetLength() int {
+	// Excluding nested statements, the length of an if/else chain is just the sum of the lengths of its clauses
+	length := 0
+	for _, clause := range ifs.Clauses {
+		length += clause.Length
+	}
+	return length
 }
 
 // IfClause represents one branch of a if/else chain detected in a table-driven test.
 type IfClause struct {
-	Type                IfClauseType     `json:"type"`                // Type of this clause with respect to the if/else chain (then, else if, else)
-	Condition           string           `json:"condition,omitempty"` // String representation of the condition expression, if any
-	Variables           []*IfVarBehavior `json:"variables,omitempty"` // Variables and fields used in the condition, if any
-	Length              int              `json:"length"`              // Number of statements in this clause
-	features.FeatureSet                  // Detected metadata features, embedded because it saves an unnecessary layer of nesting
-	NestedConditionals  []*IfStmt        `json:"nestedConditionals,omitempty"` // Additional if/else statements that are contained within this branch, if any
+	Type                IfClauseType           `json:"type"`                // Type of this clause with respect to the if/else chain (then, else if, else)
+	Condition           string                 `json:"condition,omitempty"` // String representation of the condition expression, if any
+	Variables           []*IfVarBehavior       `json:"variables,omitempty"` // Variables and fields used in the condition, if any
+	features.FeatureSet                        // Detected metadata features, embedded because it saves an unnecessary layer of nesting
+	NestedStatements    []ControlFlowStatement `json:"nestedStatements,omitempty"` // Additional control flow statements that are contained within this branch, if any
 }
 
-// Creates an IfClause instance representing a single branch of an if/else chain, and analyzes the clause's inner statements to detect
-// nested conditionals and metadata features in a depth-first traversal.
+// Creates an IfClause instance representing a single branch of an if/else chain, and analyzes the clause's inner statements in a depth-first
+// traversal to detect nested control flow statements and metadata features.
 //
 // Note that `children` is expected to be a superset of the statements actually inside the clause, since it should hold all the child
 // statements of the most recently expanded function call or original statement, so it may include statements next to the if/else chain.
-func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, tc *TestCase, scenarioType types.Type, loopScope *types.Scope, children []*ExpandedStatement, seen map[dst.Node]bool) *IfClause {
+func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFlowAnalyzer, children []*ExpandedStatement) *IfClause {
 	var enclosingFunc ast.Node
-	if astFuncs, _ := tc.GetEnclosingFunctions(clauseStmt); len(astFuncs) > 0 {
+	if astFuncs, _ := cfa.tc.GetEnclosingFunctions(clauseStmt); len(astFuncs) > 0 {
 		enclosingFunc = astFuncs[0]
 	}
 	clause := &IfClause{
 		Type:       clauseType,
-		FeatureSet: features.NewFeatureSet(tc.GetNodeScope(clauseStmt), enclosingFunc, !tc.IsWithinTestFunction(clauseStmt)),
+		FeatureSet: features.NewFeatureSet(cfa.tc.GetNodeScope(clauseStmt), enclosingFunc, !cfa.tc.IsWithinTestFunction(clauseStmt)),
 	}
 
-	// Handle different logic for a "then" or "else if" clause, compared to an "else" clause
+	// Search for nested statements in the clause, and process extra fields for a "then" or "else if" clause
+	// compared to an "else" clause
 	var body *dst.BlockStmt
 	switch stmt := clauseStmt.(type) {
 	case *dst.IfStmt:
@@ -196,57 +156,26 @@ func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, tc *TestCase, 
 		if stmt.Init != nil {
 			clause.Condition = asttools.NodeToString(stmt.Init) + "; " + clause.Condition
 		}
-		clause.Variables = analyzeCondition(stmt, tc, scenarioType, loopScope)
+		clause.Variables = analyzeCondition(stmt, cfa.tc, cfa.scenarioType, cfa.loopScope)
+
+		// Manually search for nested statements
 		body = stmt.Body
-		// Manually search for nested statements in this statement's `Init` and `Cond` fields, since they aren't checked anywhere else
-		analyzeStmtConditionals(&ExpandedStatement{Stmt: stmt.Init, Children: children}, clause, tc, scenarioType, loopScope, make(map[dst.Node]bool))
-		analyzeStmtConditionals(&ExpandedStatement{Stmt: &dst.ExprStmt{X: stmt.Cond}, Children: children}, clause, tc, scenarioType, loopScope, make(map[dst.Node]bool))
+		clause.NestedStatements = cfa.analyzeNested([]dst.Node{stmt.Init, stmt.Cond, body}, children, &clause.FeatureSet)
 
 	case *dst.BlockStmt:
+		// Entire "else" clause statement is just the body
 		body = stmt
+		clause.NestedStatements = cfa.analyzeNested([]dst.Node{body}, children, &clause.FeatureSet)
 	}
 
-	// Analyze nested statements using a dummy ExpandedStatement representing the statement body, and reuse the containing statement's children.
-	// Use a fresh `seen` map to avoid duplicate conditionals within this new parent, but allow them to be repeated under different parents.
-	// Any detected nested conditionals or metadata features are automatically attached to this loop.
 	if body != nil {
 		clause.Length = len(body.List)
-		analyzeStmtConditionals(&ExpandedStatement{Stmt: body, Children: children}, clause, tc, scenarioType, loopScope, make(map[dst.Node]bool))
 	}
 
-	// Make sure all metadata features are propagated and set correctly
-	clause.finalize()
+	// Bubble up detected metadata features from nested control flow statements
+	BubbleUpFeatures(&clause.FeatureSet, clause.NestedStatements)
 
 	return clause
-}
-
-// Bubbles up detected metadata features from nested conditionals, and populates computed fields based on other analysis results
-func (clause *IfClause) finalize() {
-	// Bubble up features and delegated status from nested conditionals
-	for _, child := range clause.NestedConditionals {
-		for _, childClause := range child.Clauses {
-			features.BubbleUp(&clause.FeatureSet, &childClause.FeatureSet)
-		}
-	}
-}
-
-// TotalLength returns the total number of statements in this if/else clause, including inside nested conditionals.
-func (clause *IfClause) TotalLength() int {
-	total := clause.Length
-	for _, nested := range clause.NestedConditionals {
-		total += nested.TotalLength
-	}
-	return total
-}
-
-// MaxDepth returns the maximum depth of nested conditionals in this if/else clause.
-// Returns 0 if there are no nested conditionals, and increments by 1 for each level of nesting.
-func (clause *IfClause) MaxDepth() int {
-	maxDepth := 0
-	for _, nested := range clause.NestedConditionals {
-		maxDepth = max(maxDepth, 1+nested.MaxDepth())
-	}
-	return maxDepth
 }
 
 // IfVarBehavior stores behavior details and source scope for a variable in a condition.

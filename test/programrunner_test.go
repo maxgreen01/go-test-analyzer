@@ -139,6 +139,7 @@ func (r *analyzerResults) checkErrorLog(t *testing.T) {
 }
 
 // csvRow represents a single row in the analyzer's CSV report.
+// !! THIS STRUCT MUST BE UPDATED WHENEVER THE CSV REPORT FORMAT CHANGES !!
 type csvRow struct {
 	// Regular fields
 	Project                   string `csv:"project"`
@@ -165,6 +166,12 @@ type csvRow struct {
 	LocalLoops       string `csv:"localLoops"`
 	DelegatedLoops   string `csv:"delegatedLoops"`
 	TableDrivenLoops string `csv:"tableDrivenLoops"`
+
+	// Conditional analysis fields (may not be present)
+	NumConditionals string `csv:"numConditionals"`
+
+	// Control flow analysis fields (may not be present)
+	NumControlFlowStatements string `csv:"numControlFlowStatements"`
 }
 
 // copyDir recursively copies a directory tree from src to dst. It does not preserve file permissions or timestamps, does not follow symlinks, and overwrites existing files in the destination.

@@ -44,6 +44,7 @@ type AnalyzeOptions struct {
 	KeepRefactoredFiles bool   `long:"keep-refactored-files" description:"Whether to retain the results of refactored test cases by NOT restoring the original source files after refactoring"`
 	AnalyzeLoops        bool   `long:"analyze-loops" description:"Whether to perform an additional, more detailed analysis of all the loops detected in each test case"`
 	AnalyzeConditionals bool   `long:"analyze-conditionals" description:"Whether to perform an additional, more detailed analysis of all the if/else chains detected in table-driven tests"`
+	AnalyzeControlFlow  bool   `long:"analyze-control-flow" description:"Whether to perform a unified control flow analysis combining the loop and conditional analyses in table-driven tests"`
 }
 
 // Compile-time interface implementation check
@@ -149,7 +150,7 @@ func (cmd *AnalyzeCommand) Visit(file *dst.File, pkg *decorator.Package) {
 		tc := testcase.CreateTestCase(fn, file, pkg, projectName)
 
 		// Analyze and store the test case
-		analysisResult := testcase.Analyze(&tc, cmd.AnalyzeLoops, cmd.AnalyzeConditionals)
+		analysisResult := testcase.Analyze(&tc, cmd.AnalyzeLoops, cmd.AnalyzeConditionals, cmd.AnalyzeControlFlow)
 		cmd.testCases = append(cmd.testCases, analysisResult)
 
 		if analysisResult.IsTableDriven() {

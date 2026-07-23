@@ -218,7 +218,7 @@
     "refactorings": [
       {
         // The refactored test declaration, based on its AST representation.
-        "refactored": "func TestAlertingRuleState(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tactive map[uint64]*Alert\n\t\twant   AlertState\n\t}{\n\t\t{\n\t\t\tname: \"MaxStateFiring\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StatePending},\n\t\t\t\t1: {State: StateFiring},\n\t\t\t},\n\t\t\twant: StateFiring,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStatePending\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StatePending},\n\t\t\t},\n\t\t\twant: StatePending,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStateInactive\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StateInactive},\n\t\t\t},\n\t\t\twant: StateInactive,\n\t\t},\n\t}\n\n\tfor i, test := range tests {\n\t\tt.Run(test.name, func(t *testing.T) {\n\t\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\t\trule.active = test.active\n\t\t\tgot := rule.State()\n\t\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t\t})\n\t}\n}",
+        "refactored": "func TestAlertingRuleState(t *testing.T) {\n\ttests := []struct {\n\t\tname   string\n\t\tactive map[uint64]*Alert\n\t\twant   AlertState\n\t}{\n\t\t{\n\t\t\tname: \"MaxStateFiring\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StatePending},\n\t\t\t\t1: {State: StateFiring},\n\t\t\t},\n\t\t\twant: StateFiring,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStatePending\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StatePending},\n\t\t\t},\n\t\t\twant: StatePending,\n\t\t},\n\t\t{\n\t\t\tname: \"MaxStateInactive\",\n\t\t\tactive: map[uint64]*Alert{\n\t\t\t\t0: {State: StateInactive},\n\t\t\t\t1: {State: StateInactive},\n\t\t\t},\n\t\t\twant: StateInactive,\n\t\t},\n\t}\n\n\tfor i, test := range tests {\n\t\tt.Run(test.name, func(t *testing.T) {\n\t\t\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\t\t\trule.active = test.active\n\t\t\tgot := rule.State()\n\t\t\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\t\t\tvalidateState(t, got)\n\t\t})\n\t}\n}",
         
         // The absolute path to the file where the refactored function is defined.
         "filePath": "D:\\go-projects\\prometheus\\rules\\alerting_test.go",
@@ -320,11 +320,17 @@
         
         // The loop's content, based on its AST representation.
         "content": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\tvalidateState(t, got)\n}",
-
+        
         // A boolean indicating whether the loop is indicative of a table-driven test. Note that this is
         // determined based on this object's analysis fields, so this may differ from the "isTableDriven"
         // field in the "ScenarioSet" object, which is determined using different criteria.
         "indicatesTableDriven": true,
+
+        // The total number of statements contained in this loop and all its nested statements.
+        "totalLength": 6,
+
+        // The number of statements contained directly in this loop, NOT including nested statements.
+        "length": 5,
         
         // A boolean indicating whether the loop structure or any of its metadata features are delegated.
         "delegated": false,
@@ -352,11 +358,13 @@
         // Information about any additional loops that are contained within this loop, if any.
         // Nested loops follow the same structure as non-nested ones, and are recursively expanded
         // in the same way.
-        "nestedLoops": [
+        "nestedStatements": [
           {
             "loopType": "iterative indexed",
             "content": "for i := 0; i < 3; i++ {\n\tif other := AlertState(i); other == state {\n\t\tif other.String() != state.String() {\n\t\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t\t}\n\t}\n}",
             "indicatesTableDriven": true,
+            "totalLength": 1,
+            "length": 1,
             "delegated": true,
             "hasSubtest": false,
             "hasAssertion": {
@@ -384,6 +392,9 @@
       {
         // The entire if/else chain's content, based on its AST representation.
         "content": "if other := AlertState(i); other == state {\n\tif other.String() != state.String() {\n\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t}\n}",
+
+        // The total number of statements contained in this if/else chain and all its nested statements.
+        "totalLength": 2,
 
         // A boolean indicating whether the if/else chain is located outside of the test function itself.
         "inHelper": true,
@@ -447,7 +458,7 @@
               }
             ],
 
-            // The number of statements contained directly in this clause, not including nested statements.
+            // The number of statements contained directly in this clause, NOT including nested statements.
             "length": 1,
             
             // A boolean indicating whether the clause or any of its metadata features are delegated.
@@ -476,9 +487,10 @@
             // Information about any additional if/else chains that are contained within this clause, if any.
             // Nested conditionals follow the same structure as non-nested ones, and are recursively expanded
             // in the same way.
-            "nestedConditionals": [
+            "nestedStatements": [
               {
                 "content": "if other.String() != state.String() {\n\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n}",
+                "totalLength": 1,
                 "inHelper": true,
                 "clauses": [
                   {
@@ -517,5 +529,133 @@
         ]
       }
     ]
-  }
+  },
+  
+  // The "ControlFlowStatements" array contains information about all the control flow statements detected
+  // in the runner loop of a table-driven test. The elements of this array have the same structure as the
+  // objects detected during the loop and conditional analyses, but the statements are not limited to one
+  // particular type. Instead, loops and if/else chains can be detected and nested inside each other in
+  // any combination. To differentiate each type of control flow statement, compare the fields of each
+  // object to the structure of the corresponding loop or conditional analysis objects, or look at the
+  // "content" field to see the statement's AST representation.
+  //
+  // This field is only present if the `--analyze-control-flow` option is set.
+  "ControlFlowStatements": [
+    {
+      "loopType": "range structs",
+      "content": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\tvalidateState(t, got)\n}",
+      "indicatesTableDriven": true,
+      "totalLength": 8,
+      "length": 5,
+      "delegated": false,
+      "hasSubtest": false,
+      "hasAssertion": {
+        "present": true,
+        "delegated": false
+      },
+      "hasEarlyExit": false,
+      "doesExternalMutation": false,
+      "nestedStatements": [
+        {
+          "loopType": "iterative indexed",
+          "content": "for i := 0; i < 3; i++ {\n\tif other := AlertState(i); other == state {\n\t\tif other.String() != state.String() {\n\t\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t\t}\n\t}\n}",
+          "indicatesTableDriven": true,
+          "totalLength": 3,
+          "length": 1,
+          "delegated": true,
+          "hasSubtest": false,
+          "hasAssertion": {
+            "present": true,
+            "delegated": true
+          },
+          "hasEarlyExit": false,
+          "doesExternalMutation": false,
+          "nestedStatements": [
+            {
+              "content": "if other := AlertState(i); other == state {\n\tif other.String() != state.String() {\n\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t}\n}",
+              "totalLength": 2,
+              "inHelper": true,
+              "clauses": [
+                {
+                  "type": "then",
+                  "condition": "other := AlertState(i); other == state",
+                  "variables": [
+                    {
+                      "name": "other",
+                      "source": "if scope",
+                      "usages": [
+                        "variable creation",
+                        "comparison"
+                      ]
+                    },
+                    {
+                      "name": "i",
+                      "source": "package",
+                      "usages": [
+                        "function argument"
+                      ]
+                    },
+                    {
+                      "name": "state",
+                      "source": "package",
+                      "usages": [
+                        "comparison"
+                      ]
+                    }
+                  ],
+                  "length": 1,
+                  "delegated": true,
+                  "hasSubtest": false,
+                  "hasAssertion": {
+                    "present": true,
+                    "delegated": true
+                  },
+                  "hasEarlyExit": false,
+                  "doesExternalMutation": false,
+                  "nestedStatements": [
+                    {
+                      "content": "if other.String() != state.String() {\n\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n}",
+                      "totalLength": 1,
+                      "inHelper": true,
+                      "clauses": [
+                        {
+                          "type": "then",
+                          "condition": "other.String() != state.String()",
+                          "variables": [
+                            {
+                              "name": "other",
+                              "source": "package",
+                              "usages": [
+                                "method receiver"
+                              ]
+                            },
+                            {
+                              "name": "state",
+                              "source": "package",
+                              "usages": [
+                                "method receiver"
+                              ]
+                            }
+                          ],
+                          "length": 1,
+                          "delegated": true,
+                          "hasSubtest": false,
+                          "hasAssertion": {
+                            "present": true,
+                            "delegated": true
+                          },
+                          "hasEarlyExit": false,
+                          "doesExternalMutation": false
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

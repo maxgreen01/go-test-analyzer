@@ -19,6 +19,7 @@
           "present": true
         },
         "indicatesTableDriven": true,
+        "length": 1,
         "loopType": "range non-structs"
       }
     ],

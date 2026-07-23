@@ -1,0 +1,656 @@
+{
+  "ControlFlowStatements": [
+    {
+      "content": "for _, tc := range tests {\n\tif tc.input \u003c 0 {\n\t\tt.Fatalf(\"input should not be negative: %d\", tc.input)\n\t} else if flag {\n\t\treturn // skip remaining tests\n\t} else if tc.input \u003c threshold/2 {\n\t\tcontinue // skip small inputs\n\t} else {\n\t\tif got := Double(tc.input); got != tc.want {\n\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t}\n\t}\n\n\tif tc.input%2 == 0 {\n\t\tif got := Double(tc.input); got \u003c tc.want {\n\t\t\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n\t\t}\n\t} else if helperConditional(\u0026tc) == 1 {\n\t\tflag = false\n\t}\n\thelperConditional(\u0026tc)\n}",
+      "delegated": false,
+      "doesExternalMutation": false,
+      "hasAssertion": {
+        "delegated": false,
+        "present": true
+      },
+      "hasEarlyExit": {
+        "delegated": false,
+        "present": true
+      },
+      "hasSubtest": false,
+      "indicatesTableDriven": true,
+      "length": 3,
+      "loopType": "range structs",
+      "nestedStatements": [
+        {
+          "clauses": [
+            {
+              "condition": "tc.input \u003c 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": {
+                "delegated": false,
+                "present": true
+              },
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "length": 1,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            },
+            {
+              "condition": "flag",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": {
+                "delegated": false,
+                "present": true
+              },
+              "hasSubtest": false,
+              "length": 1,
+              "type": "else if",
+              "variables": [
+                {
+                  "name": "flag",
+                  "source": "test scope",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            },
+            {
+              "condition": "tc.input \u003c threshold/2",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "length": 1,
+              "type": "else if",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "threshold",
+                  "source": "test scope",
+                  "usages": [
+                    "computation"
+                  ]
+                }
+              ]
+            },
+            {
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": {
+                "delegated": false,
+                "present": true
+              },
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "length": 1,
+              "nestedStatements": [
+                {
+                  "clauses": [
+                    {
+                      "condition": "got := Double(tc.input); got != tc.want",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": {
+                        "delegated": false,
+                        "present": true
+                      },
+                      "hasEarlyExit": false,
+                      "hasSubtest": false,
+                      "length": 1,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "got",
+                          "source": "if scope",
+                          "usages": [
+                            "variable creation",
+                            "comparison"
+                          ]
+                        },
+                        {
+                          "name": "tc.input",
+                          "source": "scenario",
+                          "usages": [
+                            "function argument"
+                          ]
+                        },
+                        {
+                          "name": "tc.want",
+                          "source": "scenario",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if got := Double(tc.input); got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}",
+                  "inHelper": false,
+                  "totalLength": 1
+                }
+              ],
+              "type": "else"
+            }
+          ],
+          "content": "if tc.input \u003c 0 {\n\tt.Fatalf(\"input should not be negative: %d\", tc.input)\n} else if flag {\n\treturn // skip remaining tests\n} else if tc.input \u003c threshold/2 {\n\tcontinue // skip small inputs\n} else {\n\tif got := Double(tc.input); got != tc.want {\n\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t}\n}",
+          "inHelper": false,
+          "totalLength": 5
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.input%2 == 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": {
+                "delegated": false,
+                "present": true
+              },
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "length": 1,
+              "nestedStatements": [
+                {
+                  "clauses": [
+                    {
+                      "condition": "got := Double(tc.input); got \u003c tc.want",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": {
+                        "delegated": false,
+                        "present": true
+                      },
+                      "hasEarlyExit": false,
+                      "hasSubtest": false,
+                      "length": 1,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "got",
+                          "source": "if scope",
+                          "usages": [
+                            "variable creation",
+                            "comparison"
+                          ]
+                        },
+                        {
+                          "name": "tc.input",
+                          "source": "scenario",
+                          "usages": [
+                            "function argument"
+                          ]
+                        },
+                        {
+                          "name": "tc.want",
+                          "source": "scenario",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if got := Double(tc.input); got \u003c tc.want {\n\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n}",
+                  "inHelper": false,
+                  "totalLength": 1
+                }
+              ],
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "computation"
+                  ]
+                }
+              ]
+            },
+            {
+              "condition": "helperConditional(\u0026tc) == 1",
+              "delegated": false,
+              "doesExternalMutation": true,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "length": 1,
+              "nestedStatements": [
+                {
+                  "clauses": [
+                    {
+                      "condition": "tc.input \u003c 0",
+                      "delegated": true,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": {
+                        "delegated": true,
+                        "present": true
+                      },
+                      "hasSubtest": false,
+                      "length": 1,
+                      "nestedStatements": [
+                        {
+                          "clauses": [
+                            {
+                              "condition": "tc.want \u003c 0",
+                              "delegated": true,
+                              "doesExternalMutation": false,
+                              "hasAssertion": false,
+                              "hasEarlyExit": {
+                                "delegated": true,
+                                "present": true
+                              },
+                              "hasSubtest": false,
+                              "length": 1,
+                              "type": "then",
+                              "variables": [
+                                {
+                                  "name": "tc.want",
+                                  "source": "scenario",
+                                  "usages": [
+                                    "comparison"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "delegated": true,
+                              "doesExternalMutation": false,
+                              "hasAssertion": false,
+                              "hasEarlyExit": false,
+                              "hasSubtest": false,
+                              "length": 0,
+                              "type": "else"
+                            }
+                          ],
+                          "content": "if tc.want \u003c 0 {\n\treturn 1\n} else {\n\t// do nothing\n}",
+                          "inHelper": true,
+                          "totalLength": 1
+                        }
+                      ],
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "tc.input",
+                          "source": "scenario",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "condition": "len(testhelper.MakeScenariosExternal()) \u003e 0",
+                      "delegated": true,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": {
+                        "delegated": true,
+                        "present": true
+                      },
+                      "hasSubtest": false,
+                      "length": 1,
+                      "type": "else if"
+                    },
+                    {
+                      "delegated": true,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": false,
+                      "hasSubtest": false,
+                      "length": 0,
+                      "type": "else"
+                    }
+                  ],
+                  "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
+                  "inHelper": true,
+                  "totalLength": 3
+                },
+                {
+                  "clauses": [
+                    {
+                      "condition": "strings.Contains(tc.name, strconv.Itoa(tc.input))",
+                      "delegated": true,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": {
+                        "delegated": true,
+                        "present": true
+                      },
+                      "hasSubtest": false,
+                      "length": 1,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "tc.name",
+                          "source": "scenario",
+                          "usages": [
+                            "function argument"
+                          ]
+                        },
+                        {
+                          "name": "tc.input",
+                          "source": "scenario",
+                          "usages": [
+                            "function argument"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
+                  "inHelper": true,
+                  "totalLength": 1
+                }
+              ],
+              "type": "else if",
+              "variables": [
+                {
+                  "name": "tc",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.input%2 == 0 {\n\tif got := Double(tc.input); got \u003c tc.want {\n\t\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n\t}\n} else if helperConditional(\u0026tc) == 1 {\n\tflag = false\n}",
+          "inHelper": false,
+          "totalLength": 7
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.input \u003c 0",
+              "delegated": true,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": {
+                "delegated": true,
+                "present": true
+              },
+              "hasSubtest": false,
+              "length": 1,
+              "nestedStatements": [
+                {
+                  "clauses": [
+                    {
+                      "condition": "tc.want \u003c 0",
+                      "delegated": true,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": {
+                        "delegated": true,
+                        "present": true
+                      },
+                      "hasSubtest": false,
+                      "length": 1,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "tc.want",
+                          "source": "scenario",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "delegated": true,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": false,
+                      "hasSubtest": false,
+                      "length": 0,
+                      "type": "else"
+                    }
+                  ],
+                  "content": "if tc.want \u003c 0 {\n\treturn 1\n} else {\n\t// do nothing\n}",
+                  "inHelper": true,
+                  "totalLength": 1
+                }
+              ],
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            },
+            {
+              "condition": "len(testhelper.MakeScenariosExternal()) \u003e 0",
+              "delegated": true,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": {
+                "delegated": true,
+                "present": true
+              },
+              "hasSubtest": false,
+              "length": 1,
+              "type": "else if"
+            },
+            {
+              "delegated": true,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "length": 0,
+              "type": "else"
+            }
+          ],
+          "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
+          "inHelper": true,
+          "totalLength": 3
+        },
+        {
+          "clauses": [
+            {
+              "condition": "strings.Contains(tc.name, strconv.Itoa(tc.input))",
+              "delegated": true,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": {
+                "delegated": true,
+                "present": true
+              },
+              "hasSubtest": false,
+              "length": 1,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.name",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
+          "inHelper": true,
+          "totalLength": 1
+        }
+      ]
+    }
+  ],
+  "ImportedPackages": [
+    "strconv",
+    "strings",
+    "testing",
+    "github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "flag := false"
+    },
+    {
+      "stmt": "threshold := 10"
+    },
+    {
+      "children": [
+        {
+          "stmt": "t.Fatalf(\"unexpected negative threshold: %d\", threshold)"
+        },
+        {
+          "stmt": "t.Log(\"zero threshold\")"
+        }
+      ],
+      "stmt": "if threshold \u003c 0 {\n\tt.Fatalf(\"unexpected negative threshold: %d\", threshold)\n} else if threshold == 0 {\n\tflag = true\n\tt.Log(\"zero threshold\")\n}"
+    },
+    {
+      "stmt": "tests := []scenario{\n\t{name: \"small\", input: 4, want: 8},\n\t{name: \"medium\", input: 6, want: 12},\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "t.Fatalf(\"input should not be negative: %d\", tc.input)"
+        },
+        {
+          "stmt": "Double(tc.input)"
+        },
+        {
+          "stmt": "t.Errorf(\"got %d, want %d\", got, tc.want)"
+        },
+        {
+          "stmt": "Double(tc.input)"
+        },
+        {
+          "stmt": "t.Errorf(\"got %d, want at least %d\", got, tc.want)"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "stmt": "testhelper.MakeScenariosExternal()"
+                    }
+                  ],
+                  "stmt": "len(testhelper.MakeScenariosExternal())"
+                }
+              ],
+              "stmt": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "stmt": "strconv.Itoa(tc.input)"
+                    }
+                  ],
+                  "stmt": "strings.Contains(tc.name, strconv.Itoa(tc.input))"
+                }
+              ],
+              "stmt": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}"
+            },
+            {
+              "stmt": "return 0"
+            }
+          ],
+          "stmt": "helperConditional(\u0026tc)"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "stmt": "testhelper.MakeScenariosExternal()"
+                    }
+                  ],
+                  "stmt": "len(testhelper.MakeScenariosExternal())"
+                }
+              ],
+              "stmt": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "stmt": "strconv.Itoa(tc.input)"
+                    }
+                  ],
+                  "stmt": "strings.Contains(tc.name, strconv.Itoa(tc.input))"
+                }
+              ],
+              "stmt": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}"
+            },
+            {
+              "stmt": "return 0"
+            }
+          ],
+          "stmt": "helperConditional(\u0026tc)"
+        }
+      ],
+      "stmt": "for _, tc := range tests {\n\tif tc.input \u003c 0 {\n\t\tt.Fatalf(\"input should not be negative: %d\", tc.input)\n\t} else if flag {\n\t\treturn // skip remaining tests\n\t} else if tc.input \u003c threshold/2 {\n\t\tcontinue // skip small inputs\n\t} else {\n\t\tif got := Double(tc.input); got != tc.want {\n\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t}\n\t}\n\n\tif tc.input%2 == 0 {\n\t\tif got := Double(tc.input); got \u003c tc.want {\n\t\t\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n\t\t}\n\t} else if helperConditional(\u0026tc) == 1 {\n\t\tflag = false\n\t}\n\thelperConditional(\u0026tc)\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "none"
+  },
+  "ScenarioSet": {
+    "dataStructure": "struct list",
+    "expectedFields": [
+      "want"
+    ],
+    "hasFunctionFields": false,
+    "isTableDriven": true,
+    "nameField": "name",
+    "runner": "for _, tc := range tests {\n\tif tc.input \u003c 0 {\n\t\tt.Fatalf(\"input should not be negative: %d\", tc.input)\n\t} else if flag {\n\t\treturn // skip remaining tests\n\t} else if tc.input \u003c threshold/2 {\n\t\tcontinue // skip small inputs\n\t} else {\n\t\tif got := Double(tc.input); got != tc.want {\n\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t}\n\t}\n\n\tif tc.input%2 == 0 {\n\t\tif got := Double(tc.input); got \u003c tc.want {\n\t\t\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n\t\t}\n\t} else if helperConditional(\u0026tc) == 1 {\n\t\tflag = false\n\t}\n\thelperConditional(\u0026tc)\n}",
+    "scenarioStructName": "tests",
+    "scenarioType": "struct{name string; input int; want int}",
+    "scenarios": [
+      "{name: \"small\", input: 4, want: 8},",
+      "{name: \"medium\", input: 6, want: 12},"
+    ],
+    "usesSubtest": false
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestConditionals has multiple complex if/else chains and nested conditionals both inside and outside the runner loop.\nfunc TestConditionals(t *testing.T) {\n\tflag := false\n\tthreshold := 10\n\tif threshold \u003c 0 {\n\t\tt.Fatalf(\"unexpected negative threshold: %d\", threshold)\n\t} else if threshold == 0 {\n\t\tflag = true\n\t\tt.Log(\"zero threshold\")\n\t}\n\ttests := []scenario{\n\t\t{name: \"small\", input: 4, want: 8},\n\t\t{name: \"medium\", input: 6, want: 12},\n\t}\n\tfor _, tc := range tests {\n\t\tif tc.input \u003c 0 {\n\t\t\tt.Fatalf(\"input should not be negative: %d\", tc.input)\n\t\t} else if flag {\n\t\t\treturn // skip remaining tests\n\t\t} else if tc.input \u003c threshold/2 {\n\t\t\tcontinue // skip small inputs\n\t\t} else {\n\t\t\tif got := Double(tc.input); got != tc.want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t\t}\n\t\t}\n\n\t\tif tc.input%2 == 0 {\n\t\t\tif got := Double(tc.input); got \u003c tc.want {\n\t\t\t\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n\t\t\t}\n\t\t} else if helperConditional(\u0026tc) == 1 {\n\t\t\tflag = false\n\t\t}\n\t\thelperConditional(\u0026tc)\n\t}\n}",
+    "importPath": "",
+    "name": "TestConditionals",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

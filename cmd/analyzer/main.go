@@ -265,6 +265,9 @@ func applyGlobals(opts *config.GlobalOptions) {
 // Define the version command
 type VersionCommand struct{}
 
+// Compile-time interface implementation check
+var _ flags.Commander = (*VersionCommand)(nil)
+
 func (c *VersionCommand) Execute(_ []string) error {
 	fmt.Printf("go-test-analyzer %s\n", version)
 	fmt.Printf("- os/type: %s\n", runtime.GOOS)

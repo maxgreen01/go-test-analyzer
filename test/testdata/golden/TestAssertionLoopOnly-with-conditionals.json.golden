@@ -1,0 +1,52 @@
+{
+  "IfElseAnalysis": {
+    "conditionals": null,
+    "numConditionals": 0
+  },
+  "ImportedPackages": [
+    "testing"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "items := []int{1, 2, 3, 4, 5}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "len(items)"
+        },
+        {
+          "stmt": "t.Errorf(\"not sorted: %d \u003e %d\", items[i], items[i+1])"
+        }
+      ],
+      "stmt": "for i := 0; i \u003c len(items)-1; i++ {\n\tif items[i] \u003e items[i+1] {\n\t\tt.Errorf(\"not sorted: %d \u003e %d\", items[i], items[i+1])\n\t}\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "none"
+  },
+  "ScenarioSet": {
+    "dataStructure": "none",
+    "expectedFields": null,
+    "hasFunctionFields": false,
+    "isTableDriven": false,
+    "nameField": "",
+    "runner": "",
+    "scenarioStructName": "",
+    "scenarioType": "",
+    "scenarios": [],
+    "usesSubtest": false
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestAssertionLoopOnly uses a loop purely for assertions, not as a scenario runner.\nfunc TestAssertionLoopOnly(t *testing.T) {\n\titems := []int{1, 2, 3, 4, 5}\n\tfor i := 0; i \u003c len(items)-1; i++ {\n\t\tif items[i] \u003e items[i+1] {\n\t\t\tt.Errorf(\"not sorted: %d \u003e %d\", items[i], items[i+1])\n\t\t}\n\t}\n}",
+    "importPath": "",
+    "name": "TestAssertionLoopOnly",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

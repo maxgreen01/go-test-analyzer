@@ -7,7 +7,7 @@
   "LoopAnalysis": {
     "loops": [
       {
-        "content": "for _, tc := range tests {\n\t// Testify assertion\n\tassert.Equal(t, tc.want, tc.input)\n\t// Quicktest subtest \u0026 assertion\n\tc.Run(tc.name, func(c *qt.C) {\n\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t})\n}",
+        "content": "for _, tc := range tests {\n\t// Testify assertion\n\tassert.Equal(t, tc.want, tc.input)\n\n\t// Quicktest subtest \u0026 assertion\n\tc.Run(tc.name, func(c *qt.C) {\n\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t})\n}",
         "delegated": false,
         "doesExternalMutation": false,
         "hasAssertion": {
@@ -20,6 +20,7 @@
           "present": true
         },
         "indicatesTableDriven": true,
+        "length": 2,
         "loopType": "range structs"
       }
     ],
@@ -57,7 +58,7 @@
           "stmt": "c.Run(tc.name, func(c *qt.C) {\n\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n})"
         }
       ],
-      "stmt": "for _, tc := range tests {\n\t// Testify assertion\n\tassert.Equal(t, tc.want, tc.input)\n\t// Quicktest subtest \u0026 assertion\n\tc.Run(tc.name, func(c *qt.C) {\n\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t})\n}"
+      "stmt": "for _, tc := range tests {\n\t// Testify assertion\n\tassert.Equal(t, tc.want, tc.input)\n\n\t// Quicktest subtest \u0026 assertion\n\tc.Run(tc.name, func(c *qt.C) {\n\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t})\n}"
     }
   ],
   "RefactorResult": {
@@ -75,7 +76,7 @@
     "hasFunctionFields": false,
     "isTableDriven": true,
     "nameField": "name",
-    "runner": "for _, tc := range tests {\n\t// Testify assertion\n\tassert.Equal(t, tc.want, tc.input)\n\t// Quicktest subtest \u0026 assertion\n\tc.Run(tc.name, func(c *qt.C) {\n\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t})\n}",
+    "runner": "for _, tc := range tests {\n\t// Testify assertion\n\tassert.Equal(t, tc.want, tc.input)\n\n\t// Quicktest subtest \u0026 assertion\n\tc.Run(tc.name, func(c *qt.C) {\n\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t})\n}",
     "scenarioStructName": "tests",
     "scenarioType": "struct{name string; input []int; want []int}",
     "scenarios": [
@@ -85,7 +86,7 @@
   },
   "TestCase": {
     "filePath": "",
-    "funcDecl": "// TestThirdPartyPackage compares slices using testify and quicktest.\nfunc TestThirdPartyPackage(t *testing.T) {\n\tc := qt.New(t)\n\ttests := []thirdPartyScenario{\n\t\t{name: \"equal\", input: []int{1, 2}, want: []int{1, 2}},\n\t}\n\tfor _, tc := range tests {\n\t\t// Testify assertion\n\t\tassert.Equal(t, tc.want, tc.input)\n\t\t// Quicktest subtest \u0026 assertion\n\t\tc.Run(tc.name, func(c *qt.C) {\n\t\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t\t})\n\t}\n}",
+    "funcDecl": "// TestThirdPartyPackage compares slices using testify and quicktest.\nfunc TestThirdPartyPackage(t *testing.T) {\n\tc := qt.New(t)\n\ttests := []thirdPartyScenario{\n\t\t{name: \"equal\", input: []int{1, 2}, want: []int{1, 2}},\n\t}\n\tfor _, tc := range tests {\n\t\t// Testify assertion\n\t\tassert.Equal(t, tc.want, tc.input)\n\n\t\t// Quicktest subtest \u0026 assertion\n\t\tc.Run(tc.name, func(c *qt.C) {\n\t\t\tc.Assert(tc.input, qt.DeepEquals, tc.want)\n\t\t})\n\t}\n}",
     "importPath": "",
     "name": "TestThirdPartyPackage",
     "package": "sampleproj",

@@ -24,15 +24,21 @@ type LoopAnalysisResult struct {
 	Loops []*Loop `json:"loops"`
 }
 
-// Detects and analyzes all the loops found in the expanded statements of a test case, including those called in expanded function calls.
+// Detects and analyzes all the loops found in the expanded statements of a test case,
+// including loops found in expanded function calls.
 func AnalyzeLoops(tc *TestCase, parsedStmts []*ExpandedStatement) *LoopAnalysisResult {
 	loopAnalysis := &LoopAnalysisResult{}
 	topLevelSeen := make(map[dst.Node]bool)
 
+	cfa := &controlFlowAnalyzer{
+		tc:           tc,
+		analyzeLoops: true,
+	}
+
 	// Analyze each top-level statement's ExpandedStatement tree
 	for _, expanded := range parsedStmts {
-		loops := analyzeStmtLoops(expanded, nil, tc, topLevelSeen)
-		loopAnalysis.Loops = append(loopAnalysis.Loops, loops...)
+		cfs := cfa.analyze(expanded, nil, topLevelSeen)
+		loopAnalysis.Loops = append(loopAnalysis.Loops, filterTyped[*Loop](cfs)...)
 	}
 
 	for _, l := range loopAnalysis.Loops {
@@ -56,51 +62,6 @@ func (loopAnalysis *LoopAnalysisResult) CountTableDriven() int {
 	return count
 }
 
-// Recursively inspects a statement's DST structure (including expanded function calls) and type information to detect loops,
-// including nested loops and metadata features. Uses pre-built ExpandedStatements to expand function calls and avoid cycles.
-// Builds a hierarchy of loops by tracking a reference to the closest parent loop and modifying its fields in-place.
-// Avoids saving duplicate loops within each loop's nested slice, but allows repeats among different parent loops.
-// Returns a slice of all detected top-level (non-nested) loops if no parent is provided, or nil if a parent is provided.
-func analyzeStmtLoops(expanded *ExpandedStatement, parentLoop *Loop, tc *TestCase, seen map[dst.Node]bool) []*Loop {
-	var topLevelLoops []*Loop // only used if `parentLoop` is nil
-
-	// Walk the expanded statement tree and inspect each non-nil node within each statement
-	WalkExpanded(expanded, func(node dst.Node, children []*ExpandedStatement) bool {
-		switch n := node.(type) {
-		case *dst.RangeStmt, *dst.ForStmt:
-			// Ignore loops that have already been analyzed directly under this parent
-			if seen[n] {
-				return false
-			}
-
-			// Analyze the loop and detect any children using recursion
-			loop := CreateLoop(n, children, tc)
-
-			// Save nested loops under their parent, or collect top-level loops to return
-			if parentLoop != nil {
-				parentLoop.NestedLoops = append(parentLoop.NestedLoops, loop)
-			} else {
-				topLevelLoops = append(topLevelLoops, loop)
-			}
-			seen[n] = true
-
-			// Stop inspecting descendants because the body has already been processed by `CreateLoop`
-			return false
-
-		default:
-			// Check function calls (which have already been expanded) and any other non-nil nodes for metadata features
-			if parentLoop != nil {
-				RegisterNode(&parentLoop.FeatureSet, node, tc)
-			}
-		}
-
-		// Continue descending to search for additional loops
-		return true
-	})
-
-	return topLevelLoops
-}
-
 // TODO maybe add a way to save each Loop as a distinct CSV row, but this would be annoying to implement given the inherent split
 //   with the AnalysisResult (which contains all the identifying/location information) and the optional nature of the loop analysis in the first place
 
@@ -117,78 +78,81 @@ type Loop struct {
 	// Whether the loop is indicative of a table-driven test
 	IndicatesTableDriven bool `json:"indicatesTableDriven"`
 
+	// Total number of statements in this loop, including inside nested statements
+	TotalLength int `json:"totalLength"`
+
 	// Detected metadata features, embedded because it saves an unnecessary layer of nesting
 	features.FeatureSet
 
-	// Additional loops that are contained within this loop, if any
-	NestedLoops []*Loop `json:"nestedLoops,omitempty"`
+	// Additional control flow statements that are contained within this loop, if any
+	NestedStatements []ControlFlowStatement `json:"nestedStatements,omitempty"`
 }
 
-// Creates a Loop instance, and analyzes the loop's inner statements to detect nested loops and metadata features in a depth-first traversal.
+// Compile-time interface check
+var _ ControlFlowStatement = (*Loop)(nil)
+
+// Creates a Loop instance, and analyzes the loop's inner statements in a depth-first traversal to detect nested control flow statements
+// and metadata features.
 //
 // Note that `children` is expected to be a superset of the statements actually inside the loop body, since it should hold all the child
 // statements of the most recently expanded function call or original statement, so it may include statements next to the loop.
-func CreateLoop(stmt dst.Node, children []*ExpandedStatement, tc *TestCase) *Loop {
+func CreateLoop(stmt dst.Node, children []*ExpandedStatement, cfa *controlFlowAnalyzer) *Loop {
 	var enclosingFunc ast.Node
-	if astFuncs, _ := tc.GetEnclosingFunctions(stmt); len(astFuncs) > 0 {
+	if astFuncs, _ := cfa.tc.GetEnclosingFunctions(stmt); len(astFuncs) > 0 {
 		enclosingFunc = astFuncs[0]
 	}
 	loop := &Loop{
 		Content:    asttools.NodeToString(stmt),
-		FeatureSet: features.NewFeatureSet(tc.GetNodeScope(stmt), enclosingFunc, !tc.IsWithinTestFunction(stmt)),
+		FeatureSet: features.NewFeatureSet(cfa.tc.GetNodeScope(stmt), enclosingFunc, !cfa.tc.IsWithinTestFunction(stmt)),
 	}
 
-	// Inspect the structure of the loop itself
+	// Classify the structure of the loop, and search for nested statements in the loop header and body.
 	var body *dst.BlockStmt
 	switch loopStmt := stmt.(type) {
 	case *dst.RangeStmt:
-		loop.LoopType = classifyRangeLoop(loopStmt, tc)
+		loop.LoopType = classifyRangeLoop(loopStmt, cfa.tc)
+
+		// Manually search for nested statements
 		body = loopStmt.Body
-		// Manually search for nested statements in this loop's range expression, since they aren't checked anywhere else
-		analyzeStmtLoops(&ExpandedStatement{Stmt: &dst.ExprStmt{X: loopStmt.X}, Children: children}, loop, tc, make(map[dst.Node]bool))
-		analyzeStmtLoops(&ExpandedStatement{Stmt: &dst.ExprStmt{X: loopStmt.Key}, Children: children}, loop, tc, make(map[dst.Node]bool))
+		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Key, loopStmt.Value, loopStmt.X, body}, children, &loop.FeatureSet)
 
 	case *dst.ForStmt:
-		loop.LoopType = classifyForLoop(loopStmt, tc)
+		loop.LoopType = classifyForLoop(loopStmt, cfa.tc)
+
+		// Manually search for nested statements
 		body = loopStmt.Body
-		// Manually search for nested statements in this loop's header clauses, since they aren't checked anywhere else
-		analyzeStmtLoops(&ExpandedStatement{Stmt: loopStmt.Init, Children: children}, loop, tc, make(map[dst.Node]bool))
-		analyzeStmtLoops(&ExpandedStatement{Stmt: &dst.ExprStmt{X: loopStmt.Cond}, Children: children}, loop, tc, make(map[dst.Node]bool))
-		analyzeStmtLoops(&ExpandedStatement{Stmt: loopStmt.Post, Children: children}, loop, tc, make(map[dst.Node]bool))
+		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Init, loopStmt.Cond, loopStmt.Post, body}, children, &loop.FeatureSet)
 	}
 
-	// Analyze nested statements using a dummy ExpandedStatement representing the loop body, and reuse the containing statement's children.
-	// Use a fresh `seen` map to avoid duplicate loops within this new parent, but allow them to be repeated under different parents.
-	// Any detected nested loops or metadata features are automatically attached to this loop.
-	analyzeStmtLoops(&ExpandedStatement{Stmt: body, Children: children}, loop, tc, make(map[dst.Node]bool))
+	if body != nil {
+		loop.Length = len(body.List)
+	}
 
-	// Make sure all metadata features are propagated and set correctly
-	loop.finalize()
+	// Bubble up detected metadata features from nested control flow statements
+	BubbleUpFeatures(&loop.FeatureSet, loop.NestedStatements)
+
+	// Populate computed fields based on other analysis results
+	if loop.HasSubtest.Present || (loop.HasAssertion.Present && !loop.DoesExternalMutation) {
+		loop.IndicatesTableDriven = true
+	}
+	loop.TotalLength = TotalLength(loop)
 
 	return loop
 }
 
-// Bubbles up detected metadata features from nested loops, and populates computed fields based on other analysis results
-func (loop *Loop) finalize() {
-	// Bubble up features and delegated status from nested loops
-	for _, child := range loop.NestedLoops {
-		features.BubbleUp(&loop.FeatureSet, &child.FeatureSet)
-	}
-
-	// Classify this loop based on its fully bubbled properties
-	if loop.HasSubtest.Present || (loop.HasAssertion.Present && !loop.DoesExternalMutation) {
-		loop.IndicatesTableDriven = true
-	}
+// GetNestedStmts returns the nested control flow statements within this statement.
+func (loop *Loop) GetNestedStmts() []ControlFlowStatement {
+	return loop.NestedStatements
 }
 
-// MaxDepth returns the maximum depth of nested loops inside this loop.
-// Returns 0 if there are no nested conditionals, and increments by 1 for each level of nesting.
-func (loop *Loop) MaxDepth() int {
-	maxDepth := 0
-	for _, nested := range loop.NestedLoops {
-		maxDepth = max(maxDepth, 1+nested.MaxDepth())
-	}
-	return maxDepth
+// GetFeatureSets returns the metadata feature sets associated with this control flow statement.
+func (loop *Loop) GetFeatureSets() []features.FeatureSet {
+	return []features.FeatureSet{loop.FeatureSet}
+}
+
+// GetLength returns the number of DST statements inside this control flow statement, NOT including nested statements.
+func (loop *Loop) GetLength() int {
+	return loop.Length
 }
 
 // Classifies a range statements into one of the LoopTypeRange[...] types based on the type of the data being ranged over.
@@ -245,6 +209,7 @@ func classifyForLoop(stmt *dst.ForStmt, tc *TestCase) LoopType {
 
 // RegisterNode inspects a DST node and updates the FeatureSet's features accordingly.
 // TODO SOON - make this back into a FeatureSet method once we can separate it from TestCase circular dependency
+// TODO maybe rename to something more descriptive than "Register", e.g. "CheckNode"
 func RegisterNode(fs *features.FeatureSet, node dst.Node, tc *TestCase) {
 	isDelegated := fs.Delegated || !tc.IsWithinTestFunction(node)
 	switch n := node.(type) {
