@@ -74,7 +74,6 @@ func helperLoop() {
 }
 
 // TestExpandedStatements calls multiple local, external, and production functions to verify their expansion behavior.
-// ! NOTE: known limitation - the nested subtest is not detected.
 func TestExpandedStatements(t *testing.T) {
 	tests := []scenario{
 		{name: "positive", input: 2, want: 4},
@@ -93,6 +92,8 @@ func TestExpandedStatements(t *testing.T) {
 		// Local function literal should be expanded
 		localFunc(tc)
 		// Same-package function should be expanded
+		helperLoop()
+		// Repeated control flow statements with the same parent should not be analyzed twice
 		helperLoop()
 	}
 	// Functions called in the loop header should be expanded

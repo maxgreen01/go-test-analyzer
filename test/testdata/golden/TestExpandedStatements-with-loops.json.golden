@@ -8,7 +8,7 @@
   "LoopAnalysis": {
     "loops": [
       {
-        "content": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n}",
+        "content": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n\t// Repeated control flow statements with the same parent should not be analyzed twice\n\thelperLoop()\n}",
         "delegated": false,
         "doesExternalMutation": false,
         "hasAssertion": {
@@ -21,7 +21,7 @@
           "present": true
         },
         "indicatesTableDriven": true,
-        "length": 2,
+        "length": 3,
         "loopType": "range structs",
         "nestedStatements": [
           {
@@ -33,9 +33,11 @@
             "hasSubtest": false,
             "indicatesTableDriven": false,
             "length": 1,
-            "loopType": "iterative indexed"
+            "loopType": "iterative indexed",
+            "totalLength": 1
           }
-        ]
+        ],
+        "totalLength": 4
       },
       {
         "content": "for i := startFunc(); condFunc(i); i += func() int { return 1 }() {\n}",
@@ -57,9 +59,11 @@
             "hasSubtest": false,
             "indicatesTableDriven": false,
             "length": 0,
-            "loopType": "range int"
+            "loopType": "range int",
+            "totalLength": 0
           }
-        ]
+        ],
+        "totalLength": 0
       },
       {
         "content": "for _, tc := range tests {\n\tassertScenario(t, tc)\n}",
@@ -73,7 +77,8 @@
         "hasSubtest": false,
         "indicatesTableDriven": true,
         "length": 1,
-        "loopType": "range structs"
+        "loopType": "range structs",
+        "totalLength": 1
       }
     ],
     "numDelegatedLoops": 1,
@@ -124,9 +129,17 @@
             }
           ],
           "stmt": "helperLoop()"
+        },
+        {
+          "children": [
+            {
+              "stmt": "for i := 0; i \u003c 5; i++ {\n\tif true {\n\t\t_ = i\n\t}\n}"
+            }
+          ],
+          "stmt": "helperLoop()"
         }
       ],
-      "stmt": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n}"
+      "stmt": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n\t// Repeated control flow statements with the same parent should not be analyzed twice\n\thelperLoop()\n}"
     },
     {
       "stmt": "// Functions called in the loop header should be expanded\nstartFunc := func() int { return 0 }"
@@ -219,7 +232,7 @@
     "hasFunctionFields": false,
     "isTableDriven": true,
     "nameField": "name",
-    "runner": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n}",
+    "runner": "for _, tc := range tests {\n\t// Local function literal should be expanded\n\tlocalFunc(tc)\n\t// Same-package function should be expanded\n\thelperLoop()\n\t// Repeated control flow statements with the same parent should not be analyzed twice\n\thelperLoop()\n}",
     "scenarioStructName": "tests",
     "scenarioType": "struct{name string; input int; want int}",
     "scenarios": [
@@ -229,7 +242,7 @@
   },
   "TestCase": {
     "filePath": "",
-    "funcDecl": "// TestExpandedStatements calls multiple local, external, and production functions to verify their expansion behavior.\n// ! NOTE: known limitation - the nested subtest is not detected.\nfunc TestExpandedStatements(t *testing.T) {\n\ttests := []scenario{\n\t\t{name: \"positive\", input: 2, want: 4},\n\t}\n\tlocalFunc := func(tc scenario) {\n\t\t// Production function should NOT be expanded\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tif got := Double(tc.input); got != tc.want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t\t}\n\t\t})\n\t\t// External function should NOT be expanded\n\t\ttesthelper.AssertScenarioExternal(t, testhelper.Scenario{Name: tc.name, Input: tc.input, Want: tc.want})\n\t}\n\tfor _, tc := range tests {\n\t\t// Local function literal should be expanded\n\t\tlocalFunc(tc)\n\t\t// Same-package function should be expanded\n\t\thelperLoop()\n\t}\n\t// Functions called in the loop header should be expanded\n\tstartFunc := func() int { return 0 }\n\tcondFunc := func(i int) bool {\n\t\tfor range -1 {\n\t\t}\n\t\treturn i \u003c 5\n\t}\n\tfor i := startFunc(); condFunc(i); i += func() int { return 1 }() {\n\t}\n\t// Same-package function with nested calls should be expanded recursively\n\trunScenarios(t, tests)\n}",
+    "funcDecl": "// TestExpandedStatements calls multiple local, external, and production functions to verify their expansion behavior.\nfunc TestExpandedStatements(t *testing.T) {\n\ttests := []scenario{\n\t\t{name: \"positive\", input: 2, want: 4},\n\t}\n\tlocalFunc := func(tc scenario) {\n\t\t// Production function should NOT be expanded\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tif got := Double(tc.input); got != tc.want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t\t}\n\t\t})\n\t\t// External function should NOT be expanded\n\t\ttesthelper.AssertScenarioExternal(t, testhelper.Scenario{Name: tc.name, Input: tc.input, Want: tc.want})\n\t}\n\tfor _, tc := range tests {\n\t\t// Local function literal should be expanded\n\t\tlocalFunc(tc)\n\t\t// Same-package function should be expanded\n\t\thelperLoop()\n\t\t// Repeated control flow statements with the same parent should not be analyzed twice\n\t\thelperLoop()\n\t}\n\t// Functions called in the loop header should be expanded\n\tstartFunc := func() int { return 0 }\n\tcondFunc := func(i int) bool {\n\t\tfor range -1 {\n\t\t}\n\t\treturn i \u003c 5\n\t}\n\tfor i := startFunc(); condFunc(i); i += func() int { return 1 }() {\n\t}\n\t// Same-package function with nested calls should be expanded recursively\n\trunScenarios(t, tests)\n}",
     "importPath": "",
     "name": "TestExpandedStatements",
     "package": "sampleproj",

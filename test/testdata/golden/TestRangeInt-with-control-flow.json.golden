@@ -1,0 +1,134 @@
+{
+  "ControlFlowStatements": [
+    {
+      "content": "for i := range len(tests) {\n\tt.Run(tests[i].name, func(t *testing.T) {\n\t\tif got := tests[i].input * 2; got != tests[i].want {\n\t\t\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n\t\t}\n\t})\n}",
+      "delegated": false,
+      "doesExternalMutation": false,
+      "hasAssertion": {
+        "delegated": false,
+        "present": true
+      },
+      "hasEarlyExit": false,
+      "hasSubtest": {
+        "delegated": false,
+        "present": true
+      },
+      "indicatesTableDriven": true,
+      "length": 1,
+      "loopType": "range int",
+      "nestedStatements": [
+        {
+          "clauses": [
+            {
+              "condition": "got := tests[i].input * 2; got != tests[i].want",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": {
+                "delegated": false,
+                "present": true
+              },
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "length": 1,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "got",
+                  "source": "if scope",
+                  "usages": [
+                    "variable creation",
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tests[i].input",
+                  "source": "scenario",
+                  "usages": [
+                    "computation"
+                  ]
+                },
+                {
+                  "name": "tests[i].want",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if got := tests[i].input * 2; got != tests[i].want {\n\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n}",
+          "inHelper": false,
+          "totalLength": 1
+        }
+      ],
+      "totalLength": 2
+    }
+  ],
+  "ImportedPackages": [
+    "fmt",
+    "testing"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "tests := []scenario{\n\t{name: \"positive\", input: 2, want: 4},\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "len(tests)"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "stmt": "t.Errorf(\"got %d, want %d\", got, tests[i].want)"
+                    }
+                  ],
+                  "stmt": "if got := tests[i].input * 2; got != tests[i].want {\n\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n}"
+                }
+              ],
+              "stmt": "func(t *testing.T) {\n\tif got := tests[i].input * 2; got != tests[i].want {\n\t\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n\t}\n}"
+            }
+          ],
+          "stmt": "t.Run(tests[i].name, func(t *testing.T) {\n\tif got := tests[i].input * 2; got != tests[i].want {\n\t\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n\t}\n})"
+        }
+      ],
+      "stmt": "for i := range len(tests) {\n\tt.Run(tests[i].name, func(t *testing.T) {\n\t\tif got := tests[i].input * 2; got != tests[i].want {\n\t\t\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n\t\t}\n\t})\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "none"
+  },
+  "ScenarioSet": {
+    "dataStructure": "struct list",
+    "expectedFields": [
+      "want"
+    ],
+    "hasFunctionFields": false,
+    "isTableDriven": true,
+    "nameField": "name",
+    "runner": "for i := range len(tests) {\n\tt.Run(tests[i].name, func(t *testing.T) {\n\t\tif got := tests[i].input * 2; got != tests[i].want {\n\t\t\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n\t\t}\n\t})\n}",
+    "scenarioStructName": "tests",
+    "scenarioType": "struct{name string; input int; want int}",
+    "scenarios": [
+      "{name: \"positive\", input: 2, want: 4},"
+    ],
+    "usesSubtest": true
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestRangeInt uses a range-over-int loop.\nfunc TestRangeInt(t *testing.T) {\n\ttests := []scenario{\n\t\t{name: \"positive\", input: 2, want: 4},\n\t}\n\tfor i := range len(tests) {\n\t\tt.Run(tests[i].name, func(t *testing.T) {\n\t\t\tif got := tests[i].input * 2; got != tests[i].want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n\t\t\t}\n\t\t})\n\t}\n}",
+    "importPath": "",
+    "name": "TestRangeInt",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

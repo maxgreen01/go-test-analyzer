@@ -37,7 +37,7 @@ project,filePath,importPath,name,isTableDriven,scenarioDataStructure,scenarioCou
 ,,,TestNoLoops,false,none,0,,,false,false,none,none,notRun,notRun,testing,,,,,0
 ,,,TestNoLoopsSubtests,false,none,0,,,false,false,none,none,notRun,notRun,testing,,,,,0
 ,,,TestNoSubtest,true,struct list,1,name,want,false,false,none,none,notRun,notRun,testing,,,,,1
-,,,TestRangeInt,true,struct list,1,name,want,false,true,none,none,notRun,notRun,"fmt, testing",,,,,2
+,,,TestRangeInt,true,struct list,1,name,want,false,true,none,none,notRun,notRun,"fmt, testing",,,,,1
 ,,,TestRangeNonStruct,true,non-struct list,3,,,false,true,none,none,notRun,notRun,"fmt, testing",,,,,1
 ,,,TestRangeOther,true,other,0,,,false,true,none,none,notRun,notRun,"fmt, testing",,,,,1
 ,,,TestScenariosFromExternalPkg,false,struct list,0,Name,Want,false,false,none,none,notRun,notRun,"testing, github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper",,,,,1

@@ -48,10 +48,7 @@ var _ ControlFlowStatement = (*IfStmt)(nil)
 
 // Creates an IfStmt instance representing an entire if/else chain, and analyzes the clause's inner statements in a depth-first traversal
 // to detect nested control flow statements and metadata features.
-//
-// Note that `children` is expected to be a superset of the statements actually inside the clauses, since it should hold all the child
-// statements of the most recently expanded function call or original statement, so it may include statements next to the if/else chain.
-func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer, children []*ExpandedStatement) *IfStmt {
+func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) *IfStmt {
 	ifStmt := &IfStmt{
 		Content:  asttools.NodeToString(stmt),
 		InHelper: !cfa.tc.IsWithinTestFunction(stmt),
@@ -69,7 +66,7 @@ func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer, children []*Expand
 			clauseType = IfClauseTypeThen
 		}
 
-		ifClause := CreateIfClause(curr, clauseType, cfa, children)
+		ifClause := CreateIfClause(curr, clauseType, cfa)
 		ifStmt.Clauses = append(ifStmt.Clauses, ifClause)
 
 		// Move to the next clause in the chain
@@ -79,7 +76,7 @@ func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer, children []*Expand
 
 		} else if elseBlock, ok := curr.Else.(*dst.BlockStmt); ok {
 			// Finish looping with the "else" clause
-			elseClause := CreateIfClause(elseBlock, IfClauseTypeElse, cfa, children)
+			elseClause := CreateIfClause(elseBlock, IfClauseTypeElse, cfa)
 			ifStmt.Clauses = append(ifStmt.Clauses, elseClause)
 			break
 		} else {
@@ -133,10 +130,7 @@ type IfClause struct {
 
 // Creates an IfClause instance representing a single branch of an if/else chain, and analyzes the clause's inner statements in a depth-first
 // traversal to detect nested control flow statements and metadata features.
-//
-// Note that `children` is expected to be a superset of the statements actually inside the clause, since it should hold all the child
-// statements of the most recently expanded function call or original statement, so it may include statements next to the if/else chain.
-func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFlowAnalyzer, children []*ExpandedStatement) *IfClause {
+func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFlowAnalyzer) *IfClause {
 	var enclosingFunc ast.Node
 	if astFuncs, _ := cfa.tc.GetEnclosingFunctions(clauseStmt); len(astFuncs) > 0 {
 		enclosingFunc = astFuncs[0]
@@ -160,12 +154,12 @@ func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFl
 
 		// Manually search for nested statements
 		body = stmt.Body
-		clause.NestedStatements = cfa.analyzeNested([]dst.Node{stmt.Init, stmt.Cond, body}, children, &clause.FeatureSet)
+		clause.NestedStatements = cfa.analyzeNested([]dst.Node{stmt.Init, stmt.Cond, body}, &clause.FeatureSet)
 
 	case *dst.BlockStmt:
 		// Entire "else" clause statement is just the body
 		body = stmt
-		clause.NestedStatements = cfa.analyzeNested([]dst.Node{body}, children, &clause.FeatureSet)
+		clause.NestedStatements = cfa.analyzeNested([]dst.Node{body}, &clause.FeatureSet)
 	}
 
 	if body != nil {

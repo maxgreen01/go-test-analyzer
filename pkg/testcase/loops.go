@@ -29,15 +29,15 @@ type LoopAnalysisResult struct {
 func AnalyzeLoops(tc *TestCase, parsedStmts []*ExpandedStatement) *LoopAnalysisResult {
 	loopAnalysis := &LoopAnalysisResult{}
 	topLevelSeen := make(map[dst.Node]bool)
-
+	
 	cfa := &controlFlowAnalyzer{
 		tc:           tc,
 		analyzeLoops: true,
 	}
-
+	
 	// Analyze each top-level statement's ExpandedStatement tree
 	for _, expanded := range parsedStmts {
-		cfs := cfa.analyze(expanded, nil, topLevelSeen)
+		cfs := cfa.analyze(expanded, topLevelSeen)
 		loopAnalysis.Loops = append(loopAnalysis.Loops, filterTyped[*Loop](cfs)...)
 	}
 
@@ -93,10 +93,7 @@ var _ ControlFlowStatement = (*Loop)(nil)
 
 // Creates a Loop instance, and analyzes the loop's inner statements in a depth-first traversal to detect nested control flow statements
 // and metadata features.
-//
-// Note that `children` is expected to be a superset of the statements actually inside the loop body, since it should hold all the child
-// statements of the most recently expanded function call or original statement, so it may include statements next to the loop.
-func CreateLoop(stmt dst.Node, children []*ExpandedStatement, cfa *controlFlowAnalyzer) *Loop {
+func CreateLoop(stmt dst.Node, cfa *controlFlowAnalyzer) *Loop {
 	var enclosingFunc ast.Node
 	if astFuncs, _ := cfa.tc.GetEnclosingFunctions(stmt); len(astFuncs) > 0 {
 		enclosingFunc = astFuncs[0]
@@ -114,14 +111,14 @@ func CreateLoop(stmt dst.Node, children []*ExpandedStatement, cfa *controlFlowAn
 
 		// Manually search for nested statements
 		body = loopStmt.Body
-		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Key, loopStmt.Value, loopStmt.X, body}, children, &loop.FeatureSet)
+		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Key, loopStmt.Value, loopStmt.X, body}, &loop.FeatureSet)
 
 	case *dst.ForStmt:
 		loop.LoopType = classifyForLoop(loopStmt, cfa.tc)
 
 		// Manually search for nested statements
 		body = loopStmt.Body
-		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Init, loopStmt.Cond, loopStmt.Post, body}, children, &loop.FeatureSet)
+		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Init, loopStmt.Cond, loopStmt.Post, body}, &loop.FeatureSet)
 	}
 
 	if body != nil {

@@ -475,56 +475,88 @@ func (es *ExpandedStatement) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// WalkExpanded recursively visits all statements in an ExpandedStatement tree, and inspects each node within each statement.
+// BuildNodeMap constructs a mapping of DST nodes to their corresponding ExpandedStatement structures based on the given expansion tree.
+// The contents of any ExprStmt nodes are also included in the map so that the underlying expressions can be used without being re-wrapped.
+// Nodes without associated ExpandedStatements (i.e. non-statements, like identifiers) will not be included in the map.
+// This allows subsequent walks to dynamically find a node's children from the ExpandedStatement tree during traversal.
+func BuildNodeMap(expanded *ExpandedStatement) map[dst.Node]*ExpandedStatement {
+	nodeMap := make(map[dst.Node]*ExpandedStatement)
+	
+	var build func(expanded *ExpandedStatement)
+	build = func(expanded *ExpandedStatement) {
+		if expanded == nil {
+			return
+		}
+		// Map the statement to its corresponding node
+		nodeMap[expanded.Stmt] = expanded
+		// Unwrap (potentially dummy) ExprStmt nodes so the underlying expressions can be used as keys without being re-wrapped
+		if exprStmt, ok := expanded.Stmt.(*dst.ExprStmt); ok {
+			nodeMap[exprStmt.X] = expanded
+		}
+		for _, child := range expanded.Children {
+			build(child)
+		}
+	}
+
+	build(expanded)
+	return nodeMap
+}
+
+// WalkExpanded recursively visits all statements in an ExpandedStatement tree starting from the given DST node, using a
+// precomputed map to resolve any node to its corresponding expanded statement without needing to search for it manually.
 // Follows the same ordering and expansion rules as `ExpandStatement()`: expanding call expressions, only expanding function
 // literals when they're called, and avoiding recursive calls.
 //
-// The callback function `visit` is invoked for each non-nil node that is found, where `node` is a node found directly within
-// the expanded statement, and `children` are the children of the most recent ExpandedStatement.
-// If `visit` returns false, the walker will not descend into the node's children.
-func WalkExpanded(expanded *ExpandedStatement, visit func(node dst.Node, children []*ExpandedStatement) bool) {
-	if expanded == nil || expanded.Stmt == nil {
+// The callback function `visit` is invoked for each non-nil node that is found. The walker will only descend into the node's
+// children if `visit` returns true, similar to `dst.Inspect()`.
+func WalkExpanded(root dst.Node, nodeMap map[dst.Node]*ExpandedStatement, visit func(node dst.Node) bool) {
+	if root == nil {
 		return
 	}
-	dst.Inspect(expanded.Stmt, func(node dst.Node) bool {
+
+	// Visit a node, then recursively walk its children in the ExpandedStatement tree if the callback returns true
+	walkChildren := func(node dst.Node) {
+		if !visit(node) {
+			return
+		}
+
+		var children []*ExpandedStatement
+		if expanded, found := nodeMap[node]; found {
+			children = expanded.Children
+		}
+		for _, child := range children {
+			WalkExpanded(child.Stmt, nodeMap, visit)
+		}
+	}
+
+	dst.Inspect(root, func(node dst.Node) bool {
 		if node == nil {
 			return false
 		}
 
-		// Only descend into a function literal if it's the root of the expanded statement, meaning it's the
-		// subject of the current analysis. Other function literals will be analyzed separately when they are called.
+		// Following the rules of `ExpandStatement()`, only descend into a function literal if it's the root of this walk
+		// (with an ExprStmt wrapper), which implies that it was called somewhere. This means its statements should be walked,
+		// like with a regular function. Function literals that are not the root (e.g. are part of an assignment) should still
+		// be visited like regular nodes, but their statements shouldn't be walked because they haven't been called yet.
 		if funcLit, ok := node.(*dst.FuncLit); ok {
-			if exprStmt, ok := expanded.Stmt.(*dst.ExprStmt); ok && exprStmt.X == funcLit {
-				return visit(funcLit, expanded.Children)
+			if exprStmt, ok := root.(*dst.ExprStmt); ok && exprStmt.X == funcLit {
+				walkChildren(funcLit)
+				// Stop inspecting descendants because we already manually analyzed all the FuncLit's children
+				return false
 			}
+			// Still visit the FuncLit itself, but don't descend into its body because it hasn't been called yet
+			_ = visit(funcLit)
 			return false
 		}
 
 		// Manually process function calls so the function's body and the CallExpr's direct children can be expanded properly
 		if callExpr, ok := node.(*dst.CallExpr); ok {
-			// First, visit the CallExpr itself
-			if !visit(callExpr, expanded.Children) {
-				return false
-			}
-
-			// Next, find and recursively walk the CallExpr's children in the expanded tree
-			var targetChildren []*ExpandedStatement
-			for estmt := range expanded.All() {
-				// From the ExpandedStatement internals, we expect that a `CallExpr` must be wrapped in `ExprStmt`
-				if exprStmt, ok := estmt.Stmt.(*dst.ExprStmt); ok && exprStmt.X == callExpr {
-					targetChildren = estmt.Children
-					break
-				}
-			}
-			for _, child := range targetChildren {
-				WalkExpanded(child, visit)
-			}
-
+			walkChildren(callExpr)
 			// Stop inspecting descendants because we already manually analyzed all the CallExpr's children
 			return false
 		}
 
-		// Only continue descending if the provided callback returns true
-		return visit(node, expanded.Children)
+		// Default behavior for other nodes - only continue descending if the provided callback returns true
+		return visit(node)
 	})
 }

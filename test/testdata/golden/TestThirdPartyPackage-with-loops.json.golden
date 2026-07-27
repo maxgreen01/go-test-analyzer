@@ -21,7 +21,8 @@
         },
         "indicatesTableDriven": true,
         "length": 2,
-        "loopType": "range structs"
+        "loopType": "range structs",
+        "totalLength": 2
       }
     ],
     "numDelegatedLoops": 0,

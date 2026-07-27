@@ -82,6 +82,11 @@ func TestAnalyzeWithControlFlow(t *testing.T) {
 			testName:   "TestExpandedStatements",
 			goldenName: "TestExpandedStatements-with-control-flow.json",
 		},
+		// Control flow statements with function calls in the header should not inspect the statement's body nodes
+		{
+			testName:   "TestRangeInt",
+			goldenName: "TestRangeInt-with-control-flow.json",
+		},
 		// Non-table-driven tests should have no detected control flow statements
 		{
 			testName:   "TestAssertionLoopOnly",

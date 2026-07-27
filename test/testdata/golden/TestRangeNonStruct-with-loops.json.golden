@@ -20,7 +20,8 @@
         },
         "indicatesTableDriven": true,
         "length": 1,
-        "loopType": "range non-structs"
+        "loopType": "range non-structs",
+        "totalLength": 1
       }
     ],
     "numDelegatedLoops": 0,
