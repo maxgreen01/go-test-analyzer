@@ -278,16 +278,7 @@ func (tc *TestCase) GetNodeScope(node dst.Node) *types.Scope {
 // Determines whether a given DST node is located within the test function body.
 // Returns `false` if the node is `nil` or does not have a corresponding AST node.
 func (tc *TestCase) IsWithinTestFunction(node dst.Node) bool {
-	astNode := tc.DstToAst(node)
-	if astNode == nil {
-		return false
-	}
-	pos := astNode.Pos()
-	astFunc := tc.DstToAst(tc.funcDecl)
-	if astFunc == nil {
-		return false
-	}
-	return astFunc.Pos() <= pos && pos < astFunc.End()
+	return asttools.IsNodeInside(tc.DstToAst(node), tc.DstToAst(tc.funcDecl))
 }
 
 // Convenience method for getting the AST functions enclosing a given DST node within the current TestCase's package.

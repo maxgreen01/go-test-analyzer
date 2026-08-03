@@ -13,8 +13,9 @@
         "delegated": false,
         "present": true
       },
+      "inHelper": false,
       "indicatesTableDriven": true,
-      "length": 1,
+      "length": 2,
       "loopType": "range int",
       "nestedStatements": [
         {
@@ -29,6 +30,7 @@
               },
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "type": "then",
               "variables": [
@@ -58,11 +60,10 @@
             }
           ],
           "content": "if got := tests[i].input * 2; got != tests[i].want {\n\tt.Errorf(\"got %d, want %d\", got, tests[i].want)\n}",
-          "inHelper": false,
           "totalLength": 1
         }
       ],
-      "totalLength": 2
+      "totalLength": 3
     }
   ],
   "ImportedPackages": [

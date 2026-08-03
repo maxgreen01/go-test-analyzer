@@ -163,8 +163,7 @@ type csvRow struct {
 	ImportedPackages string `csv:"importedPackages"`
 
 	// Loop analysis fields (may not be present)
-	LocalLoops       string `csv:"localLoops"`
-	DelegatedLoops   string `csv:"delegatedLoops"`
+	NumLoops         string `csv:"numLoops"`
 	TableDrivenLoops string `csv:"tableDrivenLoops"`
 
 	// Conditional analysis fields (may not be present)

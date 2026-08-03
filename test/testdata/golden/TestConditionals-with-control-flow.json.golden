@@ -8,11 +8,9 @@
         "delegated": false,
         "present": true
       },
-      "hasEarlyExit": {
-        "delegated": false,
-        "present": true
-      },
+      "hasEarlyExit": true,
       "hasSubtest": false,
+      "inHelper": false,
       "indicatesTableDriven": true,
       "length": 3,
       "loopType": "range structs",
@@ -29,6 +27,7 @@
               },
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "type": "then",
               "variables": [
@@ -46,11 +45,9 @@
               "delegated": false,
               "doesExternalMutation": false,
               "hasAssertion": false,
-              "hasEarlyExit": {
-                "delegated": false,
-                "present": true
-              },
+              "hasEarlyExit": true,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "type": "else if",
               "variables": [
@@ -70,6 +67,7 @@
               "hasAssertion": false,
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "type": "else if",
               "variables": [
@@ -98,6 +96,7 @@
               },
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "nestedStatements": [
                 {
@@ -112,6 +111,7 @@
                       },
                       "hasEarlyExit": false,
                       "hasSubtest": false,
+                      "inHelper": false,
                       "length": 1,
                       "type": "then",
                       "variables": [
@@ -141,7 +141,6 @@
                     }
                   ],
                   "content": "if got := Double(tc.input); got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}",
-                  "inHelper": false,
                   "totalLength": 1
                 }
               ],
@@ -149,7 +148,6 @@
             }
           ],
           "content": "if tc.input \u003c 0 {\n\tt.Fatalf(\"input should not be negative: %d\", tc.input)\n} else if flag {\n\treturn // skip remaining tests\n} else if tc.input \u003c threshold/2 {\n\tcontinue // skip small inputs\n} else {\n\tif got := Double(tc.input); got != tc.want {\n\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t}\n}",
-          "inHelper": false,
           "totalLength": 5
         },
         {
@@ -164,6 +162,7 @@
               },
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "nestedStatements": [
                 {
@@ -178,6 +177,7 @@
                       },
                       "hasEarlyExit": false,
                       "hasSubtest": false,
+                      "inHelper": false,
                       "length": 1,
                       "type": "then",
                       "variables": [
@@ -207,7 +207,6 @@
                     }
                   ],
                   "content": "if got := Double(tc.input); got \u003c tc.want {\n\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n}",
-                  "inHelper": false,
                   "totalLength": 1
                 }
               ],
@@ -229,20 +228,19 @@
               "hasAssertion": false,
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "nestedStatements": [
                 {
                   "clauses": [
                     {
                       "condition": "tc.input \u003c 0",
-                      "delegated": true,
+                      "delegated": false,
                       "doesExternalMutation": false,
                       "hasAssertion": false,
-                      "hasEarlyExit": {
-                        "delegated": true,
-                        "present": true
-                      },
+                      "hasEarlyExit": true,
                       "hasSubtest": false,
+                      "inHelper": true,
                       "length": 1,
                       "nestedStatements": [
                         {
@@ -252,11 +250,9 @@
                               "delegated": true,
                               "doesExternalMutation": false,
                               "hasAssertion": false,
-                              "hasEarlyExit": {
-                                "delegated": true,
-                                "present": true
-                              },
+                              "hasEarlyExit": true,
                               "hasSubtest": false,
+                              "inHelper": true,
                               "length": 1,
                               "type": "then",
                               "variables": [
@@ -275,12 +271,12 @@
                               "hasAssertion": false,
                               "hasEarlyExit": false,
                               "hasSubtest": false,
+                              "inHelper": true,
                               "length": 0,
                               "type": "else"
                             }
                           ],
                           "content": "if tc.want \u003c 0 {\n\treturn 1\n} else {\n\t// do nothing\n}",
-                          "inHelper": true,
                           "totalLength": 1
                         }
                       ],
@@ -300,11 +296,9 @@
                       "delegated": true,
                       "doesExternalMutation": false,
                       "hasAssertion": false,
-                      "hasEarlyExit": {
-                        "delegated": true,
-                        "present": true
-                      },
+                      "hasEarlyExit": true,
                       "hasSubtest": false,
+                      "inHelper": true,
                       "length": 1,
                       "type": "else if"
                     },
@@ -314,12 +308,12 @@
                       "hasAssertion": false,
                       "hasEarlyExit": false,
                       "hasSubtest": false,
+                      "inHelper": true,
                       "length": 0,
                       "type": "else"
                     }
                   ],
                   "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
-                  "inHelper": true,
                   "totalLength": 3
                 },
                 {
@@ -329,11 +323,9 @@
                       "delegated": true,
                       "doesExternalMutation": false,
                       "hasAssertion": false,
-                      "hasEarlyExit": {
-                        "delegated": true,
-                        "present": true
-                      },
+                      "hasEarlyExit": true,
                       "hasSubtest": false,
+                      "inHelper": true,
                       "length": 1,
                       "type": "then",
                       "variables": [
@@ -355,7 +347,6 @@
                     }
                   ],
                   "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
-                  "inHelper": true,
                   "totalLength": 1
                 }
               ],
@@ -372,21 +363,18 @@
             }
           ],
           "content": "if tc.input%2 == 0 {\n\tif got := Double(tc.input); got \u003c tc.want {\n\t\tt.Errorf(\"got %d, want at least %d\", got, tc.want)\n\t}\n} else if helperConditional(\u0026tc) == 1 {\n\tflag = false\n}",
-          "inHelper": false,
-          "totalLength": 7
+          "totalLength": 3
         },
         {
           "clauses": [
             {
               "condition": "tc.input \u003c 0",
-              "delegated": true,
+              "delegated": false,
               "doesExternalMutation": false,
               "hasAssertion": false,
-              "hasEarlyExit": {
-                "delegated": true,
-                "present": true
-              },
+              "hasEarlyExit": true,
               "hasSubtest": false,
+              "inHelper": true,
               "length": 1,
               "nestedStatements": [
                 {
@@ -396,11 +384,9 @@
                       "delegated": true,
                       "doesExternalMutation": false,
                       "hasAssertion": false,
-                      "hasEarlyExit": {
-                        "delegated": true,
-                        "present": true
-                      },
+                      "hasEarlyExit": true,
                       "hasSubtest": false,
+                      "inHelper": true,
                       "length": 1,
                       "type": "then",
                       "variables": [
@@ -419,12 +405,12 @@
                       "hasAssertion": false,
                       "hasEarlyExit": false,
                       "hasSubtest": false,
+                      "inHelper": true,
                       "length": 0,
                       "type": "else"
                     }
                   ],
                   "content": "if tc.want \u003c 0 {\n\treturn 1\n} else {\n\t// do nothing\n}",
-                  "inHelper": true,
                   "totalLength": 1
                 }
               ],
@@ -444,11 +430,9 @@
               "delegated": true,
               "doesExternalMutation": false,
               "hasAssertion": false,
-              "hasEarlyExit": {
-                "delegated": true,
-                "present": true
-              },
+              "hasEarlyExit": true,
               "hasSubtest": false,
+              "inHelper": true,
               "length": 1,
               "type": "else if"
             },
@@ -458,12 +442,12 @@
               "hasAssertion": false,
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": true,
               "length": 0,
               "type": "else"
             }
           ],
           "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
-          "inHelper": true,
           "totalLength": 3
         },
         {
@@ -473,11 +457,9 @@
               "delegated": true,
               "doesExternalMutation": false,
               "hasAssertion": false,
-              "hasEarlyExit": {
-                "delegated": true,
-                "present": true
-              },
+              "hasEarlyExit": true,
               "hasSubtest": false,
+              "inHelper": true,
               "length": 1,
               "type": "then",
               "variables": [
@@ -499,11 +481,10 @@
             }
           ],
           "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
-          "inHelper": true,
           "totalLength": 1
         }
       ],
-      "totalLength": 19
+      "totalLength": 11
     }
   ],
   "ImportedPackages": [

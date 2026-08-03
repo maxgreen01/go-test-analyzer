@@ -11,11 +11,11 @@ import (
 )
 
 // Represents a metadata feature detected during a supplementary analysis, acting like a regular boolean with an additional flag indicating
-// whether the feature could only be detected outside the original test function.
+// whether the feature could only be detected outside the control flow statement's enclosing package-level function.
 type analysisFeature struct {
 	// Whether the feature is present in the analyzed block or any of its children
 	Present bool `json:"present"`
-	// Whether the feature can only be detected outside the original test function (i.e. could not be found locally inside the original test function)
+	// Whether the feature can only be detected outside the control flow statement's function (i.e. could not be found locally)
 	Delegated bool `json:"delegated"`
 }
 
@@ -45,25 +45,35 @@ func (af analysisFeature) MarshalJSON() ([]byte, error) {
 
 // FeatureSet groups the standard supplementary analysis features shared by ControlFlowStatement blocks.
 type FeatureSet struct {
-	Length      int `json:"length"`      // Number of statements directly contained in this block, not including nested statements
+	Length   int  `json:"length"`   // Number of statements directly contained in this block, not including nested statements
+	InHelper bool `json:"inHelper"` // True if the block is physically located in a helper function outside the test function
 
 	Delegated            bool            `json:"delegated"`            // True if the block itself is in a helper function, or if any of its features are delegated to helper functions
 	HasSubtest           analysisFeature `json:"hasSubtest"`           // Whether the block defines subtests using the built-in `t.Run` method or a library-based equivalent
 	HasAssertion         analysisFeature `json:"hasAssertion"`         // Whether the block contains an assertion, detected based on the presence of built-in or library-based test failure functions
-	HasEarlyExit         analysisFeature `json:"hasEarlyExit"`         // Whether the block contains a return statement that exits the block's enclosing function. Being delegated only indicates that the block is in a helper function.
+	HasEarlyExit         bool            `json:"hasEarlyExit"`         // Whether the block contains a return statement that exits the block's enclosing function. Doesn't have a delegated flag because a helper function cannot directly exit the caller's function.
 	DoesExternalMutation bool            `json:"doesExternalMutation"` // Whether the block directly mutates any data defined outside its own scope. Doesn't have a delegated flag because it's recalculated for each block independently.
 
-	// TODO SOON make these unexported once all the remaining methods can be separated from TestCase and brought into this package
-	Scope         *types.Scope `json:"-"` // The scope corresponding to this block, used for finding external mutations
-	EnclosingFunc ast.Node     `json:"-"` // The innermost AST function enclosing this block, used for determining whether statements are inside local function literals
+	// TODO SOON make these unexported once all the remaining methods can be separated from TestCase and brought into this package. Also gonna have to deal with `cfs.GetEnclosingFunction()` once that happens...
+	Scope              *types.Scope   `json:"-"` // The scope corresponding to this block (including any "header" statements), used for finding external mutations
+	BodyBlock          *ast.BlockStmt `json:"-"` // The AST node corresponding to this block
+	InnerEnclosingFunc ast.Node       `json:"-"` // The innermost AST function enclosing this block
+	OuterEnclosingFunc ast.Node       `json:"-"` // The outermost AST function enclosing this block
 }
 
 // NewFeatureSet creates a new FeatureSet without any features initialized.
-func NewFeatureSet(scope *types.Scope, enclosingFunc ast.Node, delegated bool) FeatureSet {
+func NewFeatureSet(scope *types.Scope, enclosingFuncs []ast.Node, inHelper bool) FeatureSet {
+	var innerFunc, outerFunc ast.Node
+	if len(enclosingFuncs) > 0 {
+		innerFunc = enclosingFuncs[0]
+		outerFunc = enclosingFuncs[len(enclosingFuncs)-1]
+	}
 	return FeatureSet{
-		Delegated:     delegated,
-		Scope:         scope,
-		EnclosingFunc: enclosingFunc,
+		InHelper:           inHelper,
+		Delegated:          inHelper,
+		Scope:              scope,
+		InnerEnclosingFunc: innerFunc,
+		OuterEnclosingFunc: outerFunc,
 	}
 }
 
@@ -76,8 +86,8 @@ func BubbleUp(parent *FeatureSet, child FeatureSet) {
 
 	// Only bubble up HasEarlyExit if the parent and child are within the same innermost enclosing function,
 	// since an early exit inside a helper function doesn't exit the parent's function
-	if parent.EnclosingFunc == child.EnclosingFunc {
-		parent.HasEarlyExit.Register(child.HasEarlyExit.Present, child.Delegated || child.HasEarlyExit.Delegated)
+	if parent.InnerEnclosingFunc != nil && parent.InnerEnclosingFunc == child.InnerEnclosingFunc {
+		parent.HasEarlyExit = parent.HasEarlyExit || child.HasEarlyExit
 	}
 
 	// Note: DoesExternalMutation is never bubbled up because child blocks may mutate variables defined in the parent, which is not
@@ -86,11 +96,10 @@ func BubbleUp(parent *FeatureSet, child FeatureSet) {
 
 	// If the block is located inside the test function (not delegated already), it should become delegated if
 	// any of its features are delegated, since they've already undergone all the relevant logic
-	parentFeats := []analysisFeature{parent.HasSubtest, parent.HasAssertion, parent.HasEarlyExit}
-	anyFeaturesDelegated := slices.ContainsFunc(parentFeats, func(af analysisFeature) bool {
+	parentFeats := []analysisFeature{parent.HasSubtest, parent.HasAssertion}
+	parent.Delegated = slices.ContainsFunc(parentFeats, func(af analysisFeature) bool {
 		return af.Present && af.Delegated
 	})
-	parent.Delegated = parent.Delegated || anyFeaturesDelegated
 }
 
 // TestPhase is used to categorize test statements into the test phases.

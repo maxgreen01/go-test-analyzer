@@ -14,14 +14,8 @@ import (
 
 // Represents the result of analyzing the loops found in a test case.
 type LoopAnalysisResult struct {
-	// The number of detected local loops, not including nested loops
-	NumLocalLoops int `json:"numLocalLoops"`
-
-	// The number of detected delegated loops, not including nested loops
-	NumDelegatedLoops int `json:"numDelegatedLoops"`
-
-	// Detected loops found in the test case, with nested loops stored internally
-	Loops []*Loop `json:"loops"`
+	NumLoops int     `json:"numLoops"` // Number of detected loops, not including nested ones
+	Loops    []*Loop `json:"loops"`    // Detected loops found in the test case, with nested loops stored internally
 }
 
 // Detects and analyzes all the loops found in the expanded statements of a test case,
@@ -29,25 +23,21 @@ type LoopAnalysisResult struct {
 func AnalyzeLoops(tc *TestCase, parsedStmts []*ExpandedStatement) *LoopAnalysisResult {
 	loopAnalysis := &LoopAnalysisResult{}
 	topLevelSeen := make(map[dst.Node]bool)
-	
+
 	cfa := &controlFlowAnalyzer{
-		tc:           tc,
-		analyzeLoops: true,
+		tc:                tc,
+		analyzeLoops:      true,
+		countHelperLength: false, // Intentionally disabled because this makes statement length harder to work with
 	}
-	
+
 	// Analyze each top-level statement's ExpandedStatement tree
 	for _, expanded := range parsedStmts {
 		cfs := cfa.analyze(expanded, topLevelSeen)
 		loopAnalysis.Loops = append(loopAnalysis.Loops, filterTyped[*Loop](cfs)...)
 	}
 
-	for _, l := range loopAnalysis.Loops {
-		if l.Delegated {
-			loopAnalysis.NumDelegatedLoops++
-		} else {
-			loopAnalysis.NumLocalLoops++
-		}
-	}
+	loopAnalysis.NumLoops = len(loopAnalysis.Loops)
+
 	return loopAnalysis
 }
 
@@ -94,35 +84,27 @@ var _ ControlFlowStatement = (*Loop)(nil)
 // Creates a Loop instance, and analyzes the loop's inner statements in a depth-first traversal to detect nested control flow statements
 // and metadata features.
 func CreateLoop(stmt dst.Node, cfa *controlFlowAnalyzer) *Loop {
-	var enclosingFunc ast.Node
-	if astFuncs, _ := cfa.tc.GetEnclosingFunctions(stmt); len(astFuncs) > 0 {
-		enclosingFunc = astFuncs[0]
-	}
+	enclosingFuncs, _ := cfa.tc.GetEnclosingFunctions(stmt)
 	loop := &Loop{
 		Content:    asttools.NodeToString(stmt),
-		FeatureSet: features.NewFeatureSet(cfa.tc.GetNodeScope(stmt), enclosingFunc, !cfa.tc.IsWithinTestFunction(stmt)),
+		FeatureSet: features.NewFeatureSet(cfa.tc.GetNodeScope(stmt), enclosingFuncs, !cfa.tc.IsWithinTestFunction(stmt)),
 	}
 
 	// Classify the structure of the loop, and search for nested statements in the loop header and body.
-	var body *dst.BlockStmt
 	switch loopStmt := stmt.(type) {
 	case *dst.RangeStmt:
 		loop.LoopType = classifyRangeLoop(loopStmt, cfa.tc)
+		loop.BodyBlock = cfa.tc.DstToAst(loopStmt.Body).(*ast.BlockStmt)
 
 		// Manually search for nested statements
-		body = loopStmt.Body
-		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Key, loopStmt.Value, loopStmt.X, body}, &loop.FeatureSet)
+		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Key, loopStmt.Value, loopStmt.X, loopStmt.Body}, &loop.FeatureSet)
 
 	case *dst.ForStmt:
 		loop.LoopType = classifyForLoop(loopStmt, cfa.tc)
+		loop.BodyBlock = cfa.tc.DstToAst(loopStmt.Body).(*ast.BlockStmt)
 
 		// Manually search for nested statements
-		body = loopStmt.Body
-		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Init, loopStmt.Cond, loopStmt.Post, body}, &loop.FeatureSet)
-	}
-
-	if body != nil {
-		loop.Length = len(body.List)
+		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Init, loopStmt.Cond, loopStmt.Post, loopStmt.Body}, &loop.FeatureSet)
 	}
 
 	// Bubble up detected metadata features from nested control flow statements
@@ -132,7 +114,7 @@ func CreateLoop(stmt dst.Node, cfa *controlFlowAnalyzer) *Loop {
 	if loop.HasSubtest.Present || (loop.HasAssertion.Present && !loop.DoesExternalMutation) {
 		loop.IndicatesTableDriven = true
 	}
-	loop.TotalLength = TotalLength(loop)
+	loop.TotalLength = TotalLength(loop, cfa.countHelperLength)
 
 	return loop
 }
@@ -150,6 +132,11 @@ func (loop *Loop) GetFeatureSets() []features.FeatureSet {
 // GetLength returns the number of DST statements inside this control flow statement, NOT including nested statements.
 func (loop *Loop) GetLength() int {
 	return loop.Length
+}
+
+// GetEnclosingFunction returns the outermost AST function enclosing this control flow statement.
+func (loop *Loop) GetEnclosingFunction() ast.Node {
+	return loop.OuterEnclosingFunc
 }
 
 // Classifies a range statements into one of the LoopTypeRange[...] types based on the type of the data being ranged over.
@@ -208,12 +195,18 @@ func classifyForLoop(stmt *dst.ForStmt, tc *TestCase) LoopType {
 // TODO SOON - make this back into a FeatureSet method once we can separate it from TestCase circular dependency
 // TODO maybe rename to something more descriptive than "Register", e.g. "CheckNode"
 func RegisterNode(fs *features.FeatureSet, node dst.Node, tc *TestCase) {
-	isDelegated := fs.Delegated || !tc.IsWithinTestFunction(node)
+	if fs == nil || node == nil || tc == nil {
+		return
+	}
+
+	// A feature is considered delegated if it's in a different package-level function than the control flow statement itself
+	inOtherFunc := !asttools.IsNodeInside(tc.DstToAst(node), fs.OuterEnclosingFunc)
+
 	switch n := node.(type) {
 	case *dst.CallExpr:
 		phase := categorizeCallExpr(n, tc)
-		fs.HasSubtest.Register(phase == features.TestPhaseSubtest, isDelegated)
-		fs.HasAssertion.Register(phase == features.TestPhaseAssert, isDelegated)
+		fs.HasSubtest.Register(phase == features.TestPhaseSubtest, inOtherFunc)
+		fs.HasAssertion.Register(phase == features.TestPhaseAssert, inOtherFunc)
 		// Note: `panic` calls would be detected here (or in categorizeCallExpr)
 	case *dst.AssignStmt:
 		for _, lhs := range n.Lhs {
@@ -228,12 +221,9 @@ func RegisterNode(fs *features.FeatureSet, node dst.Node, tc *TestCase) {
 	case *dst.ReturnStmt:
 		// A return statement is considered an early exit if it exits the same function enclosing the relevant block itself.
 		// By contrast, a return statement in a helper function would not exit the function where the block is located.
-		// Note: in this case, being delegated is just a synonym for the block itself being inside a helper function.
-		// A return statement that is "delegated" in the usual sense fundamentally doesn't make sense, because return
-		// statements can't be used to exit a function from within a different function.
-		astFuncs, _ := tc.GetEnclosingFunctions(n)
-		if fs.EnclosingFunc != nil && len(astFuncs) > 0 && astFuncs[0] == fs.EnclosingFunc {
-			fs.HasEarlyExit.Register(true, isDelegated)
+		enclosingFuncs, _ := tc.GetEnclosingFunctions(n)
+		if len(enclosingFuncs) > 0 && fs.InnerEnclosingFunc != nil && enclosingFuncs[0] == fs.InnerEnclosingFunc {
+			fs.HasEarlyExit = true
 		}
 	}
 	// todo LATER - we currently don't track `break` or `continue` statements for HasEarlyExit because determining when to bubble up would involve

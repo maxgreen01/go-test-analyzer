@@ -19,14 +19,14 @@
           "delegated": false,
           "present": true
         },
+        "inHelper": false,
         "indicatesTableDriven": true,
-        "length": 2,
+        "length": 3,
         "loopType": "range structs",
-        "totalLength": 2
+        "totalLength": 3
       }
     ],
-    "numDelegatedLoops": 0,
-    "numLocalLoops": 1
+    "numLoops": 1
   },
   "ParsedStatements": [
     {

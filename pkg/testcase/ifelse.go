@@ -39,7 +39,6 @@ func AnalyzeConditionals(tc *TestCase, scenarioSet *ScenarioSet, parsedStmts []*
 type IfStmt struct {
 	Content     string      `json:"content"`     // The DST code of the full statement, converted to a string
 	TotalLength int         `json:"totalLength"` // Total number of statements in this if/else chain, including inside nested statements
-	InHelper    bool        `json:"inHelper"`    // True if the statement is physically located in a helper function outside the test function
 	Clauses     []*IfClause `json:"clauses"`     // List of all branches in the statement
 }
 
@@ -50,8 +49,7 @@ var _ ControlFlowStatement = (*IfStmt)(nil)
 // to detect nested control flow statements and metadata features.
 func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) *IfStmt {
 	ifStmt := &IfStmt{
-		Content:  asttools.NodeToString(stmt),
-		InHelper: !cfa.tc.IsWithinTestFunction(stmt),
+		Content: asttools.NodeToString(stmt),
 	}
 
 	// Convert nested DST "else" branches into a flat slice of IfClause elements, and analyze the statements within each clause
@@ -86,7 +84,7 @@ func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) *IfStmt {
 	}
 
 	// Compute calculated fields based on finished clauses
-	ifStmt.TotalLength = TotalLength(ifStmt)
+	ifStmt.TotalLength = TotalLength(ifStmt, cfa.countHelperLength)
 
 	return ifStmt
 }
@@ -119,6 +117,17 @@ func (ifs *IfStmt) GetLength() int {
 	return length
 }
 
+// GetEnclosingFunction returns the outermost AST function enclosing this control flow statement.
+// All clauses are expected to be in the same function, so just return the enclosing function of the first clause.
+func (ifs *IfStmt) GetEnclosingFunction() ast.Node {
+	if len(ifs.Clauses) == 0 {
+		return nil
+	}
+	return ifs.Clauses[0].OuterEnclosingFunc
+}
+
+// ================================================================================================
+
 // IfClause represents one branch of a if/else chain detected in a table-driven test.
 type IfClause struct {
 	Type                IfClauseType           `json:"type"`                // Type of this clause with respect to the if/else chain (then, else if, else)
@@ -131,20 +140,17 @@ type IfClause struct {
 // Creates an IfClause instance representing a single branch of an if/else chain, and analyzes the clause's inner statements in a depth-first
 // traversal to detect nested control flow statements and metadata features.
 func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFlowAnalyzer) *IfClause {
-	var enclosingFunc ast.Node
-	if astFuncs, _ := cfa.tc.GetEnclosingFunctions(clauseStmt); len(astFuncs) > 0 {
-		enclosingFunc = astFuncs[0]
-	}
+	enclosingFuncs, _ := cfa.tc.GetEnclosingFunctions(clauseStmt)
 	clause := &IfClause{
 		Type:       clauseType,
-		FeatureSet: features.NewFeatureSet(cfa.tc.GetNodeScope(clauseStmt), enclosingFunc, !cfa.tc.IsWithinTestFunction(clauseStmt)),
+		FeatureSet: features.NewFeatureSet(cfa.tc.GetNodeScope(clauseStmt), enclosingFuncs, !cfa.tc.IsWithinTestFunction(clauseStmt)),
 	}
 
 	// Search for nested statements in the clause, and process extra fields for a "then" or "else if" clause
 	// compared to an "else" clause
-	var body *dst.BlockStmt
 	switch stmt := clauseStmt.(type) {
 	case *dst.IfStmt:
+		clause.BodyBlock = cfa.tc.DstToAst(stmt.Body).(*ast.BlockStmt)
 		// Analyze variables in the condition expression
 		clause.Condition = asttools.NodeToString(stmt.Cond)
 		if stmt.Init != nil {
@@ -153,17 +159,12 @@ func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFl
 		clause.Variables = analyzeCondition(stmt, cfa.tc, cfa.scenarioType, cfa.loopScope)
 
 		// Manually search for nested statements
-		body = stmt.Body
-		clause.NestedStatements = cfa.analyzeNested([]dst.Node{stmt.Init, stmt.Cond, body}, &clause.FeatureSet)
+		clause.NestedStatements = cfa.analyzeNested([]dst.Node{stmt.Init, stmt.Cond, stmt.Body}, &clause.FeatureSet)
 
 	case *dst.BlockStmt:
+		clause.BodyBlock = cfa.tc.DstToAst(stmt).(*ast.BlockStmt)
 		// Entire "else" clause statement is just the body
-		body = stmt
-		clause.NestedStatements = cfa.analyzeNested([]dst.Node{body}, &clause.FeatureSet)
-	}
-
-	if body != nil {
-		clause.Length = len(body.List)
+		clause.NestedStatements = cfa.analyzeNested([]dst.Node{stmt}, &clause.FeatureSet)
 	}
 
 	// Bubble up detected metadata features from nested control flow statements
@@ -407,6 +408,11 @@ func classifyVarUsage(target dst.Expr, stmt *dst.IfStmt) IfVarUsage {
 					return false
 				}
 			}
+		case *dst.TypeAssertExpr:
+			if isTarget(n.X) {
+				result = IfVarUsageTypeAssert
+				return false
+			}
 		}
 		return true
 	})
@@ -531,6 +537,7 @@ const (
 	IfVarUsageFunctionCall                // Local function call,    e.g. `if tt.setup()` or `if localFunc()`
 	IfVarUsageFunctionArg                 // Function call argument,    e.g. `if helper(tt.val)`
 	IfVarUsageComputation                 // Involved in a computation,    e.g. `if val/2 > 10`
+	IfVarUsageTypeAssert                  // Involved in a type assertion,    e.g. `if val.(string) == "hello"`
 	IfVarUsageVariableCreation            // Variable declaration/assignment in init statement, e.g. `if got := ...`
 	IfVarUsageOther                       // Other type of check
 )
@@ -549,6 +556,8 @@ func (ict IfVarUsage) String() string {
 		return "function argument"
 	case IfVarUsageComputation:
 		return "computation"
+	case IfVarUsageTypeAssert:
+		return "type assertion"
 	case IfVarUsageVariableCreation:
 		return "variable creation"
 	case IfVarUsageOther:
@@ -580,6 +589,8 @@ func (ict *IfVarUsage) UnmarshalJSON(data []byte) error {
 		*ict = IfVarUsageFunctionArg
 	case "computation":
 		*ict = IfVarUsageComputation
+	case "type assertion":
+		*ict = IfVarUsageTypeAssert
 	case "variable creation":
 		*ict = IfVarUsageVariableCreation
 	case "other":

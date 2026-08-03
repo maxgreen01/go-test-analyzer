@@ -20,8 +20,9 @@
           "delegated": false,
           "present": true
         },
+        "inHelper": false,
         "indicatesTableDriven": true,
-        "length": 3,
+        "length": 6,
         "loopType": "range structs",
         "nestedStatements": [
           {
@@ -31,13 +32,14 @@
             "hasAssertion": false,
             "hasEarlyExit": false,
             "hasSubtest": false,
+            "inHelper": true,
             "indicatesTableDriven": false,
             "length": 1,
             "loopType": "iterative indexed",
             "totalLength": 1
           }
         ],
-        "totalLength": 4
+        "totalLength": 6
       },
       {
         "content": "for i := startFunc(); condFunc(i); i += func() int { return 1 }() {\n}",
@@ -46,6 +48,7 @@
         "hasAssertion": false,
         "hasEarlyExit": false,
         "hasSubtest": false,
+        "inHelper": false,
         "indicatesTableDriven": false,
         "length": 0,
         "loopType": "iterative indexed",
@@ -57,6 +60,7 @@
             "hasAssertion": false,
             "hasEarlyExit": false,
             "hasSubtest": false,
+            "inHelper": false,
             "indicatesTableDriven": false,
             "length": 0,
             "loopType": "range int",
@@ -70,19 +74,19 @@
         "delegated": true,
         "doesExternalMutation": false,
         "hasAssertion": {
-          "delegated": true,
+          "delegated": false,
           "present": true
         },
         "hasEarlyExit": false,
         "hasSubtest": false,
+        "inHelper": true,
         "indicatesTableDriven": true,
         "length": 1,
         "loopType": "range structs",
         "totalLength": 1
       }
     ],
-    "numDelegatedLoops": 1,
-    "numLocalLoops": 2
+    "numLoops": 3
   },
   "ParsedStatements": [
     {

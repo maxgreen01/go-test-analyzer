@@ -23,12 +23,14 @@ type AnalysisResult struct {
 
 	// Refactoring result;  only available after running `AttemptRefactoring()`
 	RefactorResult RefactorResult // the result of refactoring the test case
+	
+	// TODO cleanup maybe find a cleaner way to pass around supplementary analysis fields and variables like LoopAnalysis,
+	//*   and likewise for calling the analysis functions and adjusting the CSV results accordingly.
+	//*   The custom result structs could also probably be replaced with `[]IfStmt` and `[]Loop` if they don't have any unique extra fields
 
 	// Loop Analysis result;  only available if `--analyze-loops` option is set.
 	// Use `omitempty` instead of `omitzero` so the field is always marshalled if the option is set.
 	LoopAnalysis *LoopAnalysisResult `json:",omitempty"`
-	// TODO cleanup maybe find a cleaner way to pass around supplementary analysis fields and variables like LoopAnalysis,
-	//   and likewise for calling the analysis functions and adjusting the CSV results accordingly
 
 	// Conditional Analysis result;  only available if `--analyze-conditionals` option is set.
 	// Use `omitempty` instead of `omitzero` so the field is always marshalled if the option is set.
@@ -134,8 +136,7 @@ func (ar *AnalysisResult) GetCSVHeaders() []string {
 	if ar.LoopAnalysis != nil {
 		// insert before "importedPackages"
 		headers = slices.Insert(headers, len(headers)-1,
-			"localLoops",
-			"delegatedLoops",
+			"numLoops",
 			"tableDrivenLoops",
 		)
 	}
@@ -189,8 +190,7 @@ func (ar *AnalysisResult) EncodeAsCSV() []string {
 	if ar.LoopAnalysis != nil {
 		// insert before "importedPackages"
 		row = slices.Insert(row, len(row)-1,
-			strconv.Itoa(ar.LoopAnalysis.NumLocalLoops),
-			strconv.Itoa(ar.LoopAnalysis.NumDelegatedLoops),
+			strconv.Itoa(ar.LoopAnalysis.NumLoops),
 			strconv.Itoa(ar.LoopAnalysis.CountTableDriven()),
 		)
 	}

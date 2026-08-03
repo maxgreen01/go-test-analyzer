@@ -487,7 +487,6 @@ func cloneSurroundingFunction(stmt dst.Stmt, ar *AnalysisResult) *RefactoredFunc
 	ss := ar.ScenarioSet
 
 	enclosingFuncs, enclosingAstFile := tc.GetEnclosingFunctions(stmt)
-
 	if len(enclosingFuncs) == 0 || enclosingAstFile == nil {
 		slog.Warn("Cannot clone the function surrounding a statement that is not in the test's package", "statement", fmt.Sprintf("%T", stmt), "test", tc)
 		return nil

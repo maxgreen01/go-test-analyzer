@@ -259,8 +259,10 @@
   // Metadata features that are not detected are saved as "false".
   // Metadata features that *are* detected are saved using the following object structure:
   // {
-  //   "present": "true",             // Indicates that the feature appears in the structure or any of its children.
-  //   "delegated": ["true"|"false"]  // Whether the feature can only be detected outside the original test function.
+  //   /* Indicates that the feature appears in the structure or any of its children. */
+  //   "present": "true",
+  //   /* Whether the feature can only be detected outside the structures's enclosing package-level function. */
+  //   "delegated": ["true"|"false"]
   // }
   // 
   // 
@@ -270,27 +272,20 @@
   // 
   // 
   // In these analyses, a feature is considered "delegated" if it can only be detected
-  // outside the original test function, i.e. in a helper function. Features detected
-  // inside a closure that is itself inside the test function are not considered delegated.
-  // 
-  // Additionally, a structure containing metadata features is considered delegated if the
-  // structure itself is located outside the original test function, or if any of its
-  // detected metadata features are delegated. In other words, a delegated structure 
-  // "relies on" external helper functions for its features to be detected.
+  // outside the block's enclosing package-level function, i.e. in a helper function
+  // relative to the block itself. This means that features detected inside a closure
+  // that is located within the same function as the caller are not considered delegated.
+  // In other words, a delegated structure  "relies on" helper functions for its features
+  // to be detected.
   // 
 
 
   // The "LoopAnalysis" object contains information about the loops detected in the test case. This field
   // is only present if the `--analyze-loops` option is set.
   "LoopAnalysis": {
-    // The number of non-nested loops where the loop itself and all detected metadata features are found inside
-    // the test function itself.
-    "numLocalLoops": 1,
+    // The number of non-nested loops detected in the test, including those found in helper functions.
+    "numLoops": 1,
 
-    // The number of non-nested loops where the loop itself or any detected metadata features can only be found
-    // outside the test function itself, e.g. in a helper function.
-    "numDelegatedLoops": 0,
-    
     // Information about all detected loops (both local and delegated), or "null" if none were detected.
     // Loops that appear within other loops are considered to be nested within the corresponding parent.
     "loops": [
@@ -326,11 +321,16 @@
         // field in the "ScenarioSet" object, which is determined using different criteria.
         "indicatesTableDriven": true,
 
-        // The total number of statements contained in this loop and all its nested statements.
-        "totalLength": 6,
+        // The total number of statements contained in this loop and all its nested statements, not
+        // including statements that are contained in other functions.
+        "totalLength": 5,
 
-        // The number of statements contained directly in this loop, NOT including nested statements.
+        // The number of statements contained directly in this loop, NOT including nested statements
+        // or statements that are contained in other functions.
         "length": 5,
+
+        // A boolean indicating whether the loop is located outside of the test function itself.
+        "inHelper": false,
         
         // A boolean indicating whether the loop structure or any of its metadata features are delegated.
         "delegated": false,
@@ -365,11 +365,12 @@
             "indicatesTableDriven": true,
             "totalLength": 1,
             "length": 1,
+            "inHelper": true,
             "delegated": true,
             "hasSubtest": false,
             "hasAssertion": {
               "present": true,
-              "delegated": true
+              "delegated": false
             },
             "hasEarlyExit": false,
             "doesExternalMutation": false
@@ -382,7 +383,7 @@
   // The "IfElseAnalysis" object contains information about the if/else chains detected in the runner
   // loop of a table-driven test. This field is only present if the `--analyze-conditionals` option is set.
   "IfElseAnalysis": {
-    // The number of non-nested if/else chains detected in the test, including those in helper functions.
+    // The number of non-nested if/else chains detected in the test, including those found in helper functions.
     "numConditionals": 1,
 
     // Information about all detected if/else chains in the test, or "null" if none were detected.
@@ -393,11 +394,9 @@
         // The entire if/else chain's content, based on its AST representation.
         "content": "if other := AlertState(i); other == state {\n\tif other.String() != state.String() {\n\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t}\n}",
 
-        // The total number of statements contained in this if/else chain and all its nested statements.
+        // The total number of statements contained in this if/else chain and all its nested statements, not
+        // including statements that are contained in other functions.
         "totalLength": 2,
-
-        // A boolean indicating whether the if/else chain is located outside of the test function itself.
-        "inHelper": true,
 
         // Information about each individual clause of this if/else chain.
         "clauses": [
@@ -434,8 +433,9 @@
                 // - For a local function call,    e.g. `if tt.setup()` or `if localFunc()`,   this will be "function call".
                 // - For a function call argument,    e.g. `if helper(tt.val)`,   this will be "function argument".
                 // - For a value involved in a computation,    e.g. `if val/2 > 10`,   this will be "computation".
-                // - For a variable assigned in the clause's initialization statement, e.g. `if got := ...`,   this
-                //   will be "variable creation".
+                // - For the subject of a type assertion,    e.g. `if val.(string) == "hello"`,   this will be "type assertion".
+                // - For a variable assigned in the clause's initialization statement, e.g. `if got := ...`,   this will
+                //   be "variable creation".
                 // - For a variable usage that cannot be classified, this will be "other".
                 "usages": [
                   "variable creation",
@@ -458,9 +458,13 @@
               }
             ],
 
-            // The number of statements contained directly in this clause, NOT including nested statements.
+            // The number of statements contained directly in this clause, NOT including nested statements
+            // or statements that are contained in other functions.
             "length": 1,
-            
+
+            // A boolean indicating whether the if/else chain is located outside of the test function itself.
+            "inHelper": true,
+
             // A boolean indicating whether the clause or any of its metadata features are delegated.
             "delegated": true,
             
@@ -491,7 +495,6 @@
               {
                 "content": "if other.String() != state.String() {\n\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n}",
                 "totalLength": 1,
-                "inHelper": true,
                 "clauses": [
                   {
                     "type": "then",
@@ -513,11 +516,12 @@
                       }
                     ],
                     "length": 1,
+                    "inHelper": true,
                     "delegated": true,
                     "hasSubtest": false,
                     "hasAssertion": {
                       "present": true,
-                      "delegated": true
+                      "delegated": false
                     },
                     "hasEarlyExit": false,
                     "doesExternalMutation": false
@@ -545,8 +549,9 @@
       "loopType": "range structs",
       "content": "for i, test := range tests {\n\trule := NewAlertingRule(test.name, nil, 0, 0, labels.EmptyLabels(), labels.EmptyLabels(), labels.EmptyLabels(), \"\", true, nil)\n\trule.active = test.active\n\tgot := rule.State()\n\trequire.Equal(t, test.want, got, \"test case %d unexpected AlertState, want:%d got:%d\", i, test.want, got)\n\tvalidateState(t, got)\n}",
       "indicatesTableDriven": true,
-      "totalLength": 8,
+      "totalLength": 5,
       "length": 5,
+      "inHelper": false,
       "delegated": false,
       "hasSubtest": false,
       "hasAssertion": {
@@ -562,6 +567,7 @@
           "indicatesTableDriven": true,
           "totalLength": 3,
           "length": 1,
+          "inHelper": true,
           "delegated": true,
           "hasSubtest": false,
           "hasAssertion": {
@@ -574,7 +580,6 @@
             {
               "content": "if other := AlertState(i); other == state {\n\tif other.String() != state.String() {\n\t\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n\t}\n}",
               "totalLength": 2,
-              "inHelper": true,
               "clauses": [
                 {
                   "type": "then",
@@ -604,6 +609,7 @@
                     }
                   ],
                   "length": 1,
+                  "inHelper": true,
                   "delegated": true,
                   "hasSubtest": false,
                   "hasAssertion": {
@@ -616,7 +622,6 @@
                     {
                       "content": "if other.String() != state.String() {\n\tt.Errorf(\"unexpected AlertState string, want:%q got:%q\", other.String(), state.String())\n}",
                       "totalLength": 1,
-                      "inHelper": true,
                       "clauses": [
                         {
                           "type": "then",
@@ -638,11 +643,12 @@
                             }
                           ],
                           "length": 1,
+                          "inHelper": true,
                           "delegated": true,
                           "hasSubtest": false,
                           "hasAssertion": {
                             "present": true,
-                            "delegated": true
+                            "delegated": false
                           },
                           "hasEarlyExit": false,
                           "doesExternalMutation": false

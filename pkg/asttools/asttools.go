@@ -265,16 +265,27 @@ func GetEnclosingFile(pos token.Pos, packageFiles []*ast.File) *ast.File {
 	return nil
 }
 
-// Returns a slice of AST function declarations (and corresponding file) enclosing the given position in the provided
-// package files. Elements of the returned slice are always either `*ast.FuncDecl` or `*ast.FuncLit` nodes, where
-// the innermost function is the first element of the slice, and the outermost function is the last element.
-// Returns an empty slice if no function declarations are found, or if none of the provided files contain the position.
-func GetEnclosingFunctions(pos token.Pos, packageFiles []*ast.File) ([]ast.Node, *ast.File) {
+// Returns a slice of all AST nodes enclosing the given position in the provided package files, where the first
+// element is the innermost node containing the position, and the last element is the corresponding AST file.
+// Returns nil if none of the provided files contain the position.
+func GetEnclosingNodes(pos token.Pos, packageFiles []*ast.File) []ast.Node {
 	file := GetEnclosingFile(pos, packageFiles)
 	if file == nil {
-		return nil, nil
+		return nil
 	}
 	path, _ := astutil.PathEnclosingInterval(file, pos, pos)
+	return path
+}
+
+// Returns a slice of AST function declarations enclosing the given position in the provided package files, and the
+// corresponding AST file. Elements of the returned slice are always either `*ast.FuncDecl` or `*ast.FuncLit` nodes,
+// where the innermost function is the first element of the slice, and the outermost function is the last element.
+// Returns nil if none of the files contain the position, or an empty slice if no function declarations are found.
+func GetEnclosingFunctions(pos token.Pos, packageFiles []*ast.File) ([]ast.Node, *ast.File) {
+	path := GetEnclosingNodes(pos, packageFiles)
+	if path == nil {
+		return nil, nil
+	}
 	var funcs []ast.Node
 	for _, p := range path {
 		switch fn := p.(type) {
@@ -282,7 +293,17 @@ func GetEnclosingFunctions(pos token.Pos, packageFiles []*ast.File) ([]ast.Node,
 			funcs = append(funcs, fn)
 		}
 	}
-	return funcs, file
+	// According to the `PathEnclosingInterval()` docs, the last element of the path is always the file itself
+	return funcs, path[len(path)-1].(*ast.File)
+}
+
+// Determines whether the child node is completely contained within the parent node.
+// Returns `false` if either node is `nil`.
+func IsNodeInside(child, parent ast.Node) bool {
+	if child == nil || parent == nil {
+		return false
+	}
+	return parent.Pos() <= child.Pos() && child.End() <= parent.End()
 }
 
 // Replace the reference to the `old` FuncDecl in its parent file with a reference to the `new` FuncDecl,

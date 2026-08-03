@@ -13,8 +13,9 @@
         "delegated": false,
         "present": true
       },
+      "inHelper": false,
       "indicatesTableDriven": true,
-      "length": 3,
+      "length": 6,
       "loopType": "range structs",
       "nestedStatements": [
         {
@@ -29,6 +30,7 @@
               },
               "hasEarlyExit": false,
               "hasSubtest": false,
+              "inHelper": false,
               "length": 1,
               "type": "then",
               "variables": [
@@ -58,16 +60,16 @@
             }
           ],
           "content": "if got := Double(tc.input); got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}",
-          "inHelper": false,
           "totalLength": 1
         },
         {
           "content": "for i := 0; i \u003c 5; i++ {\n\tif true {\n\t\t_ = i\n\t}\n}",
-          "delegated": true,
+          "delegated": false,
           "doesExternalMutation": false,
           "hasAssertion": false,
           "hasEarlyExit": false,
           "hasSubtest": false,
+          "inHelper": true,
           "indicatesTableDriven": false,
           "length": 1,
           "loopType": "iterative indexed",
@@ -81,19 +83,19 @@
                   "hasAssertion": false,
                   "hasEarlyExit": false,
                   "hasSubtest": false,
+                  "inHelper": true,
                   "length": 1,
                   "type": "then"
                 }
               ],
               "content": "if true {\n\t_ = i\n}",
-              "inHelper": true,
               "totalLength": 1
             }
           ],
           "totalLength": 2
         }
       ],
-      "totalLength": 6
+      "totalLength": 7
     }
   ],
   "ImportedPackages": [

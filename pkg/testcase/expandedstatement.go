@@ -475,21 +475,56 @@ func (es *ExpandedStatement) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// BuildParentMap constructs a mapping of DST nodes to their corresponding parent DST statement/expression based on the given expansion tree.
+// Each `ExpandedStatement.Stmt` is inserted as a key, so nodes without associated ExpandedStatements (e.g. identifiers) are not included
+// as keys. The only exception is ExprStmt nodes, whose inner expressions are inserted as keys that map to the same ExpandedStatement so
+// that the inner expressions can be used without being re-wrapped. Also, if the parent statement is an ExprStmt, its underlying expression
+// is stored as the map value so that the map values always correspond to real nodes in the source AST without being unwrapped.
+func BuildParentMap(expanded *ExpandedStatement) map[dst.Node]dst.Node {
+	parentMap := make(map[dst.Node]dst.Node)
+
+	var build func(curr *ExpandedStatement, parent *ExpandedStatement)
+	build = func(curr *ExpandedStatement, parent *ExpandedStatement) {
+		if curr == nil {
+			return
+		}
+		if parent != nil {
+			// If the parent is an ExprStmt, use its underlying expression as the map value
+			var parentNode dst.Node = parent.Stmt
+			if exprStmt, ok := parent.Stmt.(*dst.ExprStmt); ok {
+				parentNode = exprStmt.X
+			}
+			// Map the node to its parent
+			parentMap[curr.Stmt] = parentNode
+			// Unwrap ExprStmt nodes so the underlying expressions can be used as keys without being re-wrapped
+			if exprStmt, ok := curr.Stmt.(*dst.ExprStmt); ok {
+				parentMap[exprStmt.X] = parentNode
+			}
+		}
+		for _, child := range curr.Children {
+			build(child, curr)
+		}
+	}
+
+	build(expanded, nil)
+	return parentMap
+}
+
 // BuildNodeMap constructs a mapping of DST nodes to their corresponding ExpandedStatement structures based on the given expansion tree.
-// The contents of any ExprStmt nodes are also included in the map so that the underlying expressions can be used without being re-wrapped.
-// Nodes without associated ExpandedStatements (i.e. non-statements, like identifiers) will not be included in the map.
-// This allows subsequent walks to dynamically find a node's children from the ExpandedStatement tree during traversal.
+// Each `ExpandedStatement.Stmt` is inserted as a key, so nodes without associated ExpandedStatements (e.g. identifiers) are not included
+// as keys. The only exception is ExprStmt nodes, whose inner expressions are inserted as keys that map to the same ExpandedStatement so
+// that the inner expressions can be used without being re-wrapped.
 func BuildNodeMap(expanded *ExpandedStatement) map[dst.Node]*ExpandedStatement {
 	nodeMap := make(map[dst.Node]*ExpandedStatement)
-	
+
 	var build func(expanded *ExpandedStatement)
 	build = func(expanded *ExpandedStatement) {
 		if expanded == nil {
 			return
 		}
-		// Map the statement to its corresponding node
+		// Map the node to its corresponding expanded statement
 		nodeMap[expanded.Stmt] = expanded
-		// Unwrap (potentially dummy) ExprStmt nodes so the underlying expressions can be used as keys without being re-wrapped
+		// Unwrap ExprStmt nodes so the underlying expressions can be used as keys without being re-wrapped
 		if exprStmt, ok := expanded.Stmt.(*dst.ExprStmt); ok {
 			nodeMap[exprStmt.X] = expanded
 		}
@@ -503,9 +538,9 @@ func BuildNodeMap(expanded *ExpandedStatement) map[dst.Node]*ExpandedStatement {
 }
 
 // WalkExpanded recursively visits all statements in an ExpandedStatement tree starting from the given DST node, using a
-// precomputed map to resolve any node to its corresponding expanded statement without needing to search for it manually.
-// Follows the same ordering and expansion rules as `ExpandStatement()`: expanding call expressions, only expanding function
-// literals when they're called, and avoiding recursive calls.
+// precomputed map (see `BuildNodeMap()`) to resolve any node to its corresponding expanded statement without needing to search
+// for it manually. Follows the same ordering and expansion rules as `ExpandStatement()`: expanding call expressions, only
+// expanding function literals when they're called, and avoiding recursive calls.
 //
 // The callback function `visit` is invoked for each non-nil node that is found. The walker will only descend into the node's
 // children if `visit` returns true, similar to `dst.Inspect()`.

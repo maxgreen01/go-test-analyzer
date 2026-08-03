@@ -1,9 +1,12 @@
 package testcase
 
 import (
+	"go/ast"
 	"go/types"
+	"slices"
 
 	"github.com/dave/dst"
+	"github.com/maxgreen01/go-test-analyzer/pkg/asttools"
 	"github.com/maxgreen01/go-test-analyzer/pkg/features"
 )
 
@@ -17,6 +20,9 @@ type ControlFlowStatement interface {
 
 	// GetLength returns the number of DST statements (of any kind) inside this control flow statement, NOT including nested statements.
 	GetLength() int
+
+	// GetEnclosingFunction returns the outermost AST function enclosing this control flow statement.
+	GetEnclosingFunction() ast.Node
 }
 
 // Detects and analyzes all control flow statements (without restricting to a specific type) inside the scenario runner loop of
@@ -32,7 +38,7 @@ func AnalyzeControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmts []*E
 // Performs the control flow analysis on the scenario runner loop of a table-driven test case.
 // Returns the results of the analysis, or `nil` if the analysis could not be performed.
 func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmts []*ExpandedStatement, analyzeConditionals bool, analyzeControlFlow bool) []ControlFlowStatement {
-	if scenarioSet == nil || scenarioSet.Runner == nil {
+	if scenarioSet == nil || scenarioSet.Runner == nil /* || !scenarioSet.IsTableDriven() */ { // FIXME maybe re-add the table-driven check here
 		// Not table-driven
 		return nil
 	}
@@ -52,6 +58,7 @@ func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmt
 		loopScope:           tc.GetNodeScope(scenarioSet.Runner),
 		analyzeConditionals: analyzeConditionals,
 		analyzeControlFlow:  analyzeControlFlow,
+		countHelperLength:   false, // Intentionally disabled because this makes statement length harder to work with
 	}
 
 	return cfa.analyze(runnerExpanded, make(map[dst.Node]bool))
@@ -80,10 +87,22 @@ func BubbleUpFeatures(parentFeatures *features.FeatureSet, nested []ControlFlowS
 }
 
 // TotalLength returns the total number of statements in the given control flow statement, including inside nested statements.
-func TotalLength(cfs ControlFlowStatement) int {
+// If `countHelperLength == false`, the nested control flow statements detected outside the given statement's outermost enclosing
+// function will not be counted toward the total length.
+func TotalLength(cfs ControlFlowStatement, countHelperLength bool) int {
+	return totalLengthFiltered(cfs, cfs.GetEnclosingFunction(), countHelperLength)
+}
+
+// totalLengthFiltered recursively calculates the total length of a control flow statement, optionally ignoring nested statements
+// that are outside the given parent function.
+func totalLengthFiltered(cfs ControlFlowStatement, parentOuterFunc ast.Node, countHelperLength bool) int {
 	total := cfs.GetLength()
 	for _, nested := range cfs.GetNestedStmts() {
-		total += TotalLength(nested)
+		if !countHelperLength && parentOuterFunc != nil && nested.GetEnclosingFunction() != parentOuterFunc {
+			// Ignore statements defined outside the given parent function
+			continue
+		}
+		total += totalLengthFiltered(nested, parentOuterFunc, countHelperLength)
 	}
 	return total
 }
@@ -100,19 +119,23 @@ func MaxDepth(cfs ControlFlowStatement) int {
 
 // controlFlowAnalyzer encapsulates the settings and other relevant information needed to analyze control flow statements.
 type controlFlowAnalyzer struct {
-	tc                  *TestCase                       // The test case under analysis
-	scenarioType        types.Type                      // Type of the scenario struct in the table-driven test
-	loopScope           *types.Scope                    // The lexical scope of the runner loop
-	analyzeLoops        bool                            // Whether to analyze loops
-	analyzeConditionals bool                            // Whether to analyze conditionals
-	analyzeControlFlow  bool                            // Whether to analyze the unified control flow (no filtering by type)
-	nodeToExpanded      map[dst.Node]*ExpandedStatement // Mapping of DST nodes to their corresponding ExpandedStatements, used for expanding function calls
+	tc                  *TestCase    // The test case under analysis
+	scenarioType        types.Type   // Type of the scenario struct in the table-driven test
+	loopScope           *types.Scope // The lexical scope of the runner loop
+	analyzeLoops        bool         // Whether to analyze loops
+	analyzeConditionals bool         // Whether to analyze conditionals
+	analyzeControlFlow  bool         // Whether to analyze the unified control flow (no filtering by type)
+	countHelperLength   bool         // Whether to count statements detected outside a control flow statement's enclosing package-level function toward their length
+
+	nodeToExpanded map[dst.Node]*ExpandedStatement // Mapping of DST nodes to their corresponding ExpandedStatements, used for expanding function calls
+	nodeToParent   map[dst.Node]dst.Node
 }
 
 // Detects control flow statements in the given ExpandedStatement tree based on the controlFlowAnalyzer's configuration.
 // Returns a slice of all detected non-nested control flow statements, with nested statements stored within their parents.
 func (cfa *controlFlowAnalyzer) analyze(expanded *ExpandedStatement, seen map[dst.Node]bool) []ControlFlowStatement {
 	cfa.nodeToExpanded = BuildNodeMap(expanded)
+	cfa.nodeToParent = BuildParentMap(expanded)
 	return cfa.walk(expanded.Stmt, nil, seen)
 }
 
@@ -127,6 +150,12 @@ func (cfa *controlFlowAnalyzer) walk(root dst.Node, parentFeatures *features.Fea
 
 	// Walk the expanded statement tree and inspect each non-nil node within each statement.
 	WalkExpanded(root, cfa.nodeToExpanded, func(node dst.Node) bool {
+		// Count the number of statements encountered
+		if stmt, ok := node.(dst.Stmt); ok && parentFeatures != nil {
+			cfa.CountStatement(stmt, parentFeatures)
+		}
+
+		// Actually inspect the node
 		switch node := node.(type) {
 		case *dst.RangeStmt, *dst.ForStmt:
 			if !(cfa.analyzeLoops || cfa.analyzeControlFlow) {
@@ -190,4 +219,84 @@ func (cfa *controlFlowAnalyzer) analyzeNested(nodes []dst.Node, parentFeatures *
 		results = append(results, nodeResults...)
 	}
 	return results
+}
+
+// TODO SOON / MAYBE - make this into a `FeatureSet` method once we can separate it from TestCase circular dependency
+// CountStatement increments the length of the given FeatureSet if the statement matches the required conditions.
+// This verifies that the statement originates from inside the control flow body, can ignore statements defined
+// outside the control flow statement's function (based on the cfa configuration), and ensures the statement is
+// not nested inside another control flow block.
+func (cfa *controlFlowAnalyzer) CountStatement(stmt dst.Stmt, featureSet *features.FeatureSet) {
+	if stmt == nil || featureSet == nil {
+		return
+	}
+
+	switch s := stmt.(type) {
+	case *dst.BlockStmt, *dst.CaseClause, *dst.CommClause, *dst.EmptyStmt:
+		// Skip block containers from being counted directly
+		return
+	case *dst.ExprStmt:
+		// Skip dummy ExprStmt wrappers created during expansion, which don't have corresponding AST nodes
+		if cfa.tc.DstToAst(s) == nil {
+			return
+		}
+	}
+
+	// Make sure this statement was somehow called from inside the control flow statement's body block. If the statement is directly inside the body block,
+	// then the loop will break immediately with `curr == stmt`. If the statement is inside an expanded function call, then the loop will traverse the statement's
+	// parents until it finds a function call site that is located somewhere inside the control flow statement's body block. This avoids counting statements that
+	// appear in the header of a control flow statement, and statements that are outside the control flow statement entirely.
+	anchoredInBody := false
+	for curr := dst.Node(stmt); curr != nil; curr = cfa.nodeToParent[curr] {
+		if astNode := cfa.tc.DstToAst(curr); astNode != nil && asttools.IsNodeInside(astNode, featureSet.BodyBlock) {
+			// The statement (or expanded function call site) was found inside the body block
+			anchoredInBody = true
+			break
+		}
+	}
+	if !anchoredInBody {
+		return
+	}
+
+	astNode := cfa.tc.DstToAst(stmt)
+	if astNode == nil {
+		return
+	}
+	// Ignore statements defined outside the control flow statement's enclosing package-level function, unless `countHelperLength` is enabled
+	if !cfa.countHelperLength && !asttools.IsNodeInside(astNode, featureSet.OuterEnclosingFunc) {
+		return
+	}
+
+	// Check that the statement is directly inside the control flow statement's body or an expanded function body,
+	// and not nested inside another control flow statement.
+
+	// Find all the statement's structural parents
+	path := asttools.GetEnclosingNodes(astNode.Pos(), cfa.tc.GetPackageFiles())
+	stmtIdx := slices.Index(path, astNode)
+	if stmtIdx == -1 {
+		return
+	}
+
+	// This access is safe because the node we searched for could never be the AST file itself, which is always the last element
+	parent := path[stmtIdx+1]
+
+	// Check if the statement is directly inside the control flow statement's body
+	isDirectInBody := (parent == featureSet.BodyBlock)
+
+	// Check if the statement is directly inside an expanded function's body, which happens when
+	// its grandparent is a function, and its parent is the corresponding block statement
+	isDirectInFunc := false
+	if len(path) > stmtIdx+2 {
+		switch fn := path[stmtIdx+2].(type) {
+		case *ast.FuncDecl:
+			isDirectInFunc = (fn.Body == parent)
+		case *ast.FuncLit:
+			isDirectInFunc = (fn.Body == parent)
+		}
+	}
+
+	// Increment the length because the statement isn't nested in another control flow statement
+	if isDirectInBody || isDirectInFunc {
+		featureSet.Length++
+	}
 }
