@@ -56,12 +56,31 @@ func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmt
 		tc:                  tc,
 		scenarioType:        scenarioSet.ScenarioType,
 		loopScope:           tc.GetNodeScope(scenarioSet.Runner),
+		runnerLoopIndex:     getLoopIndexName(scenarioSet.Runner),
 		analyzeConditionals: analyzeConditionals,
 		analyzeControlFlow:  analyzeControlFlow,
 		countHelperLength:   false, // Intentionally disabled because this makes statement length harder to work with
 	}
 
 	return cfa.analyze(runnerExpanded, make(map[dst.Node]bool))
+}
+
+// getLoopIndexName returns the name of the variable representing the index of the provided loop.
+// Returns an empty string if the statement is not a loop, or if no suitable identifier is found.
+func getLoopIndexName(loop dst.Stmt) string {
+	switch loop := loop.(type) {
+	case *dst.RangeStmt:
+		if loop.Key != nil {
+			if ident, ok := loop.Key.(*dst.Ident); ok {
+				return ident.Name
+			}
+		}
+	case *dst.ForStmt:
+		if indexIdent := GetForStmtIndexIdent(loop); indexIdent != nil {
+			return indexIdent.Name
+		}
+	}
+	return ""
 }
 
 // filterTyped returns a new slice containing only the ControlFlowStatements that can be asserted to a given concrete type,
@@ -122,6 +141,7 @@ type controlFlowAnalyzer struct {
 	tc                  *TestCase    // The test case under analysis
 	scenarioType        types.Type   // Type of the scenario struct in the table-driven test
 	loopScope           *types.Scope // The lexical scope of the runner loop
+	runnerLoopIndex     string       // The key/index variable name of the runner loop
 	analyzeLoops        bool         // Whether to analyze loops
 	analyzeConditionals bool         // Whether to analyze conditionals
 	analyzeControlFlow  bool         // Whether to analyze the unified control flow (no filtering by type)

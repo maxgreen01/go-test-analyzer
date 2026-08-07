@@ -420,8 +420,10 @@
                 // - If the variable is defined in the initialization statement of this clause, this will be "if scope".
                 // - If the variable is defined in the surrounding table-driven runner loop, this will be "loop scope".
                 // - If the variable is defined in the surrounding test function, this will be "test scope".
-                // - If the variable is defined as a global variable in this package, imported from another package, or
-                //   defined in a helper function, this will be "package".
+                // - If the variable is defined as a global CONSTANT in this package, imported from another package, or
+                //   defined in a helper function, this will be "package const".
+                // - If the variable is defined as a global VARIABLE in this package, imported from another package, or
+                //   defined in a helper function, this will be "package var".
                 // - If the variable's source cannot be determined, this will be "unknown".
                 "source": "if scope",
 
@@ -435,28 +437,31 @@
                 // - For a value involved in a computation,    e.g. `if val/2 > 10`,   this will be "computation".
                 // - For the subject of a type assertion,    e.g. `if val.(string) == "hello"`,   this will be "type assertion".
                 // - For a variable assigned in the clause's initialization statement, e.g. `if got := ...`,   this will
-                //   be "variable creation".
+                //   be "variable assignment".
                 // - For a variable usage that cannot be classified, this will be "other".
                 "usages": [
-                  "variable creation",
+                  "variable assignment",
                   "comparison"
                 ]
               },
               {
                 "name": "i",
-                "source": "package",
+                "source": "package var",
                 "usages": [
                   "function argument"
                 ]
               },
               {
                 "name": "state",
-                "source": "package",
+                "source": "package var",
                 "usages": [
                   "comparison"
                 ]
               }
             ],
+
+            // A boolean indicating whether this clause represents table-based logic. See the README for more details.
+            "isTableBased": false,
 
             // The number of statements contained directly in this clause, NOT including nested statements
             // or statements that are contained in other functions.
@@ -502,19 +507,20 @@
                     "variables": [
                       {
                         "name": "other",
-                        "source": "package",
+                        "source": "package var",
                         "usages": [
                           "method receiver"
                         ]
                       },
                       {
                         "name": "state",
-                        "source": "package",
+                        "source": "package var",
                         "usages": [
                           "method receiver"
                         ]
                       }
                     ],
+                    "isTableBased": false,
                     "length": 1,
                     "inHelper": true,
                     "delegated": true,
@@ -589,25 +595,26 @@
                       "name": "other",
                       "source": "if scope",
                       "usages": [
-                        "variable creation",
+                        "variable assignment",
                         "comparison"
                       ]
                     },
                     {
                       "name": "i",
-                      "source": "package",
+                      "source": "package var",
                       "usages": [
                         "function argument"
                       ]
                     },
                     {
                       "name": "state",
-                      "source": "package",
+                      "source": "package var",
                       "usages": [
                         "comparison"
                       ]
                     }
                   ],
+                  "isTableBased": false,
                   "length": 1,
                   "inHelper": true,
                   "delegated": true,
@@ -629,19 +636,20 @@
                           "variables": [
                             {
                               "name": "other",
-                              "source": "package",
+                              "source": "package var",
                               "usages": [
                                 "method receiver"
                               ]
                             },
                             {
                               "name": "state",
-                              "source": "package",
+                              "source": "package var",
                               "usages": [
                                 "method receiver"
                               ]
                             }
                           ],
+                          "isTableBased": false,
                           "length": 1,
                           "inHelper": true,
                           "delegated": true,

@@ -1,0 +1,1511 @@
+{
+  "ControlFlowStatements": [
+    {
+      "content": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}",
+      "delegated": false,
+      "doesExternalMutation": false,
+      "hasAssertion": false,
+      "hasEarlyExit": false,
+      "hasSubtest": false,
+      "inHelper": false,
+      "indicatesTableDriven": false,
+      "length": 33,
+      "loopType": "range structs",
+      "nestedStatements": [
+        {
+          "clauses": [
+            {
+              "condition": "tc.shouldErr",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.shouldErr",
+                  "source": "scenario",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// ======= isolated table-based conditionals =======\n\nif tc.shouldErr { // field direct usage\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "!tc.shouldErr",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.shouldErr",
+                  "source": "scenario",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if !tc.shouldErr { // field direct usage (with negation)\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.check != nil",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.check",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.check != nil { // field comparison against built-in\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.errorMsg != \"\"",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.errorMsg",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.errorMsg != \"\" { // field comparison against literal\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.input == packageConst",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "packageConst",
+                  "source": "package const",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.input == packageConst { // field comparison against package constant\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.input != testConst",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "testConst",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.input != testConst { // field comparison against local constant\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.check()",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.check",
+                  "source": "scenario",
+                  "usages": [
+                    "function call"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.check() { // field function call\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "len(tc.name) == 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.name",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if len(tc.name) == 0 { // built-in function with field argument\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.structData.x \u003e 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.structData.x",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.structData.x \u003e 0 { // field struct member access\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "(\u0026tc.input) != \u0026(*(\u0026tc.want))",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tc.want",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "i%2 == 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "i",
+                  "source": "loop scope",
+                  "usages": [
+                    "computation"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if i%2 == 0 { // loop index variable usage\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tests[i].input \u003e 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tests[i].input",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "_, ok := tc.anyData.(string); ok",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "ok",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "direct check"
+                  ]
+                },
+                {
+                  "name": "tc.anyData",
+                  "source": "scenario",
+                  "usages": [
+                    "type assertion"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if _, ok := tc.anyData.(string); ok { // field type assertion\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "val",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "ok",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "direct check"
+                  ]
+                },
+                {
+                  "name": "tc.mapData",
+                  "source": "scenario",
+                  "usages": [
+                    "other"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 10 \u0026\u0026 tc.shouldErr",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tc.shouldErr",
+                  "source": "scenario",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 10 || tc.shouldErr",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tc.shouldErr",
+                  "source": "scenario",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if testVar == 10 || tc.shouldErr { // OR with table-based part\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "input, other := tc.input+1, 0; input \u003c other",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "input",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "other",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "computation"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// field usage in own initializer, with at least one table-based part\nif input, other := tc.input+1, 0; input \u003c other {\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "cond",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "direct check"
+                  ]
+                },
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tc.shouldErr",
+                  "source": "scenario",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// regular variable in own initializer, AND with at least one table-based part\nif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10)",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "testConst",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "localFunc",
+                  "source": "test scope",
+                  "usages": [
+                    "function call"
+                  ]
+                },
+                {
+                  "name": "tc.want",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// AND/OR with table-based parts, and at least one table-based part\nif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0))",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "one",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "val",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "other"
+                  ]
+                },
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "tc.shouldErr",
+                  "source": "scenario",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// variables in own initializer, plus AND/OR with at least one table-based part\nif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 10",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// ======= non-table-based conditionals =======\n\nif testVar == 10 { // regular variable usage alone\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testConst == 10",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testConst",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if testConst == 10 { // constant usage alone\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.input \u003e testVar",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.input \u003e testVar { // field comparison against regular variable\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "localFunc(tc.input)",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "localFunc",
+                  "source": "test scope",
+                  "usages": [
+                    "function call"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if localFunc(tc.input) { // user-defined function with field argument\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "localStruct.act(tc.input)",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "localStruct.act",
+                  "source": "test scope",
+                  "usages": [
+                    "function call"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if localStruct.act(tc.input) { // function field call from non-scenario struct\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "strings.Contains(tc.name, \"x\")",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.name",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if strings.Contains(tc.name, \"x\") { // library function\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "bad := testVar * 2; bad \u003e tc.input",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "bad",
+                  "source": "if scope",
+                  "usages": [
+                    "variable assignment",
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "computation"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// regular variable only in own initializer\nif bad := testVar * 2; bad \u003e tc.input {\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar)",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "testConst",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                },
+                {
+                  "name": "localFunc",
+                  "source": "test scope",
+                  "usages": [
+                    "function call"
+                  ]
+                },
+                {
+                  "name": "tc.want",
+                  "source": "scenario",
+                  "usages": [
+                    "function argument"
+                  ]
+                },
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "// AND/OR with only non-table-based parts\nif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n}",
+          "totalLength": 0
+        },
+        {
+          "content": "// use of variables from disallowed sources\nfor _, loopVar := range []bool{true, false} {\n\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t}\n\t}\n}",
+          "delegated": false,
+          "doesExternalMutation": false,
+          "hasAssertion": false,
+          "hasEarlyExit": false,
+          "hasSubtest": false,
+          "inHelper": false,
+          "indicatesTableDriven": false,
+          "length": 1,
+          "loopType": "range non-structs",
+          "nestedStatements": [
+            {
+              "clauses": [
+                {
+                  "condition": "outerIfVar := !loopVar || true; outerIfVar",
+                  "delegated": false,
+                  "doesExternalMutation": false,
+                  "hasAssertion": false,
+                  "hasEarlyExit": false,
+                  "hasSubtest": false,
+                  "inHelper": false,
+                  "isTableBased": false,
+                  "length": 1,
+                  "nestedStatements": [
+                    {
+                      "clauses": [
+                        {
+                          "condition": "outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar",
+                          "delegated": false,
+                          "doesExternalMutation": false,
+                          "hasAssertion": false,
+                          "hasEarlyExit": false,
+                          "hasSubtest": false,
+                          "inHelper": false,
+                          "isTableBased": false,
+                          "length": 0,
+                          "type": "then",
+                          "variables": [
+                            {
+                              "name": "outerIfVar",
+                              "source": "loop scope",
+                              "usages": [
+                                "direct check"
+                              ]
+                            },
+                            {
+                              "name": "loopVar",
+                              "source": "loop scope",
+                              "usages": [
+                                "direct check"
+                              ]
+                            },
+                            {
+                              "name": "tc.input",
+                              "source": "scenario",
+                              "usages": [
+                                "comparison"
+                              ]
+                            },
+                            {
+                              "name": "testVar",
+                              "source": "test scope",
+                              "usages": [
+                                "comparison"
+                              ]
+                            },
+                            {
+                              "name": "packageVar",
+                              "source": "package var",
+                              "usages": [
+                                "comparison"
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "content": "if outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n}",
+                      "totalLength": 0
+                    }
+                  ],
+                  "type": "then",
+                  "variables": [
+                    {
+                      "name": "outerIfVar",
+                      "source": "if scope",
+                      "usages": [
+                        "variable assignment",
+                        "direct check"
+                      ]
+                    },
+                    {
+                      "name": "loopVar",
+                      "source": "loop scope",
+                      "usages": [
+                        "direct check"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "content": "if outerIfVar := !loopVar || true; outerIfVar {\n\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t}\n}",
+              "totalLength": 1
+            }
+          ],
+          "totalLength": 2
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 40",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            },
+            {
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "else"
+            }
+          ],
+          "content": "// ======= table-based clause propagation \u0026 nesting =======\n\nif testVar == 40 { // not table-based\n} else { // not table-based\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "tc.input == 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            },
+            {
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "else"
+            }
+          ],
+          "content": "if tc.input == 0 { // table-based\n} else { // table-based because in a chain below a table-based clause\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 30",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            },
+            {
+              "condition": "packageConst == 10",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 0,
+              "type": "else if",
+              "variables": [
+                {
+                  "name": "packageConst",
+                  "source": "package const",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            },
+            {
+              "condition": "tc.shouldErr",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "else if",
+              "variables": [
+                {
+                  "name": "tc.shouldErr",
+                  "source": "scenario",
+                  "usages": [
+                    "direct check"
+                  ]
+                }
+              ]
+            },
+            {
+              "condition": "testConst \u003c 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "else if",
+              "variables": [
+                {
+                  "name": "testConst",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            },
+            {
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 0,
+              "type": "else"
+            }
+          ],
+          "content": "if testVar == 30 { // not table-based\n} else if packageConst == 10 { // not table-based\n} else if tc.shouldErr { // table-based\n} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n}",
+          "totalLength": 0
+        },
+        {
+          "clauses": [
+            {
+              "condition": "testVar == 30",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": false,
+              "hasEarlyExit": false,
+              "hasSubtest": false,
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 2,
+              "nestedStatements": [
+                {
+                  "clauses": [
+                    {
+                      "condition": "tc.check != nil",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": false,
+                      "hasSubtest": false,
+                      "inHelper": false,
+                      "isTableBased": true,
+                      "length": 1,
+                      "nestedStatements": [
+                        {
+                          "clauses": [
+                            {
+                              "condition": "testConst \u003c 0",
+                              "delegated": false,
+                              "doesExternalMutation": false,
+                              "hasAssertion": false,
+                              "hasEarlyExit": false,
+                              "hasSubtest": false,
+                              "inHelper": false,
+                              "isTableBased": false,
+                              "length": 1,
+                              "nestedStatements": [
+                                {
+                                  "clauses": [
+                                    {
+                                      "condition": "tc.input \u003e 0",
+                                      "delegated": false,
+                                      "doesExternalMutation": false,
+                                      "hasAssertion": false,
+                                      "hasEarlyExit": false,
+                                      "hasSubtest": false,
+                                      "inHelper": false,
+                                      "isTableBased": true,
+                                      "length": 0,
+                                      "type": "then",
+                                      "variables": [
+                                        {
+                                          "name": "tc.input",
+                                          "source": "scenario",
+                                          "usages": [
+                                            "comparison"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ],
+                                  "content": "if tc.input \u003e 0 { // table-based\n}",
+                                  "totalLength": 0
+                                }
+                              ],
+                              "type": "then",
+                              "variables": [
+                                {
+                                  "name": "testConst",
+                                  "source": "test scope",
+                                  "usages": [
+                                    "comparison"
+                                  ]
+                                }
+                              ]
+                            }
+                          ],
+                          "content": "if testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\tif tc.input \u003e 0 { // table-based\n\t}\n}",
+                          "totalLength": 1
+                        }
+                      ],
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "tc.check",
+                          "source": "scenario",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if tc.check != nil { // table-based\n\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\tif tc.input \u003e 0 { // table-based\n\t\t}\n\t}\n}",
+                  "totalLength": 2
+                },
+                {
+                  "clauses": [
+                    {
+                      "condition": "testConst \u003c 0",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": false,
+                      "hasSubtest": false,
+                      "inHelper": false,
+                      "isTableBased": false,
+                      "length": 0,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "testConst",
+                          "source": "test scope",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if testConst \u003c 0 { // not table-based\n}",
+                  "totalLength": 0
+                }
+              ],
+              "type": "then",
+              "variables": [
+                {
+                  "name": "testVar",
+                  "source": "test scope",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if testVar == 30 { // not table-based\n\tif tc.check != nil { // table-based\n\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t}\n\t\t}\n\t}\n\tif testConst \u003c 0 { // not table-based\n\t}\n}",
+          "totalLength": 4
+        }
+      ],
+      "totalLength": 39
+    }
+  ],
+  "ImportedPackages": [
+    "strconv",
+    "strings",
+    "testing",
+    "github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "testVar := 20"
+    },
+    {
+      "stmt": "const testConst = 21"
+    },
+    {
+      "stmt": "localFunc := func(_ int) bool { return false }"
+    },
+    {
+      "stmt": "localStruct := struct{ act func(_ int) bool }{act: localFunc}"
+    },
+    {
+      "stmt": "type testScenario struct {\n\tname       string\n\tinput      int\n\twant       int\n\tshouldErr  bool\n\terrorMsg   string\n\tcheck      func() bool\n\tanyData    any\n\tmapData    map[string]int\n\tstructData struct{ x int }\n}"
+    },
+    {
+      "stmt": "tests := []testScenario{\n\t{name: \"case1\", check: func() bool { return false }},\n\t{name: \"case2\", check: func() bool { return true }},\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "tc.check()"
+        },
+        {
+          "stmt": "len(tc.name)"
+        },
+        {
+          "children": [
+            {
+              "stmt": "return false"
+            }
+          ],
+          "stmt": "localFunc(tc.want)"
+        },
+        {
+          "children": [
+            {
+              "stmt": "return false"
+            }
+          ],
+          "stmt": "localFunc(tc.input)"
+        },
+        {
+          "stmt": "localStruct.act(tc.input)"
+        },
+        {
+          "stmt": "strings.Contains(tc.name, \"x\")"
+        },
+        {
+          "children": [
+            {
+              "stmt": "return false"
+            }
+          ],
+          "stmt": "localFunc(tc.want)"
+        }
+      ],
+      "stmt": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "none"
+  },
+  "ScenarioSet": {
+    "dataStructure": "struct list",
+    "expectedFields": [
+      "want"
+    ],
+    "hasFunctionFields": true,
+    "isTableDriven": true,
+    "nameField": "name",
+    "runner": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}",
+    "scenarioStructName": "tests",
+    "scenarioType": "struct{name string; input int; want int; shouldErr bool; errorMsg string; check func() bool; anyData any; mapData map[string]int; structData struct{x int}}",
+    "scenarios": [
+      "{name: \"case1\", check: func() bool { return false }},",
+      "{name: \"case2\", check: func() bool { return true }},"
+    ],
+    "usesSubtest": false
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestTableBasedConditionals has multiple table-based conditionals and relevant edge cases inside the runner loop.\nfunc TestTableBasedConditionals(t *testing.T) {\n\ttestVar := 20\n\tconst testConst = 21\n\tlocalFunc := func(_ int) bool { return false }\n\tlocalStruct := struct{ act func(_ int) bool }{act: localFunc}\n\n\ttype testScenario struct {\n\t\tname       string\n\t\tinput      int\n\t\twant       int\n\t\tshouldErr  bool\n\t\terrorMsg   string\n\t\tcheck      func() bool\n\t\tanyData    any\n\t\tmapData    map[string]int\n\t\tstructData struct{ x int }\n\t}\n\ttests := []testScenario{\n\t\t{name: \"case1\", check: func() bool { return false }},\n\t\t{name: \"case2\", check: func() bool { return true }},\n\t}\n\tfor i, tc := range tests {\n\n\t\t// ======= isolated table-based conditionals =======\n\n\t\tif tc.shouldErr { // field direct usage\n\t\t}\n\t\tif !tc.shouldErr { // field direct usage (with negation)\n\t\t}\n\t\tif tc.check != nil { // field comparison against built-in\n\t\t}\n\t\tif tc.errorMsg != \"\" { // field comparison against literal\n\t\t}\n\t\tif tc.input == packageConst { // field comparison against package constant\n\t\t}\n\t\tif tc.input != testConst { // field comparison against local constant\n\t\t}\n\t\tif tc.check() { // field function call\n\t\t}\n\t\tif len(tc.name) == 0 { // built-in function with field argument\n\t\t}\n\t\tif tc.structData.x \u003e 0 { // field struct member access\n\t\t}\n\t\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t\t}\n\t\tif i%2 == 0 { // loop index variable usage\n\t\t}\n\t\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t\t}\n\n\t\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t\t}\n\t\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t\t}\n\t\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t\t}\n\t\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t\t}\n\t\t// field usage in own initializer, with at least one table-based part\n\t\tif input, other := tc.input+1, 0; input \u003c other {\n\t\t}\n\t\t// regular variable in own initializer, AND with at least one table-based part\n\t\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t\t}\n\t\t// AND/OR with table-based parts, and at least one table-based part\n\t\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t\t}\n\t\t// variables in own initializer, plus AND/OR with at least one table-based part\n\t\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t\t}\n\n\t\t// ======= non-table-based conditionals =======\n\n\t\tif testVar == 10 { // regular variable usage alone\n\t\t}\n\t\tif testConst == 10 { // constant usage alone\n\t\t}\n\t\tif tc.input \u003e testVar { // field comparison against regular variable\n\t\t}\n\t\tif localFunc(tc.input) { // user-defined function with field argument\n\t\t}\n\t\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t\t}\n\t\tif strings.Contains(tc.name, \"x\") { // library function\n\t\t}\n\t\t// regular variable only in own initializer\n\t\tif bad := testVar * 2; bad \u003e tc.input {\n\t\t}\n\t\t// AND/OR with only non-table-based parts\n\t\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t\t}\n\n\t\t// use of variables from disallowed sources\n\t\tfor _, loopVar := range []bool{true, false} {\n\t\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n\t\t// ======= table-based clause propagation \u0026 nesting =======\n\n\t\tif testVar == 40 { // not table-based\n\t\t} else { // not table-based\n\t\t}\n\n\t\tif tc.input == 0 { // table-based\n\t\t} else { // table-based because in a chain below a table-based clause\n\t\t}\n\n\t\tif testVar == 30 { // not table-based\n\t\t} else if packageConst == 10 { // not table-based\n\t\t} else if tc.shouldErr { // table-based\n\t\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t\t}\n\n\t\tif testVar == 30 { // not table-based\n\t\t\tif tc.check != nil { // table-based\n\t\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\tif testConst \u003c 0 { // not table-based\n\t\t\t}\n\t\t}\n\t}\n}",
+    "importPath": "",
+    "name": "TestTableBasedConditionals",
+    "package": "sampleproj",
+    "project": ""
+  }
+}

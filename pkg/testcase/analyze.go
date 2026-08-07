@@ -308,14 +308,6 @@ func GetForStmtIndexIdent(loop *dst.ForStmt) *dst.Ident {
 				return ident
 			}
 		}
-	case *dst.DeclStmt:
-		if genDecl, ok := init.Decl.(*dst.GenDecl); ok {
-			for _, spec := range genDecl.Specs {
-				if valueSpec, ok := spec.(*dst.ValueSpec); ok && len(valueSpec.Names) > 0 {
-					return valueSpec.Names[0]
-				}
-			}
-		}
 	}
 	// If there's no init statement, check the post iteration statement
 	switch post := loop.Post.(type) {

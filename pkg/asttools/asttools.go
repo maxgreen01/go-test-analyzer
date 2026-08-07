@@ -403,7 +403,13 @@ func GetRootIdent(expr dst.Expr) *dst.Ident {
 			expr = x.X
 		case *dst.IndexExpr:
 			expr = x.X
+		case *dst.IndexListExpr:
+			expr = x.X
+		case *dst.SliceExpr:
+			expr = x.X
 		case *dst.StarExpr:
+			expr = x.X
+		case *dst.UnaryExpr:
 			expr = x.X
 		case *dst.ParenExpr:
 			expr = x.X
@@ -437,6 +443,18 @@ func FindModifiedExpressions(n dst.Node) []dst.Expr {
 		return true
 	})
 	return exprs
+}
+
+// Returns the expression with any enclosing parentheses removed.
+// [copied & modified from `go/ast` package]
+func Unparen(e dst.Expr) dst.Expr {
+	for {
+		paren, ok := e.(*dst.ParenExpr)
+		if !ok {
+			return e
+		}
+		e = paren.X
+	}
 }
 
 //

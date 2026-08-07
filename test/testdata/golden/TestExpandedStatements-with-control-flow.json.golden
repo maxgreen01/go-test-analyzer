@@ -31,6 +31,7 @@
               "hasEarlyExit": false,
               "hasSubtest": false,
               "inHelper": false,
+              "isTableBased": false,
               "length": 1,
               "type": "then",
               "variables": [
@@ -38,7 +39,7 @@
                   "name": "got",
                   "source": "if scope",
                   "usages": [
-                    "variable creation",
+                    "variable assignment",
                     "comparison"
                   ]
                 },
@@ -84,6 +85,7 @@
                   "hasEarlyExit": false,
                   "hasSubtest": false,
                   "inHelper": true,
+                  "isTableBased": false,
                   "length": 1,
                   "type": "then"
                 }

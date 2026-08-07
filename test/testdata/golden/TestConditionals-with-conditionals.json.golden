@@ -14,6 +14,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "inHelper": false,
+            "isTableBased": true,
             "length": 1,
             "type": "then",
             "variables": [
@@ -34,6 +35,7 @@
             "hasEarlyExit": true,
             "hasSubtest": false,
             "inHelper": false,
+            "isTableBased": true,
             "length": 1,
             "type": "else if",
             "variables": [
@@ -54,6 +56,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "inHelper": false,
+            "isTableBased": true,
             "length": 1,
             "type": "else if",
             "variables": [
@@ -83,6 +86,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "inHelper": false,
+            "isTableBased": true,
             "length": 1,
             "nestedStatements": [
               {
@@ -98,6 +102,7 @@
                     "hasEarlyExit": false,
                     "hasSubtest": false,
                     "inHelper": false,
+                    "isTableBased": false,
                     "length": 1,
                     "type": "then",
                     "variables": [
@@ -105,7 +110,7 @@
                         "name": "got",
                         "source": "if scope",
                         "usages": [
-                          "variable creation",
+                          "variable assignment",
                           "comparison"
                         ]
                       },
@@ -149,6 +154,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "inHelper": false,
+            "isTableBased": true,
             "length": 1,
             "nestedStatements": [
               {
@@ -164,6 +170,7 @@
                     "hasEarlyExit": false,
                     "hasSubtest": false,
                     "inHelper": false,
+                    "isTableBased": false,
                     "length": 1,
                     "type": "then",
                     "variables": [
@@ -171,7 +178,7 @@
                         "name": "got",
                         "source": "if scope",
                         "usages": [
-                          "variable creation",
+                          "variable assignment",
                           "comparison"
                         ]
                       },
@@ -215,6 +222,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "inHelper": false,
+            "isTableBased": true,
             "length": 1,
             "nestedStatements": [
               {
@@ -227,6 +235,7 @@
                     "hasEarlyExit": true,
                     "hasSubtest": false,
                     "inHelper": true,
+                    "isTableBased": true,
                     "length": 1,
                     "nestedStatements": [
                       {
@@ -239,6 +248,7 @@
                             "hasEarlyExit": true,
                             "hasSubtest": false,
                             "inHelper": true,
+                            "isTableBased": true,
                             "length": 1,
                             "type": "then",
                             "variables": [
@@ -258,6 +268,7 @@
                             "hasEarlyExit": false,
                             "hasSubtest": false,
                             "inHelper": true,
+                            "isTableBased": true,
                             "length": 0,
                             "type": "else"
                           }
@@ -285,6 +296,7 @@
                     "hasEarlyExit": true,
                     "hasSubtest": false,
                     "inHelper": true,
+                    "isTableBased": true,
                     "length": 1,
                     "type": "else if"
                   },
@@ -295,6 +307,7 @@
                     "hasEarlyExit": false,
                     "hasSubtest": false,
                     "inHelper": true,
+                    "isTableBased": true,
                     "length": 0,
                     "type": "else"
                   }
@@ -305,13 +318,14 @@
               {
                 "clauses": [
                   {
-                    "condition": "strings.Contains(tc.name, strconv.Itoa(tc.input))",
+                    "condition": "strings.Contains(tc.name, strconv.Itoa(tc.input)) || (tc.input == packageConst+packageVar \u0026\u0026 func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\"))",
                     "delegated": true,
                     "doesExternalMutation": false,
                     "hasAssertion": false,
                     "hasEarlyExit": true,
                     "hasSubtest": false,
                     "inHelper": true,
+                    "isTableBased": false,
                     "length": 1,
                     "type": "then",
                     "variables": [
@@ -319,20 +333,50 @@
                         "name": "tc.name",
                         "source": "scenario",
                         "usages": [
-                          "function argument"
+                          "function argument",
+                          "comparison"
                         ]
                       },
                       {
                         "name": "tc.input",
                         "source": "scenario",
                         "usages": [
-                          "function argument"
+                          "function argument",
+                          "comparison"
+                        ]
+                      },
+                      {
+                        "name": "packageConst",
+                        "source": "package const",
+                        "usages": [
+                          "computation"
+                        ]
+                      },
+                      {
+                        "name": "packageVar",
+                        "source": "package var",
+                        "usages": [
+                          "computation"
+                        ]
+                      },
+                      {
+                        "name": "b",
+                        "source": "package var",
+                        "usages": [
+                          "other"
+                        ]
+                      },
+                      {
+                        "name": "trueVar",
+                        "source": "package var",
+                        "usages": [
+                          "direct check"
                         ]
                       }
                     ]
                   }
                 ],
-                "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
+                "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) || (tc.input == packageConst+packageVar \u0026\u0026 func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\")) {\n\treturn 3\n}",
                 "totalLength": 1
               }
             ],
@@ -361,6 +405,7 @@
             "hasEarlyExit": true,
             "hasSubtest": false,
             "inHelper": true,
+            "isTableBased": true,
             "length": 1,
             "nestedStatements": [
               {
@@ -373,6 +418,7 @@
                     "hasEarlyExit": true,
                     "hasSubtest": false,
                     "inHelper": true,
+                    "isTableBased": true,
                     "length": 1,
                     "type": "then",
                     "variables": [
@@ -392,6 +438,7 @@
                     "hasEarlyExit": false,
                     "hasSubtest": false,
                     "inHelper": true,
+                    "isTableBased": true,
                     "length": 0,
                     "type": "else"
                   }
@@ -419,6 +466,7 @@
             "hasEarlyExit": true,
             "hasSubtest": false,
             "inHelper": true,
+            "isTableBased": true,
             "length": 1,
             "type": "else if"
           },
@@ -429,6 +477,7 @@
             "hasEarlyExit": false,
             "hasSubtest": false,
             "inHelper": true,
+            "isTableBased": true,
             "length": 0,
             "type": "else"
           }
@@ -439,13 +488,14 @@
       {
         "clauses": [
           {
-            "condition": "strings.Contains(tc.name, strconv.Itoa(tc.input))",
+            "condition": "strings.Contains(tc.name, strconv.Itoa(tc.input)) || (tc.input == packageConst+packageVar \u0026\u0026 func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\"))",
             "delegated": true,
             "doesExternalMutation": false,
             "hasAssertion": false,
             "hasEarlyExit": true,
             "hasSubtest": false,
             "inHelper": true,
+            "isTableBased": false,
             "length": 1,
             "type": "then",
             "variables": [
@@ -453,20 +503,50 @@
                 "name": "tc.name",
                 "source": "scenario",
                 "usages": [
-                  "function argument"
+                  "function argument",
+                  "comparison"
                 ]
               },
               {
                 "name": "tc.input",
                 "source": "scenario",
                 "usages": [
-                  "function argument"
+                  "function argument",
+                  "comparison"
+                ]
+              },
+              {
+                "name": "packageConst",
+                "source": "package const",
+                "usages": [
+                  "computation"
+                ]
+              },
+              {
+                "name": "packageVar",
+                "source": "package var",
+                "usages": [
+                  "computation"
+                ]
+              },
+              {
+                "name": "b",
+                "source": "package var",
+                "usages": [
+                  "other"
+                ]
+              },
+              {
+                "name": "trueVar",
+                "source": "package var",
+                "usages": [
+                  "direct check"
                 ]
               }
             ]
           }
         ],
-        "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}",
+        "content": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) || (tc.input == packageConst+packageVar \u0026\u0026 func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\")) {\n\treturn 3\n}",
         "totalLength": 1
       }
     ],
@@ -519,6 +599,9 @@
         {
           "children": [
             {
+              "stmt": "trueVar := true"
+            },
+            {
               "children": [
                 {
                   "children": [
@@ -540,9 +623,25 @@
                     }
                   ],
                   "stmt": "strings.Contains(tc.name, strconv.Itoa(tc.input))"
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "stmt": "return b"
+                        }
+                      ],
+                      "stmt": "func(b bool) bool { return b }"
+                    },
+                    {
+                      "stmt": "return b"
+                    }
+                  ],
+                  "stmt": "func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\")"
                 }
               ],
-              "stmt": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}"
+              "stmt": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) || (tc.input == packageConst+packageVar \u0026\u0026 func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\")) {\n\treturn 3\n}"
             },
             {
               "stmt": "return 0"
@@ -553,6 +652,9 @@
         {
           "children": [
             {
+              "stmt": "trueVar := true"
+            },
+            {
               "children": [
                 {
                   "children": [
@@ -574,9 +676,25 @@
                     }
                   ],
                   "stmt": "strings.Contains(tc.name, strconv.Itoa(tc.input))"
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "stmt": "return b"
+                        }
+                      ],
+                      "stmt": "func(b bool) bool { return b }"
+                    },
+                    {
+                      "stmt": "return b"
+                    }
+                  ],
+                  "stmt": "func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\")"
                 }
               ],
-              "stmt": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) {\n\treturn 3\n}"
+              "stmt": "if strings.Contains(tc.name, strconv.Itoa(tc.input)) || (tc.input == packageConst+packageVar \u0026\u0026 func(b bool) bool { return b }(trueVar \u0026\u0026 tc.name != \"\")) {\n\treturn 3\n}"
             },
             {
               "stmt": "return 0"
