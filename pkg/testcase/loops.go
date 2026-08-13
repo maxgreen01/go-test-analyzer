@@ -27,12 +27,14 @@ func AnalyzeLoops(tc *TestCase, parsedStmts []*ExpandedStatement) *LoopAnalysisR
 	cfa := &controlFlowAnalyzer{
 		tc:                tc,
 		analyzeLoops:      true,
-		countHelperLength: false, // Intentionally disabled because this makes statement length harder to work with
+		countHelperLength: countHelperLength,
 	}
 
 	// Analyze each top-level statement's ExpandedStatement tree
 	for _, expanded := range parsedStmts {
-		cfs := cfa.analyze(expanded, topLevelSeen)
+		cfa.nodeToExpanded = BuildNodeMap(expanded) // Rebuild the nodeToExpanded map for each individual statement being analyzed
+		
+		cfs := cfa.walk(expanded.Stmt, nil, topLevelSeen)
 		loopAnalysis.Loops = append(loopAnalysis.Loops, filterTyped[*Loop](cfs)...)
 	}
 
@@ -59,23 +61,13 @@ func (loopAnalysis *LoopAnalysisResult) CountTableDriven() int {
 
 // Represents metadata about a loop statement detected as part of a test case.
 type Loop struct {
-	// The classification of the loop structure
-	LoopType LoopType `json:"loopType"`
+	LoopType             LoopType               `json:"loopType"`             // The classification of the loop structure
+	Content              string                 `json:"content"`              // The DST code of the loop itself, converted to a string
+	IndicatesTableDriven bool                   `json:"indicatesTableDriven"` // Whether the loop is indicative of a table-driven test
+	features.FeatureSet                         // Detected metadata features, embedded because it saves an unnecessary layer of nesting
+	NestedStatements     []ControlFlowStatement `json:"nestedStatements,omitempty"` // Additional control flow statements that are contained within this loop, if any
 
-	// The DST code of the loop itself, converted to a string
-	Content string `json:"content"`
-
-	// Whether the loop is indicative of a table-driven test
-	IndicatesTableDriven bool `json:"indicatesTableDriven"`
-
-	// Total number of statements in this loop, including inside nested statements
-	TotalLength int `json:"totalLength"`
-
-	// Detected metadata features, embedded because it saves an unnecessary layer of nesting
-	features.FeatureSet
-
-	// Additional control flow statements that are contained within this loop, if any
-	NestedStatements []ControlFlowStatement `json:"nestedStatements,omitempty"`
+	stmt dst.Stmt `json:"-"` // Underlying DST node
 }
 
 // Compile-time interface check
@@ -93,6 +85,7 @@ func CreateLoop(stmt dst.Node, cfa *controlFlowAnalyzer) *Loop {
 	// Classify the structure of the loop, and search for nested statements in the loop header and body.
 	switch loopStmt := stmt.(type) {
 	case *dst.RangeStmt:
+		loop.stmt = loopStmt
 		loop.LoopType = classifyRangeLoop(loopStmt, cfa.tc)
 		loop.BodyBlock = cfa.tc.DstToAst(loopStmt.Body).(*ast.BlockStmt)
 
@@ -100,6 +93,7 @@ func CreateLoop(stmt dst.Node, cfa *controlFlowAnalyzer) *Loop {
 		loop.NestedStatements = cfa.analyzeNested([]dst.Node{loopStmt.Key, loopStmt.Value, loopStmt.X, loopStmt.Body}, &loop.FeatureSet)
 
 	case *dst.ForStmt:
+		loop.stmt = loopStmt
 		loop.LoopType = classifyForLoop(loopStmt, cfa.tc)
 		loop.BodyBlock = cfa.tc.DstToAst(loopStmt.Body).(*ast.BlockStmt)
 
@@ -117,6 +111,11 @@ func CreateLoop(stmt dst.Node, cfa *controlFlowAnalyzer) *Loop {
 	loop.TotalLength = TotalLength(loop, cfa.countHelperLength)
 
 	return loop
+}
+
+// GetDstStmt returns the underlying DST statement representing this control flow statement.
+func (loop *Loop) GetDstStmt() dst.Stmt {
+	return loop.stmt
 }
 
 // GetNestedStmts returns the nested control flow statements within this statement.
@@ -194,7 +193,7 @@ func classifyForLoop(stmt *dst.ForStmt, tc *TestCase) LoopType {
 // RegisterNode inspects a DST node and updates the FeatureSet's features accordingly.
 // TODO SOON - make this back into a FeatureSet method once we can separate it from TestCase circular dependency
 // TODO maybe rename to something more descriptive than "Register", e.g. "CheckNode"
-func RegisterNode(fs *features.FeatureSet, node dst.Node, tc *TestCase) {
+func RegisterNode(fs *features.FeatureSet, node dst.Node, tc *TestCase, nodeToExpanded map[dst.Node]*ExpandedStatement) {
 	if fs == nil || node == nil || tc == nil {
 		return
 	}
@@ -207,6 +206,14 @@ func RegisterNode(fs *features.FeatureSet, node dst.Node, tc *TestCase) {
 		phase := categorizeCallExpr(n, tc)
 		fs.HasSubtest.Register(phase == features.TestPhaseSubtest, inOtherFunc)
 		fs.HasAssertion.Register(phase == features.TestPhaseAssert, inOtherFunc)
+
+		if phase == features.TestPhaseSubtest {
+			// Keep track of the number of subtests in this FeatureSet, but don't count subtests that are nested
+			// inside another subtest within this FeatureSet's body
+			if !IsStmtInsideSubtest(nodeToExpanded[n], fs.BodyBlock, tc) {
+				fs.NumSubtests++
+			}
+		}
 		// Note: `panic` calls would be detected here (or in categorizeCallExpr)
 	case *dst.AssignStmt:
 		for _, lhs := range n.Lhs {
@@ -323,6 +330,31 @@ func isExternalMutation(expr dst.Expr, tc *TestCase, loopScope *types.Scope) boo
 	// If the variable being modified is not defined somewhere within the loop's scope, then it's an external mutation
 	if !asttools.IsScopeAncestor(loopScope, obj.Parent()) {
 		return true
+	}
+	return false
+}
+
+// Determines whether an ExpandedStatement is called from inside a subtest within the bounds of the given container node
+// by traversing the ExpandedStatement's parents.
+func IsStmtInsideSubtest(statement *ExpandedStatement, container ast.Node, tc *TestCase) bool {
+	if statement == nil || container == nil || tc == nil {
+		return false
+	}
+
+	// Search the statement and its ancestors for a subtest call expression
+	for curr := statement.Parent; curr != nil; curr = curr.Parent {
+		if !asttools.IsNodeInside(tc.DstToAst(UnwrapExprStmt(curr.Stmt)), container) {
+			// Only search ancestors that are inside the container
+			break
+		}
+		// If the current statement is a call expression, check if it's a subtest
+		if exprStmt, ok := curr.Stmt.(*dst.ExprStmt); ok {
+			if callExpr, ok := exprStmt.X.(*dst.CallExpr); ok {
+				if categorizeCallExpr(callExpr, tc) == features.TestPhaseSubtest {
+					return true
+				}
+			}
+		}
 	}
 	return false
 }

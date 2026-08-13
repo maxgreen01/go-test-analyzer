@@ -12,7 +12,7 @@
       "hasSubtest": false,
       "inHelper": false,
       "indicatesTableDriven": true,
-      "length": 3,
+      "length": 7,
       "loopType": "range structs",
       "nestedStatements": [
         {
@@ -30,6 +30,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 1,
+              "totalLength": 1,
               "type": "then",
               "variables": [
                 {
@@ -51,6 +52,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 1,
+              "totalLength": 1,
               "type": "else if",
               "variables": [
                 {
@@ -72,6 +74,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 1,
+              "totalLength": 1,
               "type": "else if",
               "variables": [
                 {
@@ -118,6 +121,7 @@
                       "inHelper": false,
                       "isTableBased": false,
                       "length": 1,
+                      "totalLength": 1,
                       "type": "then",
                       "variables": [
                         {
@@ -149,6 +153,7 @@
                   "totalLength": 1
                 }
               ],
+              "totalLength": 2,
               "type": "else"
             }
           ],
@@ -186,6 +191,7 @@
                       "inHelper": false,
                       "isTableBased": false,
                       "length": 1,
+                      "totalLength": 1,
                       "type": "then",
                       "variables": [
                         {
@@ -217,6 +223,7 @@
                   "totalLength": 1
                 }
               ],
+              "totalLength": 2,
               "type": "then",
               "variables": [
                 {
@@ -250,7 +257,7 @@
                       "hasSubtest": false,
                       "inHelper": true,
                       "isTableBased": true,
-                      "length": 1,
+                      "length": 2,
                       "nestedStatements": [
                         {
                           "clauses": [
@@ -264,6 +271,7 @@
                               "inHelper": true,
                               "isTableBased": true,
                               "length": 1,
+                              "totalLength": 1,
                               "type": "then",
                               "variables": [
                                 {
@@ -284,6 +292,7 @@
                               "inHelper": true,
                               "isTableBased": true,
                               "length": 0,
+                              "totalLength": 0,
                               "type": "else"
                             }
                           ],
@@ -291,6 +300,7 @@
                           "totalLength": 1
                         }
                       ],
+                      "totalLength": 3,
                       "type": "then",
                       "variables": [
                         {
@@ -312,6 +322,7 @@
                       "inHelper": true,
                       "isTableBased": true,
                       "length": 1,
+                      "totalLength": 1,
                       "type": "else if"
                     },
                     {
@@ -323,11 +334,12 @@
                       "inHelper": true,
                       "isTableBased": true,
                       "length": 0,
+                      "totalLength": 0,
                       "type": "else"
                     }
                   ],
                   "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
-                  "totalLength": 3
+                  "totalLength": 4
                 },
                 {
                   "clauses": [
@@ -341,6 +353,7 @@
                       "inHelper": true,
                       "isTableBased": false,
                       "length": 1,
+                      "totalLength": 1,
                       "type": "then",
                       "variables": [
                         {
@@ -394,6 +407,7 @@
                   "totalLength": 1
                 }
               ],
+              "totalLength": 1,
               "type": "else if",
               "variables": [
                 {
@@ -420,7 +434,7 @@
               "hasSubtest": false,
               "inHelper": true,
               "isTableBased": true,
-              "length": 1,
+              "length": 2,
               "nestedStatements": [
                 {
                   "clauses": [
@@ -434,6 +448,7 @@
                       "inHelper": true,
                       "isTableBased": true,
                       "length": 1,
+                      "totalLength": 1,
                       "type": "then",
                       "variables": [
                         {
@@ -454,6 +469,7 @@
                       "inHelper": true,
                       "isTableBased": true,
                       "length": 0,
+                      "totalLength": 0,
                       "type": "else"
                     }
                   ],
@@ -461,6 +477,7 @@
                   "totalLength": 1
                 }
               ],
+              "totalLength": 3,
               "type": "then",
               "variables": [
                 {
@@ -482,6 +499,7 @@
               "inHelper": true,
               "isTableBased": true,
               "length": 1,
+              "totalLength": 1,
               "type": "else if"
             },
             {
@@ -493,11 +511,12 @@
               "inHelper": true,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "else"
             }
           ],
           "content": "if tc.input \u003c 0 {\n\tif tc.want \u003c 0 {\n\t\treturn 1\n\t} else {\n\t\t// do nothing\n\t}\n} else if len(testhelper.MakeScenariosExternal()) \u003e 0 {\n\treturn 2\n} else {\n}",
-          "totalLength": 3
+          "totalLength": 4
         },
         {
           "clauses": [
@@ -511,6 +530,7 @@
               "inHelper": true,
               "isTableBased": false,
               "length": 1,
+              "totalLength": 1,
               "type": "then",
               "variables": [
                 {
@@ -564,7 +584,7 @@
           "totalLength": 1
         }
       ],
-      "totalLength": 11
+      "totalLength": 15
     }
   ],
   "ImportedPackages": [

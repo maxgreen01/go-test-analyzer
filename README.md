@@ -205,6 +205,7 @@ The following command-line options are only supported by the `analyze` command.
 | `--analyze-loops`         | Whether to perform an additional, more detailed analysis of all the loops detected in each test case                 | `false`       | N/A                            |
 | `--analyze-conditionals`  | Whether to perform an additional, more detailed analysis of all the if/else chains detected in table-driven tests    | `false`       | N/A                            |
 | `--analyze-control-flow`  | Whether to perform a unified control flow analysis combining the loop and conditional analyses in table-driven tests | `false`       | N/A                            |
+| `--calculate-complexity`  | Whether to calculate complexity metrics for detected table-driven tests and rank them by severity                    | `false`       | N/A                            |
 
 The `refactor` option indicates which type of refactoring should be performed on certain detected test cases. After refactoring, the refactored function is saved as a field in the JSON output file for each affected test case. Note that the refactoring may modify helper functions defined in the same package, but these are not reflected in the JSON output. The allowed refactoring strategies are described as follows:
 
@@ -218,6 +219,53 @@ The `analyze-loops` option enables a more comprehensive static analysis of all l
 The `analyze-conditionals` option enables a comprehensive static analysis of all if/else chains found within each table-driven test's scenario runner loop. When enabled, the generated JSON files for each test case will contain an `IfElseAnalysis` object that describes the structure and characteristics of each detected conditional. In particular, it characterizes the variables used in each condition check, tracks metadata features through chained and nested conditionals, and counts the length of each clause.
 
 The `analyze-control-flow` option enables a comprehensive static analysis of all control flow statements (both loops and if/else chains together) found within each table-driven test's scenario runner loop. When enabled, the generated JSON files for each test case will contain a `ControlFlowStatements` array that describes each of the detected control flow statements using the same format as the individual loop and conditional analyses. Even though this performs the same underlying analysis as the individual loop and conditional analyses, this option is completely independent from the others.
+
+The `calculate-complexity` option estimates the complexity of all detected table-driven tests based on a set of predefined metrics, with a focus on detecting conditional logic inside the scenario runner loop. These tests are then sorted by overall complexity and saved to a separate file named `<project>-complexity-scores.csv` (in the same directory as the main output report) to allow for easier identification of the most complex tests based on each metric. Enabling this option automatically enables the `--analyze-control-flow` option.
+
+#### Complexity Calculation
+
+The complexity analysis is primarily focused on detecting conditional logic in table-driven tests. It utilizes the following metrics, which each roughly corresponds to a distinct anti-pattern that tend to increase complexity in table-driven tests. These metrics are based on the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md#avoid-unnecessary-complexity-in-table-tests) and the [Google Go Style Guide](https://google.github.io/styleguide/go/decisions#table-driven-tests), which both recommend against unnecessary complexity in table-driven tests.
+
+These metrics are each weighted to reflect their relative impact on a test's complexity, and the sum of these weighted metrics is used as the test's overall complexity score (i.e. $$(m_1 * w_1) + (m_2 * w_2) + ... + (m_n * w_n)$$ for metrics $$m_n$$ and weights $$w_n$$). The overall complexity score is non-negative and has no upper bound, and higher scores are associated with more complex tests. A score of 0--30 may indicate a relatively simple test that might not require refactoring, a score of 31--70 may indicate a moderately complex test that exhibits some potential anti-patterns, and a score of 71 or higher may indicate a very complex test that should strongly be considered for refactoring.
+
+In many cases, refactoring an overly complex test may involve splitting the table-driven test into multiple parts that each contain less conditional logic, and therefore have lower overall complexity scores. For example, splitting a complex table-driven test into separate test functions for the error and non-error cases may reduce the need for conditional logic that checks the different expected behaviors.
+
+Some of these metrics focus specifically on conditionals inside the runner loop that are controlled by scenario fields, which we refer to as "table-based conditionals". A "table-based conditional" is defined as an if/else clause that satisfies either of the following conditions:
+
+1. Its condition, when split across all top-level consecutive `&&` and `||` logical operators, contains at least one expression that:
+   - Involves one or more scenario fields or the index (key) of the runner loop, AND
+   - Does not involve any other variables, except constants, AND
+   - Does not involve any function calls, except built-in functions or scenario function fields.
+2. It follows another table-based conditional clause in the same if/else chain.
+
+#### Complexity Metrics
+
+The following metrics are used to measure the overall complexity of a table-driven test:
+
+1. Number of Subtests Defined in Table-Based Conditionals
+   - *Definition*: Counts `t.Run()` (or library equivalent) calls that are located inside table-based conditionals, including subtests defined in helper functions, but excluding those that are contained within other table-based subtests.
+   - *Rationale*: Subtests indicate distinct logic by definition, so conditional subtests go directly against the ideal of "Ensure that all test logic runs for all table cases" (from the Uber style guide).
+   - *Example*: [Grafana's TestIntegrationAccessControl](https://github.com/grafana/grafana/blob/a100054f212653d1f15ae4fc80e98c9548c77f86/pkg/tests/apis/alerting/notifications/receivers/receiver_test.go#L586-L786) has 13 non-nested conditional subtests.
+
+2. Number of Scenario Function Fields
+   - *Definition*: The number of function-typed fields defined in the scenario data type.
+   - *Rationale*: Function fields inherently allow different logic to be executed for each scenario, which goes directly against the ideal of "Ensure that all test logic runs for all table cases" (from the Uber style guide).
+   - *Example*: [Lazygit's TestOSCommandAppendLineToFile](https://github.com/jesseduffield/lazygit/blob/da32b59e11cc769967129d5ac7576c0f31a03ef0/pkg/commands/oscommands/os_test.go#L140-L196) has 2 scenario function fields.
+
+3. Percentage of Runner Statements in Table-Based Conditionals
+   - *Definition*: The percentage of scenario runner loop statements that are located inside table-based conditionals, not including statements in helper functions. Calculated as the total number of statements inside non-nested table-based conditionals, divided by the total number of statements inside the runner loop itself.
+   - *Rationale*: A high percentage of statements inside table-based conditionals indicates that a substantial amount of test logic may not being executed for all scenarios, which goes directly against the ideal of "Ensure that all test logic runs for all table cases" (from the Uber style guide).
+   - *Example*: [Grafana's TestService_Authenticate](https://github.com/grafana/grafana/blob/a100054f212653d1f15ae4fc80e98c9548c77f86/pkg/services/authn/authnimpl/service_test.go#L182-L261) has most of the test's logic inside the `if len(tt.expectedErrors) == 0` condition
+
+4. Maximum Assertion Depth
+   - *Definition*: The maximum depth of any assertion within if/else statements relative to the runner loop. Depth starts at 0 for assertions directly in the runner loop, and increments by 1 for every nested conditional statement. Assertions in helper functions are not considered.
+   - *Rationale*: A high assertion depth indicates that a test's assertions depend on several previous assertions, which can make it difficult to reason about the test's behavior by tracing through the preceding conditions. This goes against the ideal of "Minimize 'test depth'... the number of successive assertions that require previous assertions to hold" (from the Uber style guide).
+   - *Example*: [Docker Compose's TestNewDockerPatternMatcher](https://github.com/docker/compose/blob/4732a2ed20a49c43a7b44bb4928259162c3ae3be/pkg/watch/dockerignore_test.go#L74-L107) has a maximum assertion depth of 2 because there are at most 2 nested conditionals around its `t.Errorf` statements.
+
+5. Percentage of Table Fields Only Used in Table-Based Conditionals
+   - *Definition*: The percentage of fields in the scenario data type that are exclusively used in table-based conditionals (both their conditions and bodies) inside the runner loop, but not anywhere else in the test function.
+   - *Rationale*: Scenario fields that are only used in table-based conditionals may not be utilized by all scenarios, which goes directly against the ideal of "Ensure that all table fields are used in all tests" (from the Uber style guide).
+   - *Example*: [Traefik's Test_addRoute](https://github.com/traefik/traefik/blob/8b495b45a547f86b6c27fe5db637515b8645a244/pkg/muxer/http/matcher_v2_test.go#L1529-L1566) only uses `test.expectedError` in the condition of the large if/else statement, and only uses `test.expected`, `test.remoteAddr` and `test.headers` inside the `else` block, so 4 of its 6 scenario fields are only used in conditionals.
 
 ### Version
 

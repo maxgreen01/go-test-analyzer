@@ -115,7 +115,7 @@ func (sds *ScenarioDataStructure) UnmarshalJSON(data []byte) error {
 func (ss *ScenarioSet) Analyze() {
 	ss.NameField = ss.detectNameField()
 	ss.ExpectedFields = ss.detectExpectedFields()
-	ss.HasFunctionFields = ss.detectFunctionFields()
+	ss.HasFunctionFields = ss.NumFunctionFields() > 0
 	ss.UsesSubtest, _ = ss.detectSubtest()
 
 	// todo LATER consider expanding the statements inside the runner loop, just like with TestCase statements
@@ -206,18 +206,19 @@ func (ss *ScenarioSet) detectExpectedFields() []string {
 	return expectedFields
 }
 
-// Returns a bool indicating whether the scenario type has any fields whose type is a function
-func (ss *ScenarioSet) detectFunctionFields() bool {
+// Returns the number of fields in the scenario type whose type is a function
+func (ss *ScenarioSet) NumFunctionFields() int {
 	if _, ok := asttools.UnderlyingType(ss.ScenarioType).(*types.Struct); !ok {
-		return false // No fields to analyze
+		return 0 // No fields to analyze
 	}
 
+	count := 0
 	for field := range ss.GetFields() {
 		if _, ok := asttools.UnderlyingType(field.Type()).(*types.Signature); ok {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
 }
 
 // Returns a bool indicating whether `t.Run()` is called inside the loop body (possibly nested), as well as a reference to the `t.Run()` statement
@@ -259,7 +260,8 @@ func (ss *ScenarioSet) detectSubtest() (bool, *dst.CallExpr) {
 //
 
 // Returns the fields of the struct type used to define scenarios, if possible.
-// Note that fields defined like `a, b int` are treated as one `Field` element with multiple Names.
+// Note that this yields distinct elements for every individual field because it uses the Type system, even though
+// fields defined like `a, b int` are treated by the AST as one `ast.Field` with multiple `Names`.
 func (ss *ScenarioSet) GetFields() iter.Seq[*types.Var] {
 	structTemplate, ok := asttools.UnderlyingType(ss.ScenarioType).(*types.Struct)
 	if !ok {

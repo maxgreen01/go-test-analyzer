@@ -1,13 +1,17 @@
 package parsercommands
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/dave/dst"
 	"github.com/dave/dst/decorator"
+	"github.com/gocarina/gocsv"
 	"github.com/maxgreen01/go-test-analyzer/internal/config"
 	"github.com/maxgreen01/go-test-analyzer/internal/filewriter"
 	"github.com/maxgreen01/go-test-analyzer/pkg/parser"
@@ -45,6 +49,7 @@ type AnalyzeOptions struct {
 	AnalyzeLoops        bool   `long:"analyze-loops" description:"Whether to perform an additional, more detailed analysis of all the loops detected in each test case"`
 	AnalyzeConditionals bool   `long:"analyze-conditionals" description:"Whether to perform an additional, more detailed analysis of all the if/else chains detected in table-driven tests"`
 	AnalyzeControlFlow  bool   `long:"analyze-control-flow" description:"Whether to perform a unified control flow analysis combining the loop and conditional analyses in table-driven tests"`
+	CalculateComplexity bool   `long:"calculate-complexity" description:"Whether to calculate complexity metrics for detected table-driven tests and rank them by severity"`
 }
 
 // Compile-time interface implementation check
@@ -118,6 +123,11 @@ func (cmd *AnalyzeCommand) Execute(args []string) error {
 		if err := cmd.setupOutputWriter(); err != nil {
 			return err
 		}
+	}
+
+	// The `--calculate-complexity` option requires control flow analysis to be enabled.
+	if cmd.CalculateComplexity {
+		cmd.AnalyzeControlFlow = true
 	}
 
 	// Process refactoring strategy. Allowed options are handled by the `choice` tag in the struct definition.
@@ -239,12 +249,21 @@ func (cmd *AnalyzeCommand) ReportResults() error {
 		}
 	}
 
-	// Print the report to the terminal
+	// Save the optional complexity results to a static CSV file
+	if cmd.CalculateComplexity {
+		outFile, err := cmd.calculateComplexityScores()
+		if err != nil {
+			return fmt.Errorf("calculating complexity metrics: %w", err)
+		}
+		slog.Info("Complexity metrics calculated and saved to \"" + outFile + "\"")
+	}
+
+	// Print the main report to the terminal
 	slog.Info("Finished running analysis task on project \"" + cmd.globals.ProjectDir + "\"")
 	slog.Info("Writing results to \"" + cmd.output.GetPath() + "\"")
 	fmt.Print(strings.Join(reportLines, "") + "\n")
 
-	// Append results to output file (text or CSV)
+	// Append the main results to output file (text or CSV)
 	switch cmd.output.DetectFormat() {
 
 	case filewriter.FormatTxt:
@@ -267,9 +286,70 @@ func (cmd *AnalyzeCommand) ReportResults() error {
 	}
 }
 
-// Close the output file writer
+// Close the main output file writer
 func (cmd *AnalyzeCommand) Close() {
 	if cmd.output != nil {
 		cmd.output.Close()
 	}
+}
+
+// Calculates complexity metrics for all detected table-driven test cases, ranks them by severity, and writes the results to a CSV file.
+// Returns the path to the output file used, or an error if the operation could not be completed.
+func (cmd *AnalyzeCommand) calculateComplexityScores() (string, error) {
+	type scoredTest struct {
+		Project                    string    `csv:"project"`
+		FilePath                   string    `csv:"filePath"`
+		ImportPath                 string    `csv:"importPath"`
+		Name                       string    `csv:"name"`
+		OverallScore               float32   `csv:"overallScore"`
+		testcase.ComplexityMetrics `csv:"."` // inline the struct fields without a prefix
+	}
+
+	// Calculate complexity scores
+	tests := make([]scoredTest, 0, len(cmd.testCases))
+	for _, ar := range cmd.testCases {
+		// Skip tests that are not table-driven
+		if len(ar.ControlFlowStatements) == 0 || ar.TestCase == nil {
+			continue
+		}
+
+		metrics := ar.CalculateComplexity()
+		score := metrics.OverallScore()
+
+		tests = append(tests, scoredTest{
+			Project:           ar.TestCase.ProjectName,
+			FilePath:          ar.TestCase.FilePath,
+			ImportPath:        ar.TestCase.ImportPath,
+			Name:              ar.TestCase.TestName,
+			ComplexityMetrics: metrics,
+			OverallScore:      score,
+		})
+	}
+
+	// Sort tests by descending overall score, ascending import path (to group by packages), and ascending test name
+	slices.SortFunc(tests, func(a, b scoredTest) int {
+		return cmp.Or(
+			cmp.Compare(b.OverallScore, a.OverallScore),
+			cmp.Compare(a.ImportPath, b.ImportPath),
+			cmp.Compare(a.Name, b.Name),
+		)
+	})
+
+	// Write the results to a CSV file in the output directory
+	scoresPath := filepath.Join(cmd.output.GetPathDir(), fmt.Sprintf("%s-complexity-scores.csv", filepath.Base(cmd.globals.ProjectDir)))
+	if err := os.MkdirAll(filepath.Dir(scoresPath), 0755); err != nil {
+		return scoresPath, err
+	}
+
+	file, err := os.OpenFile(scoresPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return scoresPath, err
+	}
+	defer file.Close()
+
+	if err := gocsv.Marshal(&tests, file); err != nil {
+		return scoresPath, err
+	}
+
+	return scoresPath, nil
 }

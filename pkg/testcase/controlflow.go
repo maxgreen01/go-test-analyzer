@@ -12,6 +12,9 @@ import (
 
 // ControlFlowStatement represents a generic control flow statement (e.g. a loop or if/else chain) detected inside a test case.
 type ControlFlowStatement interface {
+	// GetDstStmt returns the underlying DST statement representing this control flow statement.
+	GetDstStmt() dst.Stmt
+
 	// GetNestedStmts returns the nested control flow statements within this statement, if any.
 	GetNestedStmts() []ControlFlowStatement
 
@@ -35,6 +38,11 @@ func AnalyzeControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmts []*E
 	return cfs
 }
 
+// countHelperLength determines whether the control flow analysis should count statements inside helper functions toward statement length.
+// This corresponds to the controlFlowAnalyzer's `countHelperLength` field, but is used in the complexity analysis too.
+// Intentionally disabled because this makes statement length harder to work with.
+const countHelperLength = false
+
 // Performs the control flow analysis on the scenario runner loop of a table-driven test case.
 // Returns the results of the analysis, or `nil` if the analysis could not be performed.
 func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmts []*ExpandedStatement, analyzeConditionals bool, analyzeControlFlow bool) []ControlFlowStatement {
@@ -42,12 +50,10 @@ func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmt
 		// Not table-driven
 		return nil
 	}
-
-	// Analyze each ExpandedStatement inside the scenario runner loop body.
-	// We unfortunately can't use `scenarioSet.GetRunnerStatements()` here because individual statements might not have
-	// their own corresponding ExpandedStatement nodes (e.g. an IfStmt itself).
+	// Find the ExpandedStatement containing the scenario runner loop, noting that it might not have
+	// its own corresponding ExpandedStatement struct, e.g. if it's inside a nested loop in the original test function.
 	// todo CLEANUP this would be made slightly easier if ExpandedStatements were stored in the ScenarioSet directly
-	runnerExpanded := findExpandedStmt(scenarioSet.Runner, parsedStmts)
+	runnerExpanded := FindEnclosingExpandedStmt(scenarioSet.Runner, parsedStmts, tc)
 	if runnerExpanded == nil {
 		return nil
 	}
@@ -59,10 +65,12 @@ func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmt
 		runnerLoopIndex:     getLoopIndexName(scenarioSet.Runner),
 		analyzeConditionals: analyzeConditionals,
 		analyzeControlFlow:  analyzeControlFlow,
-		countHelperLength:   false, // Intentionally disabled because this makes statement length harder to work with
+		countHelperLength:   countHelperLength,
+		nodeToExpanded:      BuildNodeMap(runnerExpanded),
 	}
 
-	return cfa.analyze(runnerExpanded, make(map[dst.Node]bool))
+	// Use the runner loop itself as the root for the analysis, even though the `nodeToExpanded` map is built from its enclosing ExpandedStatement
+	return cfa.walk(scenarioSet.Runner, nil, make(map[dst.Node]bool))
 }
 
 // getLoopIndexName returns the name of the variable representing the index of the provided loop.
@@ -148,15 +156,6 @@ type controlFlowAnalyzer struct {
 	countHelperLength   bool         // Whether to count statements detected outside a control flow statement's enclosing package-level function toward their length
 
 	nodeToExpanded map[dst.Node]*ExpandedStatement // Mapping of DST nodes to their corresponding ExpandedStatements, used for expanding function calls
-	nodeToParent   map[dst.Node]dst.Node
-}
-
-// Detects control flow statements in the given ExpandedStatement tree based on the controlFlowAnalyzer's configuration.
-// Returns a slice of all detected non-nested control flow statements, with nested statements stored within their parents.
-func (cfa *controlFlowAnalyzer) analyze(expanded *ExpandedStatement, seen map[dst.Node]bool) []ControlFlowStatement {
-	cfa.nodeToExpanded = BuildNodeMap(expanded)
-	cfa.nodeToParent = BuildParentMap(expanded)
-	return cfa.walk(expanded.Stmt, nil, seen)
 }
 
 // Recursively inspects a DST node and its children (including expanded function calls) to detect control flow statements and
@@ -171,8 +170,14 @@ func (cfa *controlFlowAnalyzer) walk(root dst.Node, parentFeatures *features.Fea
 	// Walk the expanded statement tree and inspect each non-nil node within each statement.
 	WalkExpanded(root, cfa.nodeToExpanded, func(node dst.Node) bool {
 		// Count the number of statements encountered
+		var countIfClauses bool
 		if stmt, ok := node.(dst.Stmt); ok && parentFeatures != nil {
-			cfa.CountStatement(stmt, parentFeatures)
+			counted := cfa.CountStatement(stmt, parentFeatures)
+			if _, ok := node.(*dst.IfStmt); ok && counted {
+				// Even though the root IfStmt was counted, the other clauses themselves won't be counted here because
+				// they're only visited inside CreateIfStmt. Instead, we manually count them below.
+				countIfClauses = true
+			}
 		}
 
 		// Actually inspect the node
@@ -206,13 +211,18 @@ func (cfa *controlFlowAnalyzer) walk(root dst.Node, parentFeatures *features.Fea
 			ifStmt := CreateIfStmt(node, cfa)
 			results = append(results, ifStmt)
 
+			if parentFeatures != nil && countIfClauses {
+				// The root IfStmt clause has already been counted, so manually count the other clauses toward the parent's length
+				parentFeatures.Length += len(ifStmt.Clauses) - 1
+			}
+
 			// Stop inspecting descendants because the clauses have already been processed recursively
 			return false
 
 		default:
 			// Check any other non-nil nodes for metadata features
 			if parentFeatures != nil {
-				RegisterNode(parentFeatures, node, cfa.tc)
+				RegisterNode(parentFeatures, node, cfa.tc, cfa.nodeToExpanded)
 			}
 		}
 
@@ -245,46 +255,49 @@ func (cfa *controlFlowAnalyzer) analyzeNested(nodes []dst.Node, parentFeatures *
 // CountStatement increments the length of the given FeatureSet if the statement matches the required conditions.
 // This verifies that the statement originates from inside the control flow body, can ignore statements defined
 // outside the control flow statement's function (based on the cfa configuration), and ensures the statement is
-// not nested inside another control flow block.
-func (cfa *controlFlowAnalyzer) CountStatement(stmt dst.Stmt, featureSet *features.FeatureSet) {
+// not nested inside another control flow block. Returns true if the statement was counted, false otherwise.
+func (cfa *controlFlowAnalyzer) CountStatement(stmt dst.Stmt, featureSet *features.FeatureSet) bool {
 	if stmt == nil || featureSet == nil {
-		return
+		return false
 	}
 
 	switch s := stmt.(type) {
 	case *dst.BlockStmt, *dst.CaseClause, *dst.CommClause, *dst.EmptyStmt:
 		// Skip block containers from being counted directly
-		return
+		return false
 	case *dst.ExprStmt:
 		// Skip dummy ExprStmt wrappers created during expansion, which don't have corresponding AST nodes
 		if cfa.tc.DstToAst(s) == nil {
-			return
+			return false
 		}
 	}
 
 	// Make sure this statement was somehow called from inside the control flow statement's body block. If the statement is directly inside the body block,
-	// then the loop will break immediately with `curr == stmt`. If the statement is inside an expanded function call, then the loop will traverse the statement's
-	// parents until it finds a function call site that is located somewhere inside the control flow statement's body block. This avoids counting statements that
-	// appear in the header of a control flow statement, and statements that are outside the control flow statement entirely.
-	anchoredInBody := false
-	for curr := dst.Node(stmt); curr != nil; curr = cfa.nodeToParent[curr] {
-		if astNode := cfa.tc.DstToAst(curr); astNode != nil && asttools.IsNodeInside(astNode, featureSet.BodyBlock) {
-			// The statement (or expanded function call site) was found inside the body block
+	// then the loop will break on the first iteration. If the statement is inside an expanded function call, then the loop will traverse the statement's
+	// parents until it finds a statement (e.g. function call site) that is located somewhere inside the control flow statement's body block. This avoids
+	// counting statements that appear in the header of a control flow statement, and statements that are outside the control flow statement entirely.
+
+	// First, check the DST statement in case it doesn't have a corresponding ExpandedStatement
+	anchoredInBody := asttools.IsNodeInside(cfa.tc.DstToAst(stmt), featureSet.BodyBlock)
+	// Next, check the corresponding ExpandedStatement and traverse its ancestors
+	for curr := cfa.nodeToExpanded[stmt]; curr != nil; curr = curr.Parent {
+		if anchoredInBody || asttools.IsNodeInside(cfa.tc.DstToAst(UnwrapExprStmt(curr.Stmt)), featureSet.BodyBlock) {
+			// The statement (or an ancestor) was found inside the body block
 			anchoredInBody = true
 			break
 		}
 	}
 	if !anchoredInBody {
-		return
+		return false
 	}
 
 	astNode := cfa.tc.DstToAst(stmt)
 	if astNode == nil {
-		return
+		return false
 	}
 	// Ignore statements defined outside the control flow statement's enclosing package-level function, unless `countHelperLength` is enabled
 	if !cfa.countHelperLength && !asttools.IsNodeInside(astNode, featureSet.OuterEnclosingFunc) {
-		return
+		return false
 	}
 
 	// Check that the statement is directly inside the control flow statement's body or an expanded function body,
@@ -294,7 +307,7 @@ func (cfa *controlFlowAnalyzer) CountStatement(stmt dst.Stmt, featureSet *featur
 	path := asttools.GetEnclosingNodes(astNode.Pos(), cfa.tc.GetPackageFiles())
 	stmtIdx := slices.Index(path, astNode)
 	if stmtIdx == -1 {
-		return
+		return false
 	}
 
 	// This access is safe because the node we searched for could never be the AST file itself, which is always the last element
@@ -318,5 +331,7 @@ func (cfa *controlFlowAnalyzer) CountStatement(stmt dst.Stmt, featureSet *featur
 	// Increment the length because the statement isn't nested in another control flow statement
 	if isDirectInBody || isDirectInFunc {
 		featureSet.Length++
+		return true
 	}
+	return false
 }

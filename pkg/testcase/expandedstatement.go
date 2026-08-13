@@ -35,6 +35,9 @@ type ExpandedStatement struct {
 
 	// The expanded form of the called function's inner statements, or nil if the statement is not a function call
 	Children []*ExpandedStatement
+
+	// The parent in the expanded statement tree, or nil if the statement is the root of the tree
+	Parent *ExpandedStatement `json:"-"`
 }
 
 // Recursively create the fully expanded form of a function call statement, expanding depth first.
@@ -112,7 +115,8 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 		parent := root
 		if exprStmt, ok := root.Stmt.(*dst.ExprStmt); !ok || exprStmt.X != callExpr {
 			parent = &ExpandedStatement{
-				Stmt: &dst.ExprStmt{X: callExpr},
+				Stmt:   &dst.ExprStmt{X: callExpr},
+				Parent: root,
 			}
 			// Save a reference to the new parent in the root statement so all the upcoming expansions are connected to the root
 			root.Children = append(root.Children, parent)
@@ -142,7 +146,11 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 		// Expand the detected nodes using an unmodified callstack, since these functions are run in the same scope as the original statement
 		for _, expandable := range expandableNodes {
 			argStmt := &dst.ExprStmt{X: expandable}
-			parent.Children = append(parent.Children, expandStatementWithStack(argStmt, tc, testOnly, callStack, maxDepth))
+			child := expandStatementWithStack(argStmt, tc, testOnly, callStack, maxDepth)
+			if child != nil {
+				child.Parent = parent
+				parent.Children = append(parent.Children, child)
+			}
 		}
 
 		// Find the definition of the function being called
@@ -199,7 +207,11 @@ func expandInnerStatements(parent *ExpandedStatement, node dst.Node, tc *TestCas
 
 	// Recursively expand the function's inner statements using the updated callstack
 	for _, inner := range innerStmts {
-		parent.Children = append(parent.Children, expandStatementWithStack(inner, tc, testOnly, newCallStack, maxDepth))
+		child := expandStatementWithStack(inner, tc, testOnly, newCallStack, maxDepth)
+		if child != nil {
+			child.Parent = parent
+			parent.Children = append(parent.Children, child)
+		}
 	}
 }
 
@@ -400,10 +412,37 @@ func (es *ExpandedStatement) push(yield func(*ExpandedStatement) bool) bool {
 	return true
 }
 
-// Returns the ExpandedStatement corresponding to the given statement by searching within the provided ExpandedStatements.
+// Finds the closest enclosing ExpandedStatement for the given DST node among the provided ExpandedStatement trees.
+// If the node exactly matches a statement inside one of the trees, this returns the corresponding ExpandedStatement.
+// Otherwise, finds the statement's closest ancestor that has a corresponding ExpandedStatement, and returns that
+// ExpandedStatement. Returns nil if none of the node's ancestors corresponds to an ExpandedStatement.
+func FindEnclosingExpandedStmt(node dst.Node, expanded []*ExpandedStatement, tc *TestCase) *ExpandedStatement {
+	if node == nil || tc == nil {
+		return nil
+	}
+
+	// Try to find an exact match for the given node, if it's a statement
+	if stmt, ok := node.(dst.Stmt); ok {
+		if estmt := findExpandedStmt(stmt, expanded); estmt != nil {
+			return estmt
+		}
+	}
+
+	// Return the closest enclosing ExpandedStatement based on the node's ancestors
+	for _, n := range asttools.GetEnclosingNodes(tc.DstStartPos(node), tc.GetPackageFiles()) {
+		if dstStmt, ok := tc.AstToDst(n).(dst.Stmt); ok {
+			if estmt := findExpandedStmt(dstStmt, expanded); estmt != nil {
+				return estmt
+			}
+		}
+	}
+	return nil
+}
+
+// Returns the ExpandedStatement corresponding to the given statement by searching within the provided ExpandedStatement trees.
 // Must be the exact same object (not just equivalent) to be found. Returns nil if not found.
-func findExpandedStmt(stmt dst.Stmt, parsedStmts []*ExpandedStatement) *ExpandedStatement {
-	for _, estmt := range parsedStmts {
+func findExpandedStmt(stmt dst.Stmt, expanded []*ExpandedStatement) *ExpandedStatement {
+	for _, estmt := range expanded {
 		for node := range estmt.All() {
 			if node.Stmt == stmt {
 				return node
@@ -413,104 +452,16 @@ func findExpandedStmt(stmt dst.Stmt, parsedStmts []*ExpandedStatement) *Expanded
 	return nil
 }
 
-//
-// =============== Output Methods ===============
-//
-
-// Return a string representation of an expanded statement, including the stringified versions of its children.
-func (es *ExpandedStatement) String() string {
-	if es == nil {
-		return "ExpandedStatement{Stmt: nil}"
+// Returns the expression inside an ExprStmt, or the original node if it's not an ExprStmt.
+// This is especially useful for removing dummy ExprStmt wrappers created during statement expansion, e.g. when converting ExpandedStatements back to AST nodes.
+func UnwrapExprStmt(node dst.Node) dst.Node {
+	if exprStmt, ok := node.(*dst.ExprStmt); ok {
+		return exprStmt.X
 	}
-	if es.Children == nil {
-		// If there are no children, just return the stringified statement
-		return fmt.Sprintf("ExpandedStatement{Stmt: %v}", asttools.NodeToString(es.Stmt))
-	}
-
-	children := make([]string, len(es.Children))
-	for i, child := range es.Children {
-		children[i] = child.String()
-	}
-	return fmt.Sprintf("ExpandedStatement{Stmt: %v, Children: [%v]}", asttools.NodeToString(es.Stmt), strings.Join(children, ", "))
+	return node
 }
 
-// Helper struct for Marshaling and Unmarshaling JSON
-type expandedStatementJSON struct {
-	Stmt     string               `json:"stmt"`
-	Children []*ExpandedStatement `json:"children,omitempty"`
-}
-
-// Marshal a TestCase for JSON output
-func (es *ExpandedStatement) MarshalJSON() ([]byte, error) {
-	return json.Marshal(expandedStatementJSON{
-		Stmt:     asttools.NodeToString(es.Stmt),
-		Children: es.Children,
-	})
-}
-
-// Unmarshal a TestCase from JSON
-func (es *ExpandedStatement) UnmarshalJSON(data []byte) error {
-	var jsonData expandedStatementJSON
-	if err := json.Unmarshal(data, &jsonData); err != nil {
-		return err
-	}
-
-	var recoveredStmt dst.Stmt
-	expr, err := asttools.StringToNode(jsonData.Stmt)
-	if err != nil {
-		slog.Error("Failed to parse ExpandedStatement from JSON", "err", err)
-	} else {
-		// Only check the type if the string was parsed successfully
-		if stmt, ok := expr.(dst.Stmt); ok {
-			recoveredStmt = stmt
-		} else {
-			slog.Error("Failed to parse ExpandedStatement from JSON because it is not a valid statement", "string", jsonData.Stmt)
-		}
-	}
-
-	*es = ExpandedStatement{
-		Stmt:     recoveredStmt,
-		Children: jsonData.Children,
-	}
-	return nil
-}
-
-// BuildParentMap constructs a mapping of DST nodes to their corresponding parent DST statement/expression based on the given expansion tree.
-// Each `ExpandedStatement.Stmt` is inserted as a key, so nodes without associated ExpandedStatements (e.g. identifiers) are not included
-// as keys. The only exception is ExprStmt nodes, whose inner expressions are inserted as keys that map to the same ExpandedStatement so
-// that the inner expressions can be used without being re-wrapped. Also, if the parent statement is an ExprStmt, its underlying expression
-// is stored as the map value so that the map values always correspond to real nodes in the source AST without being unwrapped.
-func BuildParentMap(expanded *ExpandedStatement) map[dst.Node]dst.Node {
-	parentMap := make(map[dst.Node]dst.Node)
-
-	var build func(curr *ExpandedStatement, parent *ExpandedStatement)
-	build = func(curr *ExpandedStatement, parent *ExpandedStatement) {
-		if curr == nil {
-			return
-		}
-		if parent != nil {
-			// If the parent is an ExprStmt, use its underlying expression as the map value
-			var parentNode dst.Node = parent.Stmt
-			if exprStmt, ok := parent.Stmt.(*dst.ExprStmt); ok {
-				parentNode = exprStmt.X
-			}
-			// Map the node to its parent
-			parentMap[curr.Stmt] = parentNode
-			// Unwrap ExprStmt nodes so the underlying expressions can be used as keys without being re-wrapped
-			if exprStmt, ok := curr.Stmt.(*dst.ExprStmt); ok {
-				parentMap[exprStmt.X] = parentNode
-			}
-		}
-		for _, child := range curr.Children {
-			build(child, curr)
-		}
-	}
-
-	build(expanded, nil)
-	return parentMap
-}
-
-// BuildNodeMap constructs a mapping of DST nodes to their corresponding ExpandedStatement structures based on the given expansion tree.
+// BuildNodeMap uses the given expansion tree to construct a mapping of DST nodes to their corresponding ExpandedStatement structures.
 // Each `ExpandedStatement.Stmt` is inserted as a key, so nodes without associated ExpandedStatements (e.g. identifiers) are not included
 // as keys. The only exception is ExprStmt nodes, whose inner expressions are inserted as keys that map to the same ExpandedStatement so
 // that the inner expressions can be used without being re-wrapped.
@@ -594,4 +545,66 @@ func WalkExpanded(root dst.Node, nodeMap map[dst.Node]*ExpandedStatement, visit 
 		// Default behavior for other nodes - only continue descending if the provided callback returns true
 		return visit(node)
 	})
+}
+
+//
+// =============== Output Methods ===============
+//
+
+// Return a string representation of an expanded statement, including the stringified versions of its children.
+func (es *ExpandedStatement) String() string {
+	if es == nil {
+		return "ExpandedStatement{Stmt: nil}"
+	}
+	if es.Children == nil {
+		// If there are no children, just return the stringified statement
+		return fmt.Sprintf("ExpandedStatement{Stmt: %v}", asttools.NodeToString(es.Stmt))
+	}
+
+	children := make([]string, len(es.Children))
+	for i, child := range es.Children {
+		children[i] = child.String()
+	}
+	return fmt.Sprintf("ExpandedStatement{Stmt: %v, Children: [%v]}", asttools.NodeToString(es.Stmt), strings.Join(children, ", "))
+}
+
+// Helper struct for Marshaling and Unmarshaling JSON
+type expandedStatementJSON struct {
+	Stmt     string               `json:"stmt"`
+	Children []*ExpandedStatement `json:"children,omitempty"`
+}
+
+// Marshal a TestCase for JSON output
+func (es *ExpandedStatement) MarshalJSON() ([]byte, error) {
+	return json.Marshal(expandedStatementJSON{
+		Stmt:     asttools.NodeToString(es.Stmt),
+		Children: es.Children,
+	})
+}
+
+// Unmarshal a TestCase from JSON
+func (es *ExpandedStatement) UnmarshalJSON(data []byte) error {
+	var jsonData expandedStatementJSON
+	if err := json.Unmarshal(data, &jsonData); err != nil {
+		return err
+	}
+
+	var recoveredStmt dst.Stmt
+	expr, err := asttools.StringToNode(jsonData.Stmt)
+	if err != nil {
+		slog.Error("Failed to parse ExpandedStatement from JSON", "err", err)
+	} else {
+		// Only check the type if the string was parsed successfully
+		if stmt, ok := expr.(dst.Stmt); ok {
+			recoveredStmt = stmt
+		} else {
+			slog.Error("Failed to parse ExpandedStatement from JSON because it is not a valid statement", "string", jsonData.Stmt)
+		}
+	}
+
+	*es = ExpandedStatement{
+		Stmt:     recoveredStmt,
+		Children: jsonData.Children,
+	}
+	return nil
 }

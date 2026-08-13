@@ -36,10 +36,12 @@ func AnalyzeConditionals(tc *TestCase, scenarioSet *ScenarioSet, parsedStmts []*
 // ================================================================================================
 
 // IfStmt represents an entire if/else chain detected in a table-driven test.
+// This primarily serves as a container of IfClause elements, which store more detailed information about the individual branches of the if/else chain.
 type IfStmt struct {
 	Content     string      `json:"content"`     // The DST code of the full statement, converted to a string
 	TotalLength int         `json:"totalLength"` // Total number of statements in this if/else chain, including inside nested statements
 	Clauses     []*IfClause `json:"clauses"`     // List of all branches in the statement
+	stmt        *dst.IfStmt `json:"-"`           // Underlying DST node
 }
 
 // Compile-time interface check
@@ -50,6 +52,7 @@ var _ ControlFlowStatement = (*IfStmt)(nil)
 func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) *IfStmt {
 	ifStmt := &IfStmt{
 		Content: asttools.NodeToString(stmt),
+		stmt:    stmt,
 	}
 
 	// Convert nested DST "else" branches into a flat slice of IfClause elements, and analyze the statements within each clause
@@ -95,36 +98,44 @@ func CreateIfStmt(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) *IfStmt {
 		}
 	}
 
-	// Compute calculated fields based on finished clauses
+	// Populate computed fields based on other analysis results
 	ifStmt.TotalLength = TotalLength(ifStmt, cfa.countHelperLength)
 
 	return ifStmt
 }
 
+// GetDstStmt returns the underlying DST statement representing this control flow statement.
+func (ifs *IfStmt) GetDstStmt() dst.Stmt {
+	return ifs.stmt
+}
+
 // GetNestedStmts returns the nested control flow statements within this statement.
+// Note: Even though IfClause implements ControlFlowStatement, this intentionally flattens and aggregates clauses to avoid double-counting metrics during traversal.
 func (ifs *IfStmt) GetNestedStmts() []ControlFlowStatement {
 	var nested []ControlFlowStatement
 	for _, clause := range ifs.Clauses {
-		nested = append(nested, clause.NestedStatements...)
+		nested = append(nested, clause.GetNestedStmts()...)
 	}
 	return nested
 }
 
 // GetFeatureSets returns the metadata feature sets associated with this control flow statement.
+// Note: Even though IfClause implements ControlFlowStatement, this intentionally flattens and aggregates clauses to avoid double-counting metrics during traversal.
 func (ifs *IfStmt) GetFeatureSets() []features.FeatureSet {
 	var featureSets []features.FeatureSet
 	for _, clause := range ifs.Clauses {
-		featureSets = append(featureSets, clause.FeatureSet)
+		featureSets = append(featureSets, clause.GetFeatureSets()...)
 	}
 	return featureSets
 }
 
 // GetLength returns the number of DST statements inside this control flow statement, NOT including nested statements.
+// Note: Even though IfClause implements ControlFlowStatement, this intentionally flattens and aggregates clauses to avoid double-counting metrics during traversal.
 func (ifs *IfStmt) GetLength() int {
 	// Excluding nested statements, the length of an if/else chain is just the sum of the lengths of its clauses
 	length := 0
 	for _, clause := range ifs.Clauses {
-		length += clause.Length
+		length += clause.GetLength()
 	}
 	return length
 }
@@ -135,7 +146,7 @@ func (ifs *IfStmt) GetEnclosingFunction() ast.Node {
 	if len(ifs.Clauses) == 0 {
 		return nil
 	}
-	return ifs.Clauses[0].OuterEnclosingFunc
+	return ifs.Clauses[0].GetEnclosingFunction()
 }
 
 // ================================================================================================
@@ -148,7 +159,12 @@ type IfClause struct {
 	IsTableBased        bool                   `json:"isTableBased"`        // Whether the clause represents table-based conditional logic
 	features.FeatureSet                        // Detected metadata features, embedded because it saves an unnecessary layer of nesting
 	NestedStatements    []ControlFlowStatement `json:"nestedStatements,omitempty"` // Additional control flow statements that are contained within this branch, if any
+
+	stmt dst.Stmt `json:"-"` // Underlying DST node
 }
+
+// Compile-time interface check
+var _ ControlFlowStatement = (*IfClause)(nil)
 
 // Creates an IfClause instance representing a single branch of an if/else chain, and analyzes the clause's inner statements in a depth-first
 // traversal to detect nested control flow statements and metadata features.
@@ -157,6 +173,7 @@ func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFl
 	clause := &IfClause{
 		Type:       clauseType,
 		FeatureSet: features.NewFeatureSet(cfa.tc.GetNodeScope(clauseStmt), enclosingFuncs, !cfa.tc.IsWithinTestFunction(clauseStmt)),
+		stmt:       clauseStmt,
 	}
 
 	// Search for nested statements in the clause, and process extra fields for a "then" or "else if" clause
@@ -183,7 +200,35 @@ func CreateIfClause(clauseStmt dst.Stmt, clauseType IfClauseType, cfa *controlFl
 	// Bubble up detected metadata features from nested control flow statements
 	BubbleUpFeatures(&clause.FeatureSet, clause.NestedStatements)
 
+	// Populate computed fields based on other analysis results
+	clause.TotalLength = TotalLength(clause, cfa.countHelperLength)
+
 	return clause
+}
+
+// GetDstStmt returns the underlying DST statement representing this control flow statement.
+func (c *IfClause) GetDstStmt() dst.Stmt {
+	return c.stmt
+}
+
+// GetNestedStmts returns the nested control flow statements within this statement.
+func (c *IfClause) GetNestedStmts() []ControlFlowStatement {
+	return c.NestedStatements
+}
+
+// GetFeatureSets returns the metadata feature sets associated with this control flow statement.
+func (c *IfClause) GetFeatureSets() []features.FeatureSet {
+	return []features.FeatureSet{c.FeatureSet}
+}
+
+// GetLength returns the number of DST statements inside this control flow statement, NOT including nested statements.
+func (c *IfClause) GetLength() int {
+	return c.Length
+}
+
+// GetEnclosingFunction returns the outermost AST function enclosing this control flow statement.
+func (c *IfClause) GetEnclosingFunction() ast.Node {
+	return c.OuterEnclosingFunc
 }
 
 // IfVarBehavior stores behavior details and source scope for a variable in a condition.

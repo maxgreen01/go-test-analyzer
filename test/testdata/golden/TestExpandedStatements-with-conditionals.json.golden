@@ -16,6 +16,7 @@
             "inHelper": false,
             "isTableBased": false,
             "length": 1,
+            "totalLength": 1,
             "type": "then",
             "variables": [
               {
@@ -58,6 +59,7 @@
             "inHelper": true,
             "isTableBased": false,
             "length": 1,
+            "totalLength": 1,
             "type": "then"
           }
         ],

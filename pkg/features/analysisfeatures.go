@@ -45,15 +45,20 @@ func (af analysisFeature) MarshalJSON() ([]byte, error) {
 
 // FeatureSet groups the standard supplementary analysis features shared by ControlFlowStatement blocks.
 type FeatureSet struct {
-	Length   int  `json:"length"`   // Number of statements directly contained in this block, not including nested statements
-	InHelper bool `json:"inHelper"` // True if the block is physically located in a helper function outside the test function
-
+	// Features themselves
+	Length               int             `json:"length"`               // Number of statements directly contained in this block, not including nested statements
+	TotalLength          int             `json:"totalLength"`          // Total number of statements in this block, including inside nested statements
+	InHelper             bool            `json:"inHelper"`             // True if the block is physically located in a helper function outside the test function
 	Delegated            bool            `json:"delegated"`            // True if the block itself is in a helper function, or if any of its features are delegated to helper functions
 	HasSubtest           analysisFeature `json:"hasSubtest"`           // Whether the block defines subtests using the built-in `t.Run` method or a library-based equivalent
 	HasAssertion         analysisFeature `json:"hasAssertion"`         // Whether the block contains an assertion, detected based on the presence of built-in or library-based test failure functions
 	HasEarlyExit         bool            `json:"hasEarlyExit"`         // Whether the block contains a return statement that exits the block's enclosing function. Doesn't have a delegated flag because a helper function cannot directly exit the caller's function.
 	DoesExternalMutation bool            `json:"doesExternalMutation"` // Whether the block directly mutates any data defined outside its own scope. Doesn't have a delegated flag because it's recalculated for each block independently.
 
+	// Supplementary fields (for complexity calculation)
+	NumSubtests int `json:"-"` // Number of top-level subtests defined directly inside this block
+
+	// Metadata fields
 	// TODO SOON make these unexported once all the remaining methods can be separated from TestCase and brought into this package. Also gonna have to deal with `cfs.GetEnclosingFunction()` once that happens...
 	Scope              *types.Scope   `json:"-"` // The scope corresponding to this block (including any "header" statements), used for finding external mutations
 	BodyBlock          *ast.BlockStmt `json:"-"` // The AST node corresponding to this block

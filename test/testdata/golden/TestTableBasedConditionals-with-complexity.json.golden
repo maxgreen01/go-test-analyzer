@@ -1,7 +1,7 @@
 {
   "ControlFlowStatements": [
     {
-      "content": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}",
+      "content": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\t// ! NOTE: known limitation - not supported\n\tif tests[i].input \u003e 0 { // index-based scenario field access\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}",
       "delegated": false,
       "doesExternalMutation": false,
       "hasAssertion": false,
@@ -9,7 +9,7 @@
       "hasSubtest": false,
       "inHelper": false,
       "indicatesTableDriven": false,
-      "length": 33,
+      "length": 39,
       "loopType": "range structs",
       "nestedStatements": [
         {
@@ -24,6 +24,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -51,6 +52,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -78,6 +80,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -105,6 +108,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -132,6 +136,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -166,6 +171,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -200,6 +206,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -227,6 +234,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -254,6 +262,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -281,6 +290,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -315,6 +325,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -342,6 +353,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -354,7 +366,7 @@
               ]
             }
           ],
-          "content": "if tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n}",
+          "content": "// ! NOTE: known limitation - not supported\nif tests[i].input \u003e 0 { // index-based scenario field access\n}",
           "totalLength": 0
         },
         {
@@ -369,6 +381,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -404,6 +417,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -447,6 +461,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -481,6 +496,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -515,6 +531,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -558,6 +575,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -600,6 +618,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -655,6 +674,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -712,6 +732,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -739,6 +760,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -766,6 +788,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -800,6 +823,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -834,6 +858,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -868,6 +893,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -895,6 +921,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -937,6 +964,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -1017,6 +1045,7 @@
                           "inHelper": false,
                           "isTableBased": false,
                           "length": 0,
+                          "totalLength": 0,
                           "type": "then",
                           "variables": [
                             {
@@ -1061,6 +1090,7 @@
                       "totalLength": 0
                     }
                   ],
+                  "totalLength": 1,
                   "type": "then",
                   "variables": [
                     {
@@ -1099,6 +1129,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -1119,6 +1150,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "else"
             }
           ],
@@ -1137,6 +1169,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -1157,6 +1190,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "else"
             }
           ],
@@ -1175,6 +1209,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "then",
               "variables": [
                 {
@@ -1196,6 +1231,7 @@
               "inHelper": false,
               "isTableBased": false,
               "length": 0,
+              "totalLength": 0,
               "type": "else if",
               "variables": [
                 {
@@ -1217,6 +1253,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "else if",
               "variables": [
                 {
@@ -1238,6 +1275,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "else if",
               "variables": [
                 {
@@ -1258,6 +1296,7 @@
               "inHelper": false,
               "isTableBased": true,
               "length": 0,
+              "totalLength": 0,
               "type": "else"
             }
           ],
@@ -1315,6 +1354,7 @@
                                       "inHelper": false,
                                       "isTableBased": true,
                                       "length": 0,
+                                      "totalLength": 0,
                                       "type": "then",
                                       "variables": [
                                         {
@@ -1331,6 +1371,7 @@
                                   "totalLength": 0
                                 }
                               ],
+                              "totalLength": 1,
                               "type": "then",
                               "variables": [
                                 {
@@ -1347,6 +1388,7 @@
                           "totalLength": 1
                         }
                       ],
+                      "totalLength": 2,
                       "type": "then",
                       "variables": [
                         {
@@ -1374,6 +1416,7 @@
                       "inHelper": false,
                       "isTableBased": false,
                       "length": 0,
+                      "totalLength": 0,
                       "type": "then",
                       "variables": [
                         {
@@ -1390,6 +1433,7 @@
                   "totalLength": 0
                 }
               ],
+              "totalLength": 4,
               "type": "then",
               "variables": [
                 {
@@ -1406,14 +1450,12 @@
           "totalLength": 4
         }
       ],
-      "totalLength": 39
+      "totalLength": 45
     }
   ],
   "ImportedPackages": [
-    "strconv",
     "strings",
-    "testing",
-    "github.com/maxgreen01/go-test-analyzer/test/testdata/sampleproj/testhelper"
+    "testing"
   ],
   "ParsedStatements": [
     {
@@ -1473,7 +1515,7 @@
           "stmt": "localFunc(tc.want)"
         }
       ],
-      "stmt": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}"
+      "stmt": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\t// ! NOTE: known limitation - not supported\n\tif tests[i].input \u003e 0 { // index-based scenario field access\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}"
     }
   ],
   "RefactorResult": {
@@ -1491,7 +1533,7 @@
     "hasFunctionFields": true,
     "isTableDriven": true,
     "nameField": "name",
-    "runner": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}",
+    "runner": "for i, tc := range tests {\n\n\t// ======= isolated table-based conditionals =======\n\n\tif tc.shouldErr { // field direct usage\n\t}\n\tif !tc.shouldErr { // field direct usage (with negation)\n\t}\n\tif tc.check != nil { // field comparison against built-in\n\t}\n\tif tc.errorMsg != \"\" { // field comparison against literal\n\t}\n\tif tc.input == packageConst { // field comparison against package constant\n\t}\n\tif tc.input != testConst { // field comparison against local constant\n\t}\n\tif tc.check() { // field function call\n\t}\n\tif len(tc.name) == 0 { // built-in function with field argument\n\t}\n\tif tc.structData.x \u003e 0 { // field struct member access\n\t}\n\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t}\n\tif i%2 == 0 { // loop index variable usage\n\t}\n\t// ! NOTE: known limitation - not supported\n\tif tests[i].input \u003e 0 { // index-based scenario field access\n\t}\n\n\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t}\n\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t}\n\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t}\n\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t}\n\t// field usage in own initializer, with at least one table-based part\n\tif input, other := tc.input+1, 0; input \u003c other {\n\t}\n\t// regular variable in own initializer, AND with at least one table-based part\n\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t}\n\t// AND/OR with table-based parts, and at least one table-based part\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t}\n\t// variables in own initializer, plus AND/OR with at least one table-based part\n\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t}\n\n\t// ======= non-table-based conditionals =======\n\n\tif testVar == 10 { // regular variable usage alone\n\t}\n\tif testConst == 10 { // constant usage alone\n\t}\n\tif tc.input \u003e testVar { // field comparison against regular variable\n\t}\n\tif localFunc(tc.input) { // user-defined function with field argument\n\t}\n\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t}\n\tif strings.Contains(tc.name, \"x\") { // library function\n\t}\n\t// regular variable only in own initializer\n\tif bad := testVar * 2; bad \u003e tc.input {\n\t}\n\t// AND/OR with only non-table-based parts\n\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t}\n\n\t// use of variables from disallowed sources\n\tfor _, loopVar := range []bool{true, false} {\n\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t}\n\t\t}\n\t}\n\n\t// ======= table-based clause propagation \u0026 nesting =======\n\n\tif testVar == 40 { // not table-based\n\t} else { // not table-based\n\t}\n\n\tif tc.input == 0 { // table-based\n\t} else { // table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t} else if packageConst == 10 { // not table-based\n\t} else if tc.shouldErr { // table-based\n\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t}\n\n\tif testVar == 30 { // not table-based\n\t\tif tc.check != nil { // table-based\n\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\tif testConst \u003c 0 { // not table-based\n\t\t}\n\t}\n}",
     "scenarioStructName": "tests",
     "scenarioType": "struct{name string; input int; want int; shouldErr bool; errorMsg string; check func() bool; anyData any; mapData map[string]int; structData struct{x int}}",
     "scenarios": [
@@ -1502,7 +1544,7 @@
   },
   "TestCase": {
     "filePath": "",
-    "funcDecl": "// TestTableBasedConditionals has multiple table-based conditionals and relevant edge cases inside the runner loop.\nfunc TestTableBasedConditionals(t *testing.T) {\n\ttestVar := 20\n\tconst testConst = 21\n\tlocalFunc := func(_ int) bool { return false }\n\tlocalStruct := struct{ act func(_ int) bool }{act: localFunc}\n\n\ttype testScenario struct {\n\t\tname       string\n\t\tinput      int\n\t\twant       int\n\t\tshouldErr  bool\n\t\terrorMsg   string\n\t\tcheck      func() bool\n\t\tanyData    any\n\t\tmapData    map[string]int\n\t\tstructData struct{ x int }\n\t}\n\ttests := []testScenario{\n\t\t{name: \"case1\", check: func() bool { return false }},\n\t\t{name: \"case2\", check: func() bool { return true }},\n\t}\n\tfor i, tc := range tests {\n\n\t\t// ======= isolated table-based conditionals =======\n\n\t\tif tc.shouldErr { // field direct usage\n\t\t}\n\t\tif !tc.shouldErr { // field direct usage (with negation)\n\t\t}\n\t\tif tc.check != nil { // field comparison against built-in\n\t\t}\n\t\tif tc.errorMsg != \"\" { // field comparison against literal\n\t\t}\n\t\tif tc.input == packageConst { // field comparison against package constant\n\t\t}\n\t\tif tc.input != testConst { // field comparison against local constant\n\t\t}\n\t\tif tc.check() { // field function call\n\t\t}\n\t\tif len(tc.name) == 0 { // built-in function with field argument\n\t\t}\n\t\tif tc.structData.x \u003e 0 { // field struct member access\n\t\t}\n\t\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t\t}\n\t\tif i%2 == 0 { // loop index variable usage\n\t\t}\n\t\tif tests[i].input \u003e 0 { // index-based scenario field access // ! NOTE: known limitation - not supported\n\t\t}\n\n\t\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t\t}\n\t\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t\t}\n\t\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t\t}\n\t\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t\t}\n\t\t// field usage in own initializer, with at least one table-based part\n\t\tif input, other := tc.input+1, 0; input \u003c other {\n\t\t}\n\t\t// regular variable in own initializer, AND with at least one table-based part\n\t\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t\t}\n\t\t// AND/OR with table-based parts, and at least one table-based part\n\t\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t\t}\n\t\t// variables in own initializer, plus AND/OR with at least one table-based part\n\t\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t\t}\n\n\t\t// ======= non-table-based conditionals =======\n\n\t\tif testVar == 10 { // regular variable usage alone\n\t\t}\n\t\tif testConst == 10 { // constant usage alone\n\t\t}\n\t\tif tc.input \u003e testVar { // field comparison against regular variable\n\t\t}\n\t\tif localFunc(tc.input) { // user-defined function with field argument\n\t\t}\n\t\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t\t}\n\t\tif strings.Contains(tc.name, \"x\") { // library function\n\t\t}\n\t\t// regular variable only in own initializer\n\t\tif bad := testVar * 2; bad \u003e tc.input {\n\t\t}\n\t\t// AND/OR with only non-table-based parts\n\t\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t\t}\n\n\t\t// use of variables from disallowed sources\n\t\tfor _, loopVar := range []bool{true, false} {\n\t\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n\t\t// ======= table-based clause propagation \u0026 nesting =======\n\n\t\tif testVar == 40 { // not table-based\n\t\t} else { // not table-based\n\t\t}\n\n\t\tif tc.input == 0 { // table-based\n\t\t} else { // table-based because in a chain below a table-based clause\n\t\t}\n\n\t\tif testVar == 30 { // not table-based\n\t\t} else if packageConst == 10 { // not table-based\n\t\t} else if tc.shouldErr { // table-based\n\t\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t\t}\n\n\t\tif testVar == 30 { // not table-based\n\t\t\tif tc.check != nil { // table-based\n\t\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\tif testConst \u003c 0 { // not table-based\n\t\t\t}\n\t\t}\n\t}\n}",
+    "funcDecl": "// TestTableBasedConditionals has multiple table-based conditionals and relevant edge cases inside its runner loop.\nfunc TestTableBasedConditionals(t *testing.T) {\n\ttestVar := 20\n\tconst testConst = 21\n\tlocalFunc := func(_ int) bool { return false }\n\tlocalStruct := struct{ act func(_ int) bool }{act: localFunc}\n\n\ttype testScenario struct {\n\t\tname       string\n\t\tinput      int\n\t\twant       int\n\t\tshouldErr  bool\n\t\terrorMsg   string\n\t\tcheck      func() bool\n\t\tanyData    any\n\t\tmapData    map[string]int\n\t\tstructData struct{ x int }\n\t}\n\ttests := []testScenario{\n\t\t{name: \"case1\", check: func() bool { return false }},\n\t\t{name: \"case2\", check: func() bool { return true }},\n\t}\n\tfor i, tc := range tests {\n\n\t\t// ======= isolated table-based conditionals =======\n\n\t\tif tc.shouldErr { // field direct usage\n\t\t}\n\t\tif !tc.shouldErr { // field direct usage (with negation)\n\t\t}\n\t\tif tc.check != nil { // field comparison against built-in\n\t\t}\n\t\tif tc.errorMsg != \"\" { // field comparison against literal\n\t\t}\n\t\tif tc.input == packageConst { // field comparison against package constant\n\t\t}\n\t\tif tc.input != testConst { // field comparison against local constant\n\t\t}\n\t\tif tc.check() { // field function call\n\t\t}\n\t\tif len(tc.name) == 0 { // built-in function with field argument\n\t\t}\n\t\tif tc.structData.x \u003e 0 { // field struct member access\n\t\t}\n\t\tif (\u0026tc.input) != \u0026(*(\u0026tc.want)) { // field usage with pointer operations or parentheses\n\t\t}\n\t\tif i%2 == 0 { // loop index variable usage\n\t\t}\n\t\t// ! NOTE: known limitation - not supported\n\t\tif tests[i].input \u003e 0 { // index-based scenario field access\n\t\t}\n\n\t\tif _, ok := tc.anyData.(string); ok { // field type assertion\n\t\t}\n\t\tif val, ok := tc.mapData[\"key\"]; ok \u0026\u0026 val \u003e 0 { // field map access\n\t\t}\n\t\tif testVar == 10 \u0026\u0026 tc.shouldErr { // AND with table-based part\n\t\t}\n\t\tif testVar == 10 || tc.shouldErr { // OR with table-based part\n\t\t}\n\t\t// field usage in own initializer, with at least one table-based part\n\t\tif input, other := tc.input+1, 0; input \u003c other {\n\t\t}\n\t\t// regular variable in own initializer, AND with at least one table-based part\n\t\tif cond := testVar \u003e 0; cond \u0026\u0026 tc.shouldErr {\n\t\t}\n\t\t// AND/OR with table-based parts, and at least one table-based part\n\t\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == 10) {\n\t\t}\n\t\t// variables in own initializer, plus AND/OR with at least one table-based part\n\t\tif one, val := 1, tc.input; one \u003e 0 \u0026\u0026 (testVar == 20 || (tc.shouldErr \u0026\u0026 val \u003c 0)) {\n\t\t}\n\n\t\t// ======= non-table-based conditionals =======\n\n\t\tif testVar == 10 { // regular variable usage alone\n\t\t}\n\t\tif testConst == 10 { // constant usage alone\n\t\t}\n\t\tif tc.input \u003e testVar { // field comparison against regular variable\n\t\t}\n\t\tif localFunc(tc.input) { // user-defined function with field argument\n\t\t}\n\t\tif localStruct.act(tc.input) { // function field call from non-scenario struct\n\t\t}\n\t\tif strings.Contains(tc.name, \"x\") { // library function\n\t\t}\n\t\t// regular variable only in own initializer\n\t\tif bad := testVar * 2; bad \u003e tc.input {\n\t\t}\n\t\t// AND/OR with only non-table-based parts\n\t\tif testVar == 20 \u0026\u0026 ((testConst == 20 \u0026\u0026 localFunc(tc.want)) || tc.input == testVar) {\n\t\t}\n\n\t\t// use of variables from disallowed sources\n\t\tfor _, loopVar := range []bool{true, false} {\n\t\t\tif outerIfVar := !loopVar || true; outerIfVar {\n\t\t\t\tif outerIfVar || loopVar \u0026\u0026 tc.input \u003e testVar || tc.input \u003e packageVar {\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n\t\t// ======= table-based clause propagation \u0026 nesting =======\n\n\t\tif testVar == 40 { // not table-based\n\t\t} else { // not table-based\n\t\t}\n\n\t\tif tc.input == 0 { // table-based\n\t\t} else { // table-based because in a chain below a table-based clause\n\t\t}\n\n\t\tif testVar == 30 { // not table-based\n\t\t} else if packageConst == 10 { // not table-based\n\t\t} else if tc.shouldErr { // table-based\n\t\t} else if testConst \u003c 0 { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t\t} else { // not table-based on its own, but table-based because in a chain below a table-based clause\n\t\t}\n\n\t\tif testVar == 30 { // not table-based\n\t\t\tif tc.check != nil { // table-based\n\t\t\t\tif testConst \u003c 0 { // not table-based, but counted toward the length of its table-based parent\n\t\t\t\t\tif tc.input \u003e 0 { // table-based\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\tif testConst \u003c 0 { // not table-based\n\t\t\t}\n\t\t}\n\t}\n}",
     "importPath": "",
     "name": "TestTableBasedConditionals",
     "package": "sampleproj",

@@ -1,0 +1,616 @@
+{
+  "ControlFlowStatements": [
+    {
+      "content": "for _, tc := range tests {\n\t// Outer subtest should NOT be penalized\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tif tc.input \u003e 0 {\n\t\t\t// Subtest in table-based conditional should be penalized\n\t\t\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t\t\t// Subtest contained within another subtest should not be counted at all\n\t\t\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\t\t\tif tc.want \u003c 0 {\n\t\t\t\t\tfor range tc.want {\n\t\t\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\t\t\trunScenariosSubtest(t, tests)\n\n\t\t\t\tif tc.want \u003e 0 {\n\t\t\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\t\t\tif false {\n\t\t\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\tif true {\n\t\t\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t})\n\t\t\t\t}\n\t\t\t})\n\n\t\t\tif packageVar == 0 {\n\t\t\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\t\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t\t\t}\n\t\t\tfor range -1 {\n\t\t\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\t\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t\t\t})\n\t\t\t}\n\t\t}\n\n\t\tif packageVar \u003c 0 {\n\t\t\t// Subtest in non-table-based conditional should NOT be penalized\n\t\t\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\t\t\tif false {\n\t\t\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t\t\t}\n\t\t\t})\n\t\t}\n\t})\n}",
+      "delegated": false,
+      "doesExternalMutation": false,
+      "hasAssertion": {
+        "delegated": false,
+        "present": true
+      },
+      "hasEarlyExit": false,
+      "hasSubtest": {
+        "delegated": false,
+        "present": true
+      },
+      "inHelper": false,
+      "indicatesTableDriven": true,
+      "length": 3,
+      "loopType": "range structs",
+      "nestedStatements": [
+        {
+          "clauses": [
+            {
+              "condition": "tc.input \u003e 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": {
+                "delegated": false,
+                "present": true
+              },
+              "hasEarlyExit": false,
+              "hasSubtest": {
+                "delegated": false,
+                "present": true
+              },
+              "inHelper": false,
+              "isTableBased": true,
+              "length": 7,
+              "nestedStatements": [
+                {
+                  "clauses": [
+                    {
+                      "condition": "tc.want \u003c 0",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": false,
+                      "hasSubtest": {
+                        "delegated": false,
+                        "present": true
+                      },
+                      "inHelper": false,
+                      "isTableBased": true,
+                      "length": 1,
+                      "nestedStatements": [
+                        {
+                          "content": "for range tc.want {\n\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n}",
+                          "delegated": false,
+                          "doesExternalMutation": false,
+                          "hasAssertion": false,
+                          "hasEarlyExit": false,
+                          "hasSubtest": {
+                            "delegated": false,
+                            "present": true
+                          },
+                          "inHelper": false,
+                          "indicatesTableDriven": true,
+                          "length": 1,
+                          "loopType": "range int",
+                          "totalLength": 1
+                        }
+                      ],
+                      "totalLength": 2,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "tc.want",
+                          "source": "scenario",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if tc.want \u003c 0 {\n\tfor range tc.want {\n\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t}\n}",
+                  "totalLength": 2
+                },
+                {
+                  "content": "for _, tc := range tests {\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tassertScenario(t, tc)\n\t})\n}",
+                  "delegated": false,
+                  "doesExternalMutation": false,
+                  "hasAssertion": {
+                    "delegated": false,
+                    "present": true
+                  },
+                  "hasEarlyExit": false,
+                  "hasSubtest": {
+                    "delegated": false,
+                    "present": true
+                  },
+                  "inHelper": true,
+                  "indicatesTableDriven": true,
+                  "length": 2,
+                  "loopType": "range structs",
+                  "nestedStatements": [
+                    {
+                      "clauses": [
+                        {
+                          "condition": "got := tc.input * 2; got != tc.want",
+                          "delegated": true,
+                          "doesExternalMutation": false,
+                          "hasAssertion": {
+                            "delegated": false,
+                            "present": true
+                          },
+                          "hasEarlyExit": false,
+                          "hasSubtest": false,
+                          "inHelper": true,
+                          "isTableBased": true,
+                          "length": 1,
+                          "totalLength": 1,
+                          "type": "then",
+                          "variables": [
+                            {
+                              "name": "got",
+                              "source": "if scope",
+                              "usages": [
+                                "variable assignment",
+                                "comparison"
+                              ]
+                            },
+                            {
+                              "name": "tc.input",
+                              "source": "scenario",
+                              "usages": [
+                                "computation"
+                              ]
+                            },
+                            {
+                              "name": "tc.want",
+                              "source": "scenario",
+                              "usages": [
+                                "comparison"
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "content": "if got := tc.input * 2; got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}",
+                      "totalLength": 1
+                    }
+                  ],
+                  "totalLength": 2
+                },
+                {
+                  "clauses": [
+                    {
+                      "condition": "tc.want \u003e 0",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": {
+                        "delegated": false,
+                        "present": true
+                      },
+                      "hasEarlyExit": false,
+                      "hasSubtest": {
+                        "delegated": false,
+                        "present": true
+                      },
+                      "inHelper": false,
+                      "isTableBased": true,
+                      "length": 3,
+                      "nestedStatements": [
+                        {
+                          "clauses": [
+                            {
+                              "condition": "false",
+                              "delegated": false,
+                              "doesExternalMutation": false,
+                              "hasAssertion": {
+                                "delegated": false,
+                                "present": true
+                              },
+                              "hasEarlyExit": false,
+                              "hasSubtest": false,
+                              "inHelper": false,
+                              "isTableBased": false,
+                              "length": 1,
+                              "totalLength": 1,
+                              "type": "then"
+                            },
+                            {
+                              "delegated": true,
+                              "doesExternalMutation": false,
+                              "hasAssertion": {
+                                "delegated": true,
+                                "present": true
+                              },
+                              "hasEarlyExit": false,
+                              "hasSubtest": false,
+                              "inHelper": false,
+                              "isTableBased": false,
+                              "length": 1,
+                              "nestedStatements": [
+                                {
+                                  "clauses": [
+                                    {
+                                      "condition": "true",
+                                      "delegated": true,
+                                      "doesExternalMutation": false,
+                                      "hasAssertion": {
+                                        "delegated": true,
+                                        "present": true
+                                      },
+                                      "hasEarlyExit": false,
+                                      "hasSubtest": false,
+                                      "inHelper": false,
+                                      "isTableBased": false,
+                                      "length": 1,
+                                      "nestedStatements": [
+                                        {
+                                          "clauses": [
+                                            {
+                                              "condition": "false",
+                                              "delegated": true,
+                                              "doesExternalMutation": false,
+                                              "hasAssertion": {
+                                                "delegated": false,
+                                                "present": true
+                                              },
+                                              "hasEarlyExit": false,
+                                              "hasSubtest": false,
+                                              "inHelper": true,
+                                              "isTableBased": false,
+                                              "length": 1,
+                                              "totalLength": 1,
+                                              "type": "then"
+                                            }
+                                          ],
+                                          "content": "if false {\n\tt.Fatalf(\"bad helper called\")\n}",
+                                          "totalLength": 1
+                                        }
+                                      ],
+                                      "totalLength": 1,
+                                      "type": "then"
+                                    }
+                                  ],
+                                  "content": "if true {\n\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n}",
+                                  "totalLength": 1
+                                }
+                              ],
+                              "totalLength": 2,
+                              "type": "else"
+                            }
+                          ],
+                          "content": "if false {\n\tt.Errorf(\"Some error\") // assertion depth 3\n} else {\n\tif true {\n\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t}\n}",
+                          "totalLength": 3
+                        }
+                      ],
+                      "totalLength": 6,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "tc.want",
+                          "source": "scenario",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if tc.want \u003e 0 {\n\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\tif false {\n\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t} else {\n\t\t\tif true {\n\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t}\n\t\t}\n\t})\n}",
+                  "totalLength": 6
+                },
+                {
+                  "clauses": [
+                    {
+                      "condition": "packageVar == 0",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": false,
+                      "hasEarlyExit": false,
+                      "hasSubtest": {
+                        "delegated": false,
+                        "present": true
+                      },
+                      "inHelper": false,
+                      "isTableBased": false,
+                      "length": 1,
+                      "totalLength": 1,
+                      "type": "then",
+                      "variables": [
+                        {
+                          "name": "packageVar",
+                          "source": "package var",
+                          "usages": [
+                            "comparison"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": "if packageVar == 0 {\n\t// Subtest in a conditional with a table-based ancestor should be penalized\n\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n}",
+                  "totalLength": 1
+                },
+                {
+                  "content": "for range -1 {\n\t// Subtest in a loop with a table-based ancestor should be penalized\n\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t})\n}",
+                  "delegated": false,
+                  "doesExternalMutation": false,
+                  "hasAssertion": {
+                    "delegated": false,
+                    "present": true
+                  },
+                  "hasEarlyExit": false,
+                  "hasSubtest": {
+                    "delegated": false,
+                    "present": true
+                  },
+                  "inHelper": false,
+                  "indicatesTableDriven": true,
+                  "length": 2,
+                  "loopType": "range int",
+                  "totalLength": 2
+                }
+              ],
+              "totalLength": 18,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "tc.input",
+                  "source": "scenario",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if tc.input \u003e 0 {\n\t// Subtest in table-based conditional should be penalized\n\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t// Subtest contained within another subtest should not be counted at all\n\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\tif tc.want \u003c 0 {\n\t\t\tfor range tc.want {\n\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t}\n\t\t}\n\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\trunScenariosSubtest(t, tests)\n\n\t\tif tc.want \u003e 0 {\n\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\tif false {\n\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t} else {\n\t\t\t\t\tif true {\n\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t})\n\t\t}\n\t})\n\n\tif packageVar == 0 {\n\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t}\n\tfor range -1 {\n\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t})\n\t}\n}",
+          "totalLength": 18
+        },
+        {
+          "clauses": [
+            {
+              "condition": "packageVar \u003c 0",
+              "delegated": false,
+              "doesExternalMutation": false,
+              "hasAssertion": {
+                "delegated": false,
+                "present": true
+              },
+              "hasEarlyExit": false,
+              "hasSubtest": {
+                "delegated": false,
+                "present": true
+              },
+              "inHelper": false,
+              "isTableBased": false,
+              "length": 2,
+              "nestedStatements": [
+                {
+                  "clauses": [
+                    {
+                      "condition": "false",
+                      "delegated": false,
+                      "doesExternalMutation": false,
+                      "hasAssertion": {
+                        "delegated": false,
+                        "present": true
+                      },
+                      "hasEarlyExit": false,
+                      "hasSubtest": false,
+                      "inHelper": false,
+                      "isTableBased": false,
+                      "length": 1,
+                      "totalLength": 1,
+                      "type": "then"
+                    }
+                  ],
+                  "content": "if false {\n\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n}",
+                  "totalLength": 1
+                }
+              ],
+              "totalLength": 3,
+              "type": "then",
+              "variables": [
+                {
+                  "name": "packageVar",
+                  "source": "package var",
+                  "usages": [
+                    "comparison"
+                  ]
+                }
+              ]
+            }
+          ],
+          "content": "if packageVar \u003c 0 {\n\t// Subtest in non-table-based conditional should NOT be penalized\n\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\tif false {\n\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t}\n\t})\n}",
+          "totalLength": 3
+        }
+      ],
+      "totalLength": 24
+    }
+  ],
+  "ImportedPackages": [
+    "strings",
+    "testing"
+  ],
+  "ParsedStatements": [
+    {
+      "stmt": "tests := []scenario{\n\t{name: \"test1\", input: 1, want: 2},\n}"
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "stmt": "func(t *testing.T) {}"
+                                }
+                              ],
+                              "stmt": "// Subtest contained within another subtest should not be counted at all\nt.Run(\"contained in subtest\", func(t *testing.T) {})"
+                            },
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "stmt": "func(t *testing.T) {}"
+                                    }
+                                  ],
+                                  "stmt": "t.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})"
+                                }
+                              ],
+                              "stmt": "if tc.want \u003c 0 {\n\tfor range tc.want {\n\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t}\n}"
+                            },
+                            {
+                              "children": [
+                                {
+                                  "stmt": "t.Helper()"
+                                },
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "stmt": "t.Helper()"
+                                                },
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "stmt": "t.Errorf(\"got %d, want %d\", got, tc.want)"
+                                                    }
+                                                  ],
+                                                  "stmt": "if got := tc.input * 2; got != tc.want {\n\tt.Errorf(\"got %d, want %d\", got, tc.want)\n}"
+                                                }
+                                              ],
+                                              "stmt": "assertScenario(t, tc)"
+                                            }
+                                          ],
+                                          "stmt": "func(t *testing.T) {\n\tassertScenario(t, tc)\n}"
+                                        }
+                                      ],
+                                      "stmt": "t.Run(tc.name, func(t *testing.T) {\n\tassertScenario(t, tc)\n})"
+                                    }
+                                  ],
+                                  "stmt": "for _, tc := range tests {\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tassertScenario(t, tc)\n\t})\n}"
+                                }
+                              ],
+                              "stmt": "// Subtest (inside helper function) contained within another subtest should not be counted at all\nrunScenariosSubtest(t, tests)"
+                            },
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "stmt": "t.Errorf(\"Some error\")"
+                                            },
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "stmt": "t.Fatalf(\"bad helper called\")"
+                                                    }
+                                                  ],
+                                                  "stmt": "if false {\n\tt.Fatalf(\"bad helper called\")\n}"
+                                                }
+                                              ],
+                                              "stmt": "anotherHelper(t)"
+                                            }
+                                          ],
+                                          "stmt": "if false {\n\tt.Errorf(\"Some error\") // assertion depth 3\n} else {\n\tif true {\n\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t}\n}"
+                                        }
+                                      ],
+                                      "stmt": "func(t *testing.T) {\n\tif false {\n\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t} else {\n\t\tif true {\n\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t}\n\t}\n}"
+                                    }
+                                  ],
+                                  "stmt": "t.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\tif false {\n\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t} else {\n\t\tif true {\n\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t}\n\t}\n})"
+                                }
+                              ],
+                              "stmt": "if tc.want \u003e 0 {\n\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\tif false {\n\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t} else {\n\t\t\tif true {\n\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t}\n\t\t}\n\t})\n}"
+                            }
+                          ],
+                          "stmt": "func(t *testing.T) {\n\t// Subtest contained within another subtest should not be counted at all\n\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\tif tc.want \u003c 0 {\n\t\tfor range tc.want {\n\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t}\n\t}\n\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\trunScenariosSubtest(t, tests)\n\n\tif tc.want \u003e 0 {\n\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\tif false {\n\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t} else {\n\t\t\t\tif true {\n\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t}\n\t\t\t}\n\t\t})\n\t}\n}"
+                        }
+                      ],
+                      "stmt": "t.Run(\"outer table-based\", func(t *testing.T) {\n\t// Subtest contained within another subtest should not be counted at all\n\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\tif tc.want \u003c 0 {\n\t\tfor range tc.want {\n\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t}\n\t}\n\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\trunScenariosSubtest(t, tests)\n\n\tif tc.want \u003e 0 {\n\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\tif false {\n\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t} else {\n\t\t\t\tif true {\n\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t}\n\t\t\t}\n\t\t})\n\t}\n})"
+                    },
+                    {
+                      "children": [
+                        {
+                          "stmt": "func(t *testing.T) {}"
+                        }
+                      ],
+                      "stmt": "t.Run(\"conditional table-based ancestor\", func(t *testing.T) {})"
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "stmt": "t.Errorf(\"Another error\") // assertion depth 1"
+                            }
+                          ],
+                          "stmt": "func(t *testing.T) {\n\tt.Errorf(\"Another error\") // assertion depth 1\n}"
+                        }
+                      ],
+                      "stmt": "t.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\tt.Errorf(\"Another error\") // assertion depth 1\n})"
+                    }
+                  ],
+                  "stmt": "if tc.input \u003e 0 {\n\t// Subtest in table-based conditional should be penalized\n\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t// Subtest contained within another subtest should not be counted at all\n\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\tif tc.want \u003c 0 {\n\t\t\tfor range tc.want {\n\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t}\n\t\t}\n\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\trunScenariosSubtest(t, tests)\n\n\t\tif tc.want \u003e 0 {\n\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\tif false {\n\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t} else {\n\t\t\t\t\tif true {\n\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t})\n\t\t}\n\t})\n\n\tif packageVar == 0 {\n\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t}\n\tfor range -1 {\n\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t})\n\t}\n}"
+                },
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "stmt": "t.Errorf(\"Yet another error: %d\", tc.want)"
+                                }
+                              ],
+                              "stmt": "if false {\n\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n}"
+                            }
+                          ],
+                          "stmt": "func(t *testing.T) {\n\tif false {\n\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t}\n}"
+                        }
+                      ],
+                      "stmt": "t.Run(\"non-table-based\", func(t *testing.T) {\n\tif false {\n\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t}\n})"
+                    }
+                  ],
+                  "stmt": "if packageVar \u003c 0 {\n\t// Subtest in non-table-based conditional should NOT be penalized\n\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\tif false {\n\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t}\n\t})\n}"
+                }
+              ],
+              "stmt": "func(t *testing.T) {\n\tif tc.input \u003e 0 {\n\t\t// Subtest in table-based conditional should be penalized\n\t\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t\t// Subtest contained within another subtest should not be counted at all\n\t\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\t\tif tc.want \u003c 0 {\n\t\t\t\tfor range tc.want {\n\t\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t\t}\n\t\t\t}\n\t\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\t\trunScenariosSubtest(t, tests)\n\n\t\t\tif tc.want \u003e 0 {\n\t\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\t\tif false {\n\t\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t\t} else {\n\t\t\t\t\t\tif true {\n\t\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t})\n\t\t\t}\n\t\t})\n\n\t\tif packageVar == 0 {\n\t\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t\t}\n\t\tfor range -1 {\n\t\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t\t})\n\t\t}\n\t}\n\n\tif packageVar \u003c 0 {\n\t\t// Subtest in non-table-based conditional should NOT be penalized\n\t\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\t\tif false {\n\t\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t\t}\n\t\t})\n\t}\n}"
+            }
+          ],
+          "stmt": "t.Run(tc.name, func(t *testing.T) {\n\tif tc.input \u003e 0 {\n\t\t// Subtest in table-based conditional should be penalized\n\t\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t\t// Subtest contained within another subtest should not be counted at all\n\t\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\t\tif tc.want \u003c 0 {\n\t\t\t\tfor range tc.want {\n\t\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t\t}\n\t\t\t}\n\t\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\t\trunScenariosSubtest(t, tests)\n\n\t\t\tif tc.want \u003e 0 {\n\t\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\t\tif false {\n\t\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t\t} else {\n\t\t\t\t\t\tif true {\n\t\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t})\n\t\t\t}\n\t\t})\n\n\t\tif packageVar == 0 {\n\t\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t\t}\n\t\tfor range -1 {\n\t\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t\t})\n\t\t}\n\t}\n\n\tif packageVar \u003c 0 {\n\t\t// Subtest in non-table-based conditional should NOT be penalized\n\t\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\t\tif false {\n\t\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t\t}\n\t\t})\n\t}\n})"
+        }
+      ],
+      "stmt": "for _, tc := range tests {\n\t// Outer subtest should NOT be penalized\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tif tc.input \u003e 0 {\n\t\t\t// Subtest in table-based conditional should be penalized\n\t\t\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t\t\t// Subtest contained within another subtest should not be counted at all\n\t\t\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\t\t\tif tc.want \u003c 0 {\n\t\t\t\t\tfor range tc.want {\n\t\t\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\t\t\trunScenariosSubtest(t, tests)\n\n\t\t\t\tif tc.want \u003e 0 {\n\t\t\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\t\t\tif false {\n\t\t\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\tif true {\n\t\t\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t})\n\t\t\t\t}\n\t\t\t})\n\n\t\t\tif packageVar == 0 {\n\t\t\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\t\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t\t\t}\n\t\t\tfor range -1 {\n\t\t\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\t\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t\t\t})\n\t\t\t}\n\t\t}\n\n\t\tif packageVar \u003c 0 {\n\t\t\t// Subtest in non-table-based conditional should NOT be penalized\n\t\t\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\t\t\tif false {\n\t\t\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t\t\t}\n\t\t\t})\n\t\t}\n\t})\n}"
+    }
+  ],
+  "RefactorResult": {
+    "originalTestResult": "notRun",
+    "refactoredTestResult": "notRun",
+    "refactorings": null,
+    "status": "none",
+    "strategy": "none"
+  },
+  "ScenarioSet": {
+    "dataStructure": "struct list",
+    "expectedFields": [
+      "want"
+    ],
+    "hasFunctionFields": false,
+    "isTableDriven": true,
+    "nameField": "name",
+    "runner": "for _, tc := range tests {\n\t// Outer subtest should NOT be penalized\n\tt.Run(tc.name, func(t *testing.T) {\n\t\tif tc.input \u003e 0 {\n\t\t\t// Subtest in table-based conditional should be penalized\n\t\t\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t\t\t// Subtest contained within another subtest should not be counted at all\n\t\t\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\t\t\tif tc.want \u003c 0 {\n\t\t\t\t\tfor range tc.want {\n\t\t\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\t\t\trunScenariosSubtest(t, tests)\n\n\t\t\t\tif tc.want \u003e 0 {\n\t\t\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\t\t\tif false {\n\t\t\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\tif true {\n\t\t\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t})\n\t\t\t\t}\n\t\t\t})\n\n\t\t\tif packageVar == 0 {\n\t\t\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\t\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t\t\t}\n\t\t\tfor range -1 {\n\t\t\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\t\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t\t\t})\n\t\t\t}\n\t\t}\n\n\t\tif packageVar \u003c 0 {\n\t\t\t// Subtest in non-table-based conditional should NOT be penalized\n\t\t\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\t\t\tif false {\n\t\t\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t\t\t}\n\t\t\t})\n\t\t}\n\t})\n}",
+    "scenarioStructName": "tests",
+    "scenarioType": "struct{name string; input int; want int}",
+    "scenarios": [
+      "{name: \"test1\", input: 1, want: 2},"
+    ],
+    "usesSubtest": true
+  },
+  "TestCase": {
+    "filePath": "",
+    "funcDecl": "// TestConditionalLogic includes instances of complex logic inside table-based conditionals.\nfunc TestConditionalLogic(t *testing.T) {\n\ttests := []scenario{\n\t\t{name: \"test1\", input: 1, want: 2},\n\t}\n\tfor _, tc := range tests {\n\t\t// Outer subtest should NOT be penalized\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tif tc.input \u003e 0 {\n\t\t\t\t// Subtest in table-based conditional should be penalized\n\t\t\t\tt.Run(\"outer table-based\", func(t *testing.T) {\n\t\t\t\t\t// Subtest contained within another subtest should not be counted at all\n\t\t\t\t\tt.Run(\"contained in subtest\", func(t *testing.T) {})\n\t\t\t\t\tif tc.want \u003c 0 {\n\t\t\t\t\t\tfor range tc.want {\n\t\t\t\t\t\t\t// Subtest contained within another subtest should not be counted at all, even if it's inside multiple nested control flow statements\n\t\t\t\t\t\t\tt.Run(\"contained in subtest in nested conditional\", func(t *testing.T) {})\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\t// Subtest (inside helper function) contained within another subtest should not be counted at all\n\t\t\t\t\trunScenariosSubtest(t, tests)\n\n\t\t\t\t\tif tc.want \u003e 0 {\n\t\t\t\t\t\t// Subtest in table-based conditional, which is contained within another subtest, should be counted toward its parent but not penalized\n\t\t\t\t\t\tt.Run(\"inner table-based contained in subtest\", func(t *testing.T) {\n\t\t\t\t\t\t\tif false {\n\t\t\t\t\t\t\t\tt.Errorf(\"Some error\") // assertion depth 3\n\t\t\t\t\t\t\t} else {\n\t\t\t\t\t\t\t\tif true {\n\t\t\t\t\t\t\t\t\tanotherHelper(t) // delegated assertions don't count toward assertion depth\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t})\n\t\t\t\t\t}\n\t\t\t\t})\n\n\t\t\t\tif packageVar == 0 {\n\t\t\t\t\t// Subtest in a conditional with a table-based ancestor should be penalized\n\t\t\t\t\tt.Run(\"conditional table-based ancestor\", func(t *testing.T) {})\n\t\t\t\t}\n\t\t\t\tfor range -1 {\n\t\t\t\t\t// Subtest in a loop with a table-based ancestor should be penalized\n\t\t\t\t\tt.Run(\"loop table-based ancestor\", func(t *testing.T) {\n\t\t\t\t\t\tt.Errorf(\"Another error\") // assertion depth 1\n\t\t\t\t\t})\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tif packageVar \u003c 0 {\n\t\t\t\t// Subtest in non-table-based conditional should NOT be penalized\n\t\t\t\tt.Run(\"non-table-based\", func(t *testing.T) {\n\t\t\t\t\tif false {\n\t\t\t\t\t\tt.Errorf(\"Yet another error: %d\", tc.want) // assertion depth 2\n\t\t\t\t\t}\n\t\t\t\t})\n\t\t\t}\n\t\t})\n\t}\n}",
+    "importPath": "",
+    "name": "TestConditionalLogic",
+    "package": "sampleproj",
+    "project": ""
+  }
+}
