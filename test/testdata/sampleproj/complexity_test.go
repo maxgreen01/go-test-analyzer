@@ -54,7 +54,6 @@ func TestTableBasedConditionals(t *testing.T) {
 		}
 		if i%2 == 0 { // loop index variable usage
 		}
-		// ! NOTE: known limitation - not supported
 		if tests[i].input > 0 { // index-based scenario field access
 		}
 

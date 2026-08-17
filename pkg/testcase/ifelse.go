@@ -244,7 +244,7 @@ func analyzeCondition(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) ([]*IfVarBehav
 	var behaviors []*IfVarBehavior
 
 	// Analyze the initializer statement to detect its variables (both RHS and LHS), even though the RHS is the only part that should influence the table-based status
-	initBehaviors, initTableBased := analyzeConditionPart(stmt.Init, cfa, cfa.tc.GetNodeScope(stmt), nil)
+	initBehaviors, initTableBased := analyzeConditionPart(stmt.Init, cfa, stmt, nil)
 	behaviors = append(behaviors, initBehaviors...)
 
 	// Do a second fine-grained pass to track of the table-based status of each assigned variable
@@ -255,7 +255,7 @@ func analyzeCondition(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) ([]*IfVarBehav
 		if len(init.Lhs) == len(init.Rhs) {
 			// According to the Go spec, each RHS must be single-valued, so each corresponding LHS is independent -- check table-based status for each RHS individually
 			for i, rhs := range init.Rhs {
-				_, rhsTableBased := analyzeConditionPart(rhs, cfa, cfa.tc.GetNodeScope(stmt), nil)
+				_, rhsTableBased := analyzeConditionPart(rhs, cfa, stmt, nil)
 				initVarStatuses[asttools.NodeToString(init.Lhs[i])] = rhsTableBased
 			}
 		} else {
@@ -269,7 +269,7 @@ func analyzeCondition(stmt *dst.IfStmt, cfa *controlFlowAnalyzer) ([]*IfVarBehav
 	// Split the condition by logical operators for the table-based check, but analyze all of them and merge their results
 	isTableBased := false
 	for _, part := range splitByLogicalOp(stmt.Cond) {
-		partBehaviors, partTableBased := analyzeConditionPart(part, cfa, cfa.tc.GetNodeScope(stmt), initVarStatuses)
+		partBehaviors, partTableBased := analyzeConditionPart(part, cfa, stmt, initVarStatuses)
 		// Merge results from this part into the overall results
 		behaviors = mergeVarBehaviors(behaviors, partBehaviors...)
 		isTableBased = isTableBased || partTableBased == tableBasedStatusTableBased // The condition is table-based if ANY of its parts are table-based
@@ -290,7 +290,7 @@ const (
 // Analyzes a single part of an if clause's condition to extract any variables that are used and classify their behavior.
 // Also returns the table-based status of this condition part based on the variables it involves. `initVarStatuses` stores the table-based
 // statuses of any variables on the LHS of the if clause's `Init` statement, or is `nil` if the `Init` statement itself is being analyzed.
-func analyzeConditionPart(conditionPart dst.Node, cfa *controlFlowAnalyzer, ifScope *types.Scope, initVarStatuses map[string]tableBasedStatus) ([]*IfVarBehavior, tableBasedStatus) {
+func analyzeConditionPart(conditionPart dst.Node, cfa *controlFlowAnalyzer, ifStmt *dst.IfStmt, initVarStatuses map[string]tableBasedStatus) ([]*IfVarBehavior, tableBasedStatus) {
 	var behaviors []*IfVarBehavior
 	hasTableVar := false
 	hasNonTableBasedVar := false
@@ -303,11 +303,11 @@ func analyzeConditionPart(conditionPart dst.Node, cfa *controlFlowAnalyzer, ifSc
 		// The conditional can't be table-based if it involves any function calls other than built-in functions or scenario fields
 		if call, ok := node.(*dst.CallExpr); ok {
 			isAllowedFunc := false
-			if rootIdent := asttools.GetRootIdent(call.Fun); rootIdent != nil {
+			if cfa.scenarioSet != nil && cfa.scenarioSet.IsScenarioField(call.Fun) {
+				isAllowedFunc = true
+			} else if rootIdent := asttools.GetRootIdent(call.Fun, nil); rootIdent != nil {
 				if obj := cfa.tc.ObjectOf(rootIdent); obj != nil {
 					if _, ok := obj.(*types.Builtin); ok {
-						isAllowedFunc = true
-					} else if types.Identical(asttools.Unpointer(obj.Type()), asttools.Unpointer(cfa.scenarioType)) {
 						isAllowedFunc = true
 					}
 				}
@@ -318,12 +318,12 @@ func analyzeConditionPart(conditionPart dst.Node, cfa *controlFlowAnalyzer, ifSc
 		}
 
 		// Search for variables in the condition
-		var ident *dst.Ident
+		var targetIdent *dst.Ident
 		switch x := node.(type) {
 		case *dst.Ident:
-			ident = x
+			targetIdent = x
 		case *dst.SelectorExpr:
-			ident = x.Sel
+			targetIdent = x.Sel
 		default:
 			return true
 		}
@@ -331,8 +331,9 @@ func analyzeConditionPart(conditionPart dst.Node, cfa *controlFlowAnalyzer, ifSc
 		// Only analyze variables, parameters, results, struct fields, or constants (filtering out builtins)
 		var target dst.Expr
 		isTargetConst := false
-		if obj := cfa.tc.ObjectOf(ident); obj != nil && obj.Pkg() != nil {
-			switch typ := obj.(type) {
+		targetObj := cfa.tc.ObjectOf(targetIdent)
+		if targetObj != nil && targetObj.Pkg() != nil {
+			switch typ := targetObj.(type) {
 			case *types.Var, *types.Const:
 				if _, ok := typ.(*types.Const); ok {
 					isTargetConst = true
@@ -343,13 +344,13 @@ func analyzeConditionPart(conditionPart dst.Node, cfa *controlFlowAnalyzer, ifSc
 		if target == nil {
 			return true // No applicable variable to analyze, so move on
 		}
-		if targetIdent, ok := target.(*dst.Ident); ok && targetIdent.Name == "_" {
+		if ident, ok := target.(*dst.Ident); ok && ident.Name == "_" {
 			return true // Ignore blank identifier
 		}
 
 		// Create a new variable behavior struct for this variable
 		name := asttools.NodeToString(target)
-		source := classifyVarSource(target, cfa.tc, cfa.scenarioType, ifScope, cfa.loopScope)
+		source := classifyVarSource(target, cfa.tc, ifStmt, cfa.scenarioSet)
 		behavior := &IfVarBehavior{Name: name, Source: source}
 
 		// Classify the way this specific variable instance is used in either the `Init` or `Cond` of the if statement
@@ -387,8 +388,9 @@ func analyzeConditionPart(conditionPart dst.Node, cfa *controlFlowAnalyzer, ifSc
 		case IfVarSourcePackageConst:
 			// Allowed unconditionally, no effect on table-based status
 		case IfVarSourceLoopScope:
-			// Runner loop index is a special case that is allowed
-			if cfa.runnerLoopIndex != "" && name == cfa.runnerLoopIndex {
+			// The variables defined in the runner loop are special cases that are allowed and can be considered table-based
+			// (even if they don't necessarily represent scenario fields)
+			if cfa.scenarioSet != nil && targetObj != nil && (targetObj == cfa.scenarioSet.runnerIndexVar || targetObj == cfa.scenarioSet.runnerValueVar) {
 				hasTableVar = true
 			} else {
 				// Allowed if constant, disallowed otherwise
@@ -455,26 +457,21 @@ func mergeVarBehaviors(existingBehaviors []*IfVarBehavior, newBehaviors ...*IfVa
 }
 
 // Determines the scope where a given variable was defined.
-func classifyVarSource(expr dst.Expr, tc *TestCase, scenarioType types.Type, ifScope *types.Scope, loopScope *types.Scope) IfVarSource {
+func classifyVarSource(expr dst.Expr, tc *TestCase, ifStmt *dst.IfStmt, scenarioSet *ScenarioSet) IfVarSource {
 	if expr == nil || tc == nil {
 		return IfVarSourceUnknown
 	}
 
-	// todo cleanup - could maybe return the root expression as the variable behavior struct's `name` field
-	// Completely unwrap the expression of to get the "base" identifier, which might be the scenario object itself
-	rootIdent := asttools.GetRootIdent(expr)
-	if rootIdent == nil {
-		return IfVarSourceUnknown
+	// Check if this expression represents the scenario or one of its fields
+	if scenarioSet.IsScenarioField(expr) {
+		return IfVarSourceScenario
 	}
 
-	// The original expression is a (possibly nested) scenario field if the root identifier of the expression matches the scenario type
-	// FIXME by checking the root ident, we enable detecting nested field accesses, but lose the ability to detect `tests[i]`
-	if typ := tc.TypeOf(rootIdent); typ != nil {
-		// todo CLEANUP we could maybe be more accurate here by checking the struct's field names against a non-root selector expression,
-		//   but this would be harder for nested fields
-		if types.Identical(asttools.Unpointer(typ), asttools.Unpointer(scenarioType)) {
-			return IfVarSourceScenario
-		}
+	// todo cleanup - could maybe return the root expression as the variable behavior struct's `name` field to strip operators
+	// Completely unwrap the expression of to get the "base" identifier, which might be the scenario object itself
+	rootIdent := asttools.GetRootIdent(expr, nil)
+	if rootIdent == nil {
+		return IfVarSourceUnknown
 	}
 
 	// Find the definition of the variable
@@ -483,16 +480,30 @@ func classifyVarSource(expr dst.Expr, tc *TestCase, scenarioType types.Type, ifS
 		return IfVarSourceUnknown
 	}
 
+	ifScope := tc.GetNodeScope(ifStmt)
 	if ifScope != nil && obj.Parent() == ifScope {
 		return IfVarSourceIfScope
 	}
 
-	if loopScope != nil && asttools.IsScopeAncestor(loopScope, obj.Parent()) {
-		return IfVarSourceLoopScope
+	if scenarioSet != nil {
+		runnerLoopScope := tc.GetNodeScope(scenarioSet.Runner)
+		if runnerLoopScope != nil && asttools.IsScopeAncestor(runnerLoopScope, obj.Parent()) {
+			return IfVarSourceLoopScope
+		}
 	}
 
-	funcScope := tc.GetFunctionScope()
-	if funcScope != nil && asttools.IsScopeAncestor(funcScope, obj.Parent()) {
+	// Use the definition's enclosing functions, not those of the original if statement
+	objEnclosingFuncs, _ := asttools.GetEnclosingFunctions(obj.Pos(), tc.GetPackageFiles())
+	if len(objEnclosingFuncs) > 0 {
+		innerEnclosingObjFunc := objEnclosingFuncs[0]
+		// If the definition's closest enclosing function is the original test function, it's test scope instead of helper scope
+		if innerEnclosingObjFunc != tc.DstToAst(tc.funcDecl) {
+			return IfVarSourceHelperFunc
+		}
+	}
+
+	testFuncScope := tc.GetFunctionScope()
+	if testFuncScope != nil && asttools.IsScopeAncestor(testFuncScope, obj.Parent()) {
 		return IfVarSourceTestScope
 	}
 
@@ -661,9 +672,10 @@ const (
 	IfVarSourceScenario                 // Part of the table-driven scenario object,   e.g. `tt.field` or `tt` itself
 	IfVarSourceIfScope                  // Defined within the initialization statement of the if/else clause being analyzed,   e.g. in `if val := helper(); val > 0`
 	IfVarSourceLoopScope                // Defined within the surrounding table-driven runner loop body
+	IfVarSourceHelperFunc               // Defined within a helper function or local closure
 	IfVarSourceTestScope                // Defined within the surrounding test function
-	IfVarSourcePackageConst             // Defined as a global CONSTANT in this package, imported from another package, or defined in a helper function
-	IfVarSourcePackageVar               // Defined as a global VARIABLE in this package, imported from another package, or defined in a helper function
+	IfVarSourcePackageConst             // Defined as a global CONSTANT in this package or imported from another package
+	IfVarSourcePackageVar               // Defined as a global VARIABLE in this package or imported from another package
 )
 
 func (vs IfVarSource) String() string {
@@ -676,6 +688,8 @@ func (vs IfVarSource) String() string {
 		return "loop scope"
 	case IfVarSourceTestScope:
 		return "test scope"
+	case IfVarSourceHelperFunc:
+		return "helper function"
 	case IfVarSourcePackageConst:
 		return "package const"
 	case IfVarSourcePackageVar:
@@ -703,6 +717,8 @@ func (vs *IfVarSource) UnmarshalJSON(data []byte) error {
 		*vs = IfVarSourceLoopScope
 	case "test scope":
 		*vs = IfVarSourceTestScope
+	case "helper function":
+		*vs = IfVarSourceHelperFunc
 	case "package const":
 		*vs = IfVarSourcePackageConst
 	case "package var":

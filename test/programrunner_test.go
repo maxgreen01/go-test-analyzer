@@ -36,7 +36,7 @@ func runAnalyzer(t *testing.T, opts parsercommands.AnalyzeOptions) *analyzerResu
 
 	// Create a temp dir to keep each run's source files and outputs isolated
 	runDir := t.TempDir()
-	projectDir := filepath.Join(runDir, "project")
+	projectDir := filepath.Join(runDir, samplePackage)
 	outputDir := filepath.Join(runDir, "output")
 
 	srcProjDir, err := filepath.Abs(originalProjectPath)

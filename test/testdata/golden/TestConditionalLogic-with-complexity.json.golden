@@ -117,7 +117,7 @@
                           "hasEarlyExit": false,
                           "hasSubtest": false,
                           "inHelper": true,
-                          "isTableBased": true,
+                          "isTableBased": false,
                           "length": 1,
                           "totalLength": 1,
                           "type": "then",
@@ -132,14 +132,14 @@
                             },
                             {
                               "name": "tc.input",
-                              "source": "scenario",
+                              "source": "helper function",
                               "usages": [
                                 "computation"
                               ]
                             },
                             {
                               "name": "tc.want",
-                              "source": "scenario",
+                              "source": "helper function",
                               "usages": [
                                 "comparison"
                               ]

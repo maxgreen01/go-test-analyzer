@@ -388,14 +388,17 @@ func GetParamNameByType(funcDecl *dst.FuncDecl, paramTypes ...dst.Expr) (string,
 }
 
 // Helper to extract the "base" identifier for the variable in an expression.
-// This may return identifiers corresponding to package names. Returns nil if
-// the expression does not start with an identifier.
+// This may return identifiers corresponding to package names. Returns nil if the expression does not start with an identifier.
+// Calls the (optional) provided callback function before each step of the traversal, using the current expression as an argument.
 // E.g. returns `x` for `*(x[0]).y`, and `f` for `f(x)[0].y`.
-func GetRootIdent(expr dst.Expr) *dst.Ident {
+func GetRootIdent(expr dst.Expr, callback func(dst.Expr)) *dst.Ident {
 	if expr == nil {
 		return nil
 	}
 	for {
+		if callback != nil {
+			callback(expr)
+		}
 		switch x := expr.(type) {
 		case *dst.Ident:
 			return x

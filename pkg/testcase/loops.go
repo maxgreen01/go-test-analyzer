@@ -303,7 +303,7 @@ func isExternalMutation(expr dst.Expr, tc *TestCase, loopScope *types.Scope) boo
 	}
 
 	// Find the "base" variable being modified
-	ident := asttools.GetRootIdent(expr)
+	ident := asttools.GetRootIdent(expr, nil)
 	if ident == nil || ident.Name == "_" {
 		return false // Not enough information
 	}

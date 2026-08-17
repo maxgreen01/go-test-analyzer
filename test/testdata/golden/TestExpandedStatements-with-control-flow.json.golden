@@ -46,14 +46,14 @@
                 },
                 {
                   "name": "tc.input",
-                  "source": "scenario",
+                  "source": "helper function",
                   "usages": [
                     "function argument"
                   ]
                 },
                 {
                   "name": "tc.want",
-                  "source": "scenario",
+                  "source": "helper function",
                   "usages": [
                     "comparison"
                   ]

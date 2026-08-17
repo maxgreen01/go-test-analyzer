@@ -177,6 +177,8 @@ func (ss *ScenarioSet) checkForRunnerLoop(loop dst.Stmt, allowSecondaryDS bool) 
 	ss.ScenarioType = ds.scenarioType
 	ss.ScenarioStructName = ds.structName
 	ss.NameField = ds.nameField
+	ss.runnerIndexVar = ds.runnerIndexVar
+	ss.runnerValueVar = ds.runnerValueVar
 
 	// Before moving to other statements, check if the scenarios are defined directly in the range statement we just found
 	if rangeStmt, ok := loop.(*dst.RangeStmt); ok {
@@ -190,10 +192,12 @@ func (ss *ScenarioSet) checkForRunnerLoop(loop dst.Stmt, allowSecondaryDS bool) 
 // detectedDS is an intermediate representation of a detected scenario data structure found by one of the `detect...` methods.
 // The data stored in these structs could be transferred to the ScenarioSet fields if additional criteria are met.
 type detectedDS struct {
-	dataStructure ScenarioDataStructure
-	scenarioType  types.Type
-	structName    string
-	nameField     string
+	dataStructure  ScenarioDataStructure
+	scenarioType   types.Type
+	structName     string
+	nameField      string
+	runnerIndexVar *types.Var
+	runnerValueVar   *types.Var
 }
 
 // Checks if the provided expression represents a data structure used to store scenarios in a
@@ -351,7 +355,7 @@ func isAssigned(target dst.Expr, body []dst.Stmt) bool {
 // If `allowSecondaryDS` is true, then secondary data structures are also considered valid.
 // Returns nil if no valid scenario data structure is found.
 func (ss *ScenarioSet) detectLoopScenarioDS(stmt dst.Stmt, allowSecondaryDS bool) *detectedDS {
-	var indexVarName string
+	var indexVar *dst.Ident
 	var possibleLenExprs []dst.Expr
 	var body *dst.BlockStmt
 
@@ -361,6 +365,8 @@ func (ss *ScenarioSet) detectLoopScenarioDS(stmt dst.Stmt, allowSecondaryDS bool
 	case *dst.RangeStmt:
 		// Easy case: check for range directly over a valid scenario data structure, e.g. `for _, s := range scenarios`
 		if ds := ss.detectScenarioDataStructure(loop.X, allowSecondaryDS); ds != nil {
+			ds.runnerIndexVar = ss.lookupVar(loop.Key)
+			ds.runnerValueVar = ss.lookupVar(loop.Value)
 			return ds
 		}
 
@@ -368,7 +374,7 @@ func (ss *ScenarioSet) detectLoopScenarioDS(stmt dst.Stmt, allowSecondaryDS bool
 		// The index variable can technically be defined outside the loop, but that case is intentionally ignored to limit false detections.
 		if loop.Key != nil {
 			if keyIdent, ok := loop.Key.(*dst.Ident); ok {
-				indexVarName = keyIdent.Name
+				indexVar = keyIdent
 			}
 		}
 		possibleLenExprs = []dst.Expr{loop.X}
@@ -377,7 +383,7 @@ func (ss *ScenarioSet) detectLoopScenarioDS(stmt dst.Stmt, allowSecondaryDS bool
 	case *dst.ForStmt:
 		// Try using the inferred loop index variable to find a scenario data structure in the loop body, e.g. in `for i := 0; i < len(scenarios); i++`.
 		if indexIdent := GetForStmtIndexIdent(loop); indexIdent != nil {
-			indexVarName = indexIdent.Name
+			indexVar = indexIdent
 		}
 		if cond, ok := loop.Cond.(*dst.BinaryExpr); ok {
 			possibleLenExprs = []dst.Expr{cond.Y, cond.X}
@@ -386,29 +392,53 @@ func (ss *ScenarioSet) detectLoopScenarioDS(stmt dst.Stmt, allowSecondaryDS bool
 	}
 
 	// Preconditions for index-based detection
-	if indexVarName == "" || body == nil {
+	if indexVar == nil || body == nil {
 		return nil
 	}
 
 	// First, find all valid scenario data structures that are indexed using the key/index variable.
 	// If this loop is a range over the len() of a valid data structure or has a len() check in the
 	// condition, prioritize that variable. Otherwise, fallback to the first detected structure.
-	if indexedStructures := ss.detectScenariosByIndex(body, indexVarName, allowSecondaryDS); len(indexedStructures) > 0 {
+	if indexedStructures := ss.detectScenariosByIndex(body, indexVar.Name, allowSecondaryDS); len(indexedStructures) > 0 {
+		var matchedDs *detectedDS
+	lenExprsLoop:
 		// Prioritize the argument to len()
 		for _, expr := range possibleLenExprs {
 			if lenArg := getLenArgName(expr); lenArg != "" {
 				for _, ds := range indexedStructures {
 					if ds.structName == lenArg {
-						return ds
+						matchedDs = ds
+						break lenExprsLoop
 					}
 				}
 			}
 		}
 		// Fallback to the first detected structure
-		return indexedStructures[0]
+		if matchedDs == nil {
+			matchedDs = indexedStructures[0]
+		}
+		matchedDs.runnerIndexVar = ss.lookupVar(indexVar)
+		return matchedDs
 	}
 
 	// No valid scenario data structure found, even after checking indexing
+	return nil
+}
+
+// Resolves a DST expression (expected to be an identifier) to corresponding types.Var object.
+// Returns nil if the expression is not an identifier, does not correspond to a types.Var object, or is the blank identifier.
+func (ss *ScenarioSet) lookupVar(expr dst.Expr) *types.Var {
+	if expr == nil || ss == nil || ss.TestCase == nil {
+		return nil
+	}
+	// Ignore blank identifiers, which DO correspond to a types.Var but are not useful
+	if ident, ok := expr.(*dst.Ident); ok && ident != nil && ident.Name != "_" {
+		if obj := ss.TestCase.ObjectOf(ident); obj != nil {
+			if v, ok := obj.(*types.Var); ok {
+				return v
+			}
+		}
+	}
 	return nil
 }
 

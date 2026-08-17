@@ -67,7 +67,7 @@
     "expectedFields": null,
     "hasFunctionFields": false,
     "isTableDriven": true,
-    "nameField": "",
+    "nameField": "str",
     "runner": "for _, str := range []string{\"a\", \"b\", \"c\"} {\n\tt.Run(str, func(t *testing.T) {\n\t\tif got := len(str); got != 1 {\n\t\t\tt.Errorf(\"got len %d, want len 1\", got)\n\t\t}\n\t})\n}",
     "scenarioStructName": "",
     "scenarioType": "string",

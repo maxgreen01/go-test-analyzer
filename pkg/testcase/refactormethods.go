@@ -224,6 +224,8 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 	var scenarioExpr dst.Expr       // the expression representing the scenario being processed, e.g. `scenarios[i]` or `tt` in `for _, tt := range scenarios`
 	var runnerStatements []dst.Stmt // the code being moved into the `t.Run()` body
 
+	// Note: part of this logic collects seemingly similar info to `ss.runnerIndexVar` and `ss.runnerValueVar`, but we still can't remove all of it because we modify the loop variables in-place.
+	// Also, we would probably need to handle new checks (e.g. `!typ.isField()`) to make this change, so it likely wouldn't be any simpler.
 	switch loop := ss.Runner.(type) {
 	case *dst.RangeStmt:
 		// Detect the key (index) variable defined by by the range loop
@@ -295,7 +297,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 			loop.Tok = token.DEFINE
 		} else if keyIdent, ok := loop.Key.(*dst.Ident); ok && keyIdent.Name != loopIndexName {
 			// Update the existing variable
-			loop.Key.(*dst.Ident).Name = loopIndexName
+			keyIdent.Name = loopIndexName
 		}
 
 		// Update loop value variable if it was added or changed
@@ -306,7 +308,7 @@ func (ar *AnalysisResult) refactorToSubtests() ([]RefactoredFunction, RefactorGe
 				loop.Tok = token.DEFINE
 			} else if valueIdent, ok := loop.Value.(*dst.Ident); ok && valueIdent.Name != loopValueName {
 				// Update the existing variable
-				loop.Value.(*dst.Ident).Name = loopValueName
+				valueIdent.Name = loopValueName
 			}
 		}
 

@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"go/ast"
+	"log/slog"
 	"math"
 	"slices"
 
@@ -26,10 +27,10 @@ type ComplexityMetrics struct {
 // They are each multiplied by the corresponding metric value (i.e. a linear combination) to compute the overall score.
 const (
 	WeightNumSubtestsInConditionals        = 10.0
-	WeightNumFunctionFields                = 5.0
-	WeightPctRunnerStmtsInConditionals     = 0.25 // corresponding metric is from 0-100
+	WeightNumFunctionFields                = 7.0
+	WeightPctRunnerStmtsInConditionals     = 0.45 // corresponding metric is from 0-100
 	WeightMaxAssertionDepth                = 5.0
-	WeightPctTableFieldsOnlyInConditionals = 0.20 // corresponding metric is from 0-100
+	WeightPctTableFieldsOnlyInConditionals = 0.40 // corresponding metric is from 0-100
 )
 
 // OverallScore computes the overall severity score based on the metrics and their weights, rounded to one decimal place.
@@ -60,6 +61,7 @@ func (ar *AnalysisResult) CalculateComplexity() ComplexityMetrics {
 	runnerLoopCfs, ok := ar.ControlFlowStatements[0].(*Loop)
 	if !ok || len(ar.ControlFlowStatements) != 1 {
 		// Sanity check of the above, since we'd prefer empty results instead of sneaky garbage results if the assumption is violated
+		slog.Warn("Unexpected structure of control flow statements during complexity calculation", "testCase", ar.TestCase)
 		return metrics
 	}
 
@@ -231,16 +233,27 @@ func calculatePctTableFieldsOnlyInConditionals(ar *AnalysisResult, runnerLoopCfs
 		}
 	}
 
-	// Check one-by-one if each field is only used inside table-based conditionals
+	// Check one-by-one if each field is only used inside table-based conditionals.
+	// Note: only direct (non-nested) fields are considered, so usages of nested fields have no effect.
 	fieldsOnlyInConditionals := 0
 	for _, field := range allFields {
-		// Find all usages (not including the definition) of the field variable inside the test function
+		// Find all usages of the field variable inside the test function. Don't include the definitions of objects,
+		// e.g. to avoid penalizing a map key being defined in the runner loop.
 		var usages []ast.Node
 		ast.Inspect(runnerLoopCfs.GetEnclosingFunction(), func(n ast.Node) bool {
-			// Search for SelectorExpr because searching for Ident would also include the field initializations, which we don't want
-			if selector, ok := n.(*ast.SelectorExpr); ok {
-				if obj := typeInfo.Uses[selector.Sel]; obj == field {
-					usages = append(usages, selector)
+			if field.IsField() {
+				// For struct fields, search for SelectorExpr because searching for Ident would also include the field initializations, which we don't want
+				if selector, ok := n.(*ast.SelectorExpr); ok {
+					if obj := typeInfo.Uses[selector.Sel]; obj == field {
+						usages = append(usages, selector)
+					}
+				}
+			} else {
+				// For non-struct variables (e.g. map key), search for direct Ident usages since they wouldn't be accessed by SelectorExpr
+				if ident, ok := n.(*ast.Ident); ok {
+					if obj := typeInfo.Uses[ident]; obj == field {
+						usages = append(usages, ident)
+					}
 				}
 			}
 			return true

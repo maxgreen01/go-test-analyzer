@@ -256,7 +256,7 @@
                       "hasEarlyExit": true,
                       "hasSubtest": false,
                       "inHelper": true,
-                      "isTableBased": true,
+                      "isTableBased": false,
                       "length": 2,
                       "nestedStatements": [
                         {
@@ -269,14 +269,14 @@
                               "hasEarlyExit": true,
                               "hasSubtest": false,
                               "inHelper": true,
-                              "isTableBased": true,
+                              "isTableBased": false,
                               "length": 1,
                               "totalLength": 1,
                               "type": "then",
                               "variables": [
                                 {
                                   "name": "tc.want",
-                                  "source": "scenario",
+                                  "source": "helper function",
                                   "usages": [
                                     "comparison"
                                   ]
@@ -290,7 +290,7 @@
                               "hasEarlyExit": false,
                               "hasSubtest": false,
                               "inHelper": true,
-                              "isTableBased": true,
+                              "isTableBased": false,
                               "length": 0,
                               "totalLength": 0,
                               "type": "else"
@@ -305,7 +305,7 @@
                       "variables": [
                         {
                           "name": "tc.input",
-                          "source": "scenario",
+                          "source": "helper function",
                           "usages": [
                             "comparison"
                           ]
@@ -320,7 +320,7 @@
                       "hasEarlyExit": true,
                       "hasSubtest": false,
                       "inHelper": true,
-                      "isTableBased": true,
+                      "isTableBased": false,
                       "length": 1,
                       "totalLength": 1,
                       "type": "else if"
@@ -332,7 +332,7 @@
                       "hasEarlyExit": false,
                       "hasSubtest": false,
                       "inHelper": true,
-                      "isTableBased": true,
+                      "isTableBased": false,
                       "length": 0,
                       "totalLength": 0,
                       "type": "else"
@@ -358,7 +358,7 @@
                       "variables": [
                         {
                           "name": "tc.name",
-                          "source": "scenario",
+                          "source": "helper function",
                           "usages": [
                             "function argument",
                             "comparison"
@@ -366,7 +366,7 @@
                         },
                         {
                           "name": "tc.input",
-                          "source": "scenario",
+                          "source": "helper function",
                           "usages": [
                             "function argument",
                             "comparison"
@@ -388,14 +388,14 @@
                         },
                         {
                           "name": "b",
-                          "source": "package var",
+                          "source": "helper function",
                           "usages": [
                             "other"
                           ]
                         },
                         {
                           "name": "trueVar",
-                          "source": "package var",
+                          "source": "helper function",
                           "usages": [
                             "direct check"
                           ]
@@ -433,7 +433,7 @@
               "hasEarlyExit": true,
               "hasSubtest": false,
               "inHelper": true,
-              "isTableBased": true,
+              "isTableBased": false,
               "length": 2,
               "nestedStatements": [
                 {
@@ -446,14 +446,14 @@
                       "hasEarlyExit": true,
                       "hasSubtest": false,
                       "inHelper": true,
-                      "isTableBased": true,
+                      "isTableBased": false,
                       "length": 1,
                       "totalLength": 1,
                       "type": "then",
                       "variables": [
                         {
                           "name": "tc.want",
-                          "source": "scenario",
+                          "source": "helper function",
                           "usages": [
                             "comparison"
                           ]
@@ -467,7 +467,7 @@
                       "hasEarlyExit": false,
                       "hasSubtest": false,
                       "inHelper": true,
-                      "isTableBased": true,
+                      "isTableBased": false,
                       "length": 0,
                       "totalLength": 0,
                       "type": "else"
@@ -482,7 +482,7 @@
               "variables": [
                 {
                   "name": "tc.input",
-                  "source": "scenario",
+                  "source": "helper function",
                   "usages": [
                     "comparison"
                   ]
@@ -497,7 +497,7 @@
               "hasEarlyExit": true,
               "hasSubtest": false,
               "inHelper": true,
-              "isTableBased": true,
+              "isTableBased": false,
               "length": 1,
               "totalLength": 1,
               "type": "else if"
@@ -509,7 +509,7 @@
               "hasEarlyExit": false,
               "hasSubtest": false,
               "inHelper": true,
-              "isTableBased": true,
+              "isTableBased": false,
               "length": 0,
               "totalLength": 0,
               "type": "else"
@@ -535,7 +535,7 @@
               "variables": [
                 {
                   "name": "tc.name",
-                  "source": "scenario",
+                  "source": "helper function",
                   "usages": [
                     "function argument",
                     "comparison"
@@ -543,7 +543,7 @@
                 },
                 {
                   "name": "tc.input",
-                  "source": "scenario",
+                  "source": "helper function",
                   "usages": [
                     "function argument",
                     "comparison"
@@ -565,14 +565,14 @@
                 },
                 {
                   "name": "b",
-                  "source": "package var",
+                  "source": "helper function",
                   "usages": [
                     "other"
                   ]
                 },
                 {
                   "name": "trueVar",
-                  "source": "package var",
+                  "source": "helper function",
                   "usages": [
                     "direct check"
                   ]

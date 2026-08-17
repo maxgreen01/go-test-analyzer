@@ -25,7 +25,9 @@
   },
   "ScenarioSet": {
     "dataStructure": "map",
-    "expectedFields": null,
+    "expectedFields": [
+      "expected"
+    ],
     "hasFunctionFields": false,
     "isTableDriven": true,
     "nameField": "",

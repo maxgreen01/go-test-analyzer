@@ -419,11 +419,12 @@
                 // - If the variable is the detected scenario data structure or one of its fields, this will be "scenario".
                 // - If the variable is defined in the initialization statement of this clause, this will be "if scope".
                 // - If the variable is defined in the surrounding table-driven runner loop, this will be "loop scope".
+                // - If the variable is defined within a helper function or local closure, this will be "helper function".
                 // - If the variable is defined in the surrounding test function, this will be "test scope".
-                // - If the variable is defined as a global CONSTANT in this package, imported from another package, or
-                //   defined in a helper function, this will be "package const".
-                // - If the variable is defined as a global VARIABLE in this package, imported from another package, or
-                //   defined in a helper function, this will be "package var".
+                // - If the variable is defined as a global CONSTANT in this package or imported from another package,
+                //   this will be "package const".
+                // - If the variable is defined as a global VARIABLE in this package or imported from another package,
+                //   this will be "package var".
                 // - If the variable's source cannot be determined, this will be "unknown".
                 "source": "if scope",
 

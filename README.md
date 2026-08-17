@@ -233,7 +233,7 @@ In many cases, refactoring an overly complex test may involve splitting the tabl
 Some of these metrics focus specifically on conditionals inside the runner loop that are controlled by scenario fields, which we refer to as "table-based conditionals". A "table-based conditional" is defined as an if/else clause that satisfies either of the following conditions:
 
 1. Its condition, when split across all top-level consecutive `&&` and `||` logical operators, contains at least one expression that:
-   - Involves one or more scenario fields or the index (key) of the runner loop, AND
+   - Involves one or more scenario fields or the variables defined by the runner loop, AND
    - Does not involve any other variables, except constants, AND
    - Does not involve any function calls, except built-in functions or scenario function fields.
 2. It follows another table-based conditional clause in the same if/else chain.

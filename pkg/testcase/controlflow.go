@@ -2,7 +2,6 @@ package testcase
 
 import (
 	"go/ast"
-	"go/types"
 	"slices"
 
 	"github.com/dave/dst"
@@ -60,9 +59,7 @@ func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmt
 
 	cfa := &controlFlowAnalyzer{
 		tc:                  tc,
-		scenarioType:        scenarioSet.ScenarioType,
-		loopScope:           tc.GetNodeScope(scenarioSet.Runner),
-		runnerLoopIndex:     getLoopIndexName(scenarioSet.Runner),
+		scenarioSet:         scenarioSet,
 		analyzeConditionals: analyzeConditionals,
 		analyzeControlFlow:  analyzeControlFlow,
 		countHelperLength:   countHelperLength,
@@ -71,24 +68,6 @@ func analyzeRunnerControlFlow(tc *TestCase, scenarioSet *ScenarioSet, parsedStmt
 
 	// Use the runner loop itself as the root for the analysis, even though the `nodeToExpanded` map is built from its enclosing ExpandedStatement
 	return cfa.walk(scenarioSet.Runner, nil, make(map[dst.Node]bool))
-}
-
-// getLoopIndexName returns the name of the variable representing the index of the provided loop.
-// Returns an empty string if the statement is not a loop, or if no suitable identifier is found.
-func getLoopIndexName(loop dst.Stmt) string {
-	switch loop := loop.(type) {
-	case *dst.RangeStmt:
-		if loop.Key != nil {
-			if ident, ok := loop.Key.(*dst.Ident); ok {
-				return ident.Name
-			}
-		}
-	case *dst.ForStmt:
-		if indexIdent := GetForStmtIndexIdent(loop); indexIdent != nil {
-			return indexIdent.Name
-		}
-	}
-	return ""
 }
 
 // filterTyped returns a new slice containing only the ControlFlowStatements that can be asserted to a given concrete type,
@@ -147,9 +126,7 @@ func MaxDepth(cfs ControlFlowStatement) int {
 // controlFlowAnalyzer encapsulates the settings and other relevant information needed to analyze control flow statements.
 type controlFlowAnalyzer struct {
 	tc                  *TestCase    // The test case under analysis
-	scenarioType        types.Type   // Type of the scenario struct in the table-driven test
-	loopScope           *types.Scope // The lexical scope of the runner loop
-	runnerLoopIndex     string       // The key/index variable name of the runner loop
+	scenarioSet         *ScenarioSet // Information about the table-driven aspect of the test being analyzed
 	analyzeLoops        bool         // Whether to analyze loops
 	analyzeConditionals bool         // Whether to analyze conditionals
 	analyzeControlFlow  bool         // Whether to analyze the unified control flow (no filtering by type)
