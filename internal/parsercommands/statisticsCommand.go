@@ -78,7 +78,8 @@ func (cmd *StatisticsCommand) Config() *config.GlobalOptions {
 // Set the default output path if one is not provided, and initialize the output FileWriter instance
 func (cmd *StatisticsCommand) setupOutputWriter() error {
 	if cmd.globals.OutputPath == "" {
-		cmd.globals.OutputPath = fmt.Sprintf("%s-statistics-report.csv", filepath.Base(cmd.globals.ProjectDir))
+		defaultFileName := fmt.Sprintf("%s-statistics-report.csv", filepath.Base(cmd.globals.ProjectDir))
+		cmd.globals.OutputPath = filepath.Join(cmd.globals.OutputDir, defaultFileName)
 	}
 	// Initialize the output writer with the specified output path
 	writer, err := filewriter.NewFileWriter(cmd.globals.OutputPath, cmd.globals.AppendOutput)

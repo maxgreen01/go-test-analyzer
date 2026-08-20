@@ -107,6 +107,23 @@ func TestExpandedStatements(t *testing.T) {
 	}
 	// Same-package function with nested calls should be expanded recursively
 	runScenarios(t, tests)
+
+	// Function literals that aren't directly assigned to identifiers ("regular" variables) are
+	// intentionally NOT expanded (for now) because it isn't obvious where the functions are actually
+	// used, to an even greater extent than when they're assigned to regular variables.
+	type funcContainer struct {
+		callback func(int) int
+	}
+	container := &funcContainer{
+		callback: func(x int) int {
+			return x + 1
+		},
+	}
+	_ = container.callback(1)
+	container.callback = func(x int) int {
+		return x + 2
+	}
+	_ = container.callback(2)
 }
 
 const packageConst = 42
@@ -125,7 +142,7 @@ func helperConditional(tc *scenario) int {
 		return 2
 	} else {
 	}
-	
+
 	if strings.Contains(tc.name, strconv.Itoa(tc.input)) || (tc.input == packageConst+packageVar && func(b bool) bool { return b }(trueVar && tc.name != "")) {
 		return 3
 	}

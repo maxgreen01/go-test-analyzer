@@ -13,7 +13,8 @@ Given an arbitrary Go project as input, the Go Test Analysis Engine...
 - Detects and analyzes Go test functions across entire projects.
 - Generates detailed reports on project-wide testing statistics or comprehensive analyses of individual test functions and their table-driven properties.
 - Refactors test cases that exhibit certain anti-patterns to enhance maintainability.
-- Supports multiple output formats, including CSV and plaintext.
+- Analyzes the complexity of table-driven tests and ranks them based on severity.
+- Supports multiple output formats, including CSV, JSON, and plaintext.
 - Provides structured logging to both the terminal and a dedicated log file.
 
 ## Associated Research
@@ -45,7 +46,7 @@ An example execution of the statistics command is:
 ./go-test-analyzer statistics --project ./kubernetes-1.33.1 --output ./output/statistics-report.csv --append
 ```
 
-This command can be repeated with the other projects to consolidate the statistics reports of all five projects into a single CSV file using the `append` option. These results can be directly translated into the results shown in Table 1 by performing a simple calculation to determine the percentage of test files.
+This command can be repeated with the other projects to consolidate the statistics reports of all five projects into a single CSV file using the `--append` option. These results can be directly translated into the results shown in Table 1 by performing a simple calculation to determine the percentage of test files.
 
 An example execution of the analyze command (including subtest refactoring) is:
 
@@ -143,8 +144,8 @@ Below is a list of the command-line options supported by the application:
 | `--threads`          | The number of concurrent threads to use for parsing (only when splitting by directory) | `4`                              | `2`, `8`                                             |
 | `--log-level` / `-l` | The minimum severity of log message that should be displayed                           | `info`                           | `debug`, `info`, `warn`, `error` (exhaustive)        |
 | `--timestamp-logs`   | Whether to include the current timestamp (YYYYMMDD-HHMMSS) in the log file name        | `false`                          | N/A                                                  |
-| `--build-flags`      | Command-line options to pass to the underlying build tool                              | `[]`                             | `"-tags=unit,integration"`, `"-mod=readonly"`, `-x`  |
-| `--build-env`        | Environment variables to pass to the underlying build tool, in KEY=VALUE format        | `[]`                             | `"GOOS=linux"`, `"GOARCH=amd64"`                     |
+| `--build-flags`      | Command-line options to pass to the underlying build tool                              | `[]` (none)                      | `"-tags=unit,integration"`, `"-mod=readonly"`, `-x`  |
+| `--build-env`        | Environment variables to pass to the underlying build tool, in KEY=VALUE format        | `[]` (none)                      | `"GOOS=linux"`, `"GOARCH=amd64"`                     |
 
 To access the help menu and see all available options, run:
 
@@ -160,11 +161,15 @@ To view any command-specific options in addition to the global ones, run:
 
 ### Global Option Details
 
-**--output**: Saves the command's output report to the specified file path, where relative paths are resolved based on the current working directory. If the file already exists, it will be overwritten unless the `--append` option is enabled. If the specified path does not include a directory (e.g. `report.csv`), the file will be saved to the default output directory. The default output directory is `/output` in the directory containing the executable file, or `/output` in the current working directory as a fallback. For example, if the executable is located at `C:/programs/go-test-analyzer`, the default output directory will be `C:/programs/go-test-analyzer/output/`.
-**--split-by-dir**: If enabled, the analyzer will analyze each top-level directory in the project as its own unit. This option is useful for analyzing multiple projects at once by placing them in the same parent directory. If no `--output` path is provided, a separate output file will be created for each subdirectory. If an `--output` path is provided, the results of all directories will be saved to the same file. In this case, the `--append` option determines whether the file should be truncated at first, but the option is implicitly enabled during command execution to avoid results overwriting each other.
-**--timestamp-logs**: By default, logs from the most recent execution are written to `output/logs/analyzer.log` relative to the directory containing the executable file (NOT the current working directory). If `--timestamp-logs` is enabled, the log file is instead named like `analyzer-YYYYMMDD-HHMMSS.log` based on the current timestamp. This option is disabled by default to prevent creating a large number of log files, but it can be useful for keeping logs from multiple runs without manually renaming them.
-**--build-flags**: Specifies command-line options to pass to the underlying build tool while parsing Go packages. Can be specified multiple times to pass multiple options. Options that require an argument should usually be specified in `-option=value` format (e.g. `--build-flags="-tags=unit,integration"`). Not following this format may lead to errors like "flag provided but not defined".
-**--build-env**: Specifies environment variables to pass to the underlying build tool while parsing Go packages. Must be specified in `KEY=VALUE` format, and can be specified multiple times to pass multiple environment variables. Should typically be quoted to prevent the shell from interpreting the `=` character (e.g. `--build-env="GOOS=linux"`).
+The `--output` option controls the location that the command's output report(s) will be saved to, where relative paths are resolved based on the current working directory. If the file already exists, it will be overwritten unless the `--append` option is enabled. If the specified path is a directory (or doesn't exist but ends with a slash), the output report(s) will be saved inside that directory using the default file name. If the specified path does not include a directory (e.g. `report.csv`), the file will be saved to the default output directory. The default output directory is `/output` in the directory containing the executable file, or `/output` in the current working directory as a fallback. For example, if the executable is located at `C:/programs/go-test-analyzer`, the default output directory will be `C:/programs/go-test-analyzer/output/`.
+
+The `--split-by-dir` option controls whether the analyzer should analyze each top-level directory in the project as its own unit. This option is useful for analyzing multiple projects at once if they are located in the same parent directory. If this option is enabled and no `--output` file path is provided, a separate output file will be created for each subdirectory. If an `--output` file path is provided, the results for all subdirectories will be saved to that same file. In this case, the `--append` option determines whether the file should be truncated at first, but the option is implicitly enabled during command execution to avoid projects' results overwriting each other.
+
+The `--timestamp-logs` option controls whether the analyzer's log file should include a timestamp in the file name. By default, logs from the most recent command execution are written to `output/logs/analyzer.log` relative to the directory containing the executable file (NOT the current working directory). If this option is enabled, the log file is instead named like `analyzer-YYYYMMDD-HHMMSS.log` based on the current time when the analyzer starts running. This option is disabled by default to avoid creating a large number of distinct log files, but it can be useful for keeping logs from multiple runs without manually renaming them.
+
+The `--build-flags` option specifies command-line flags or options to pass to the underlying build tool while parsing Go packages. This can be used multiple times to pass multiple options. Options that require an argument should usually be provided in `-option=value` format (e.g. `--build-flags="-tags=unit,integration"`). Not following this format may lead to errors like "flag provided but not defined".
+
+The `--build-env` option specifies environment variables to pass to the underlying build tool while parsing Go packages. This can be used multiple times to pass multiple environment variables. Variables must be provided in `KEY=VALUE` format, and should typically be quoted to prevent the shell from interpreting the `=` character (e.g. `--build-env="GOOS=linux"`).
 
 ## Commands
 
@@ -172,7 +177,7 @@ To view any command-specific options in addition to the global ones, run:
 
 The `statistics` command analyzes the Go test files in the specified project directory and generates various statistics related to the project's test cases. This includes metrics such as the total number of test cases, number of test files, average test length, and the percentage of the project comprised of test code (by lines).
 
-Supports output to either `.txt` or `.csv` files. Output is especially well-suited for a `.csv` file if using the `split-by-dir` option.
+Supports output to either `.txt` or `.csv` files. Output is especially well-suited for a `.csv` file if using the `--split-by-dir` option.
 
 Example:
 
@@ -182,9 +187,9 @@ Example:
 
 ### Analyze
 
-The `analyze` command performs a deeper analysis of the test cases in a project. This command identifies various structural elements in each test, with a focus on table-driven tests. The result of analyzing each test is saved in a unique JSON files, which are all saved in a new folder in the same directory as the `output` file. The JSON files are named like `<project>/<project>_<package>_<testName>_<hash>.json`. The `<hash>` is the raw URL-safe Base64 encoding of the first 5 bytes of the MD5 hash of the test's full import path. An annotated example of one of these JSON files can be viewed [in the examples directory](./examples/ANNOTATED-prometheus_rules_TestAlertingRuleState_JCvMs6I.jsonc).
+The `analyze` command performs a deeper analysis of the test cases in a project. This command identifies various structural elements in each test, with a focus on table-driven tests. The result of analyzing each test is saved in a unique JSON files, which are all saved in a new folder in the same directory as the `--output` file. The JSON files are named like `<project>/<project>_<package>_<testName>_<hash>.json`. The `<hash>` is the raw URL-safe Base64 encoding of the first 5 bytes of the MD5 hash of the test's full import path. An annotated example of one of these JSON files can be viewed [in the examples directory](./examples/ANNOTATED-prometheus_rules_TestAlertingRuleState_JCvMs6I.jsonc).
 
-Certain detected test cases can also be refactored using the `refactor` option, as described in the [Command Options](#analyze-command-options) subsection.
+Certain detected test cases can also be refactored using the `--refactor` option, as described in the [Command Options](#analyze-command-options) subsection.
 
 Supports output of summarized results to either `.txt` or `.csv` files. Output is especially well-suited for a `.csv` file because it will contain a condensed version of the analysis results of every test case. This does not affect the JSON files generated for each test, which will be created regardless of the specified output format.
 
@@ -207,20 +212,20 @@ The following command-line options are only supported by the `analyze` command.
 | `--analyze-control-flow`  | Whether to perform a unified control flow analysis combining the loop and conditional analyses in table-driven tests | `false`       | N/A                            |
 | `--calculate-complexity`  | Whether to calculate complexity metrics for detected table-driven tests and rank them by severity                    | `false`       | N/A                            |
 
-The `refactor` option indicates which type of refactoring should be performed on certain detected test cases. After refactoring, the refactored function is saved as a field in the JSON output file for each affected test case. Note that the refactoring may modify helper functions defined in the same package, but these are not reflected in the JSON output. The allowed refactoring strategies are described as follows:
+The `--refactor` option indicates which type of refactoring should be performed on certain detected test cases. After refactoring, the refactored function is saved as a field in the JSON output file for each affected test case. Note that the refactoring may modify helper functions defined in the same package, but these are not reflected in the JSON output. The allowed refactoring strategies are described as follows:
 
 - The `none` argument indicates that no refactoring will be performed.
 - The `subtest` refactoring method affects tests that are detected to be table-driven but do not use `t.Run()` to declare subtests. The refactoring wraps the entire contents of the execution loop in a `t.Run()` call, using the detected scenario name field (or a stringified version of one of the input fields) as the subtest name.
 
-The `keep-refactored-files` option allows the user to review the refactored code directly in their original files. The program's default behavior is to revert refactored code to its original state after refactoring is complete, but this option disables that behavior. Note that if this option is enabled, compilation errors caused by a refactoring will likely affect the execution results (but not the actual refactorings) of other tests in the same file. Also, if multiple tests perform a refactoring on the same helper function, the final state of the code will depend solely on the last refactoring attempt that affected the helper. Additionally, if you plan to run the analyzer multiple times on the same project using this option, you must restore the original files before each run to ensure consistent results. To restore the original files, you can use Git to revert the changes or back up the original files before running the analyzer.
+The `--keep-refactored-files` option allows the user to review the refactored code directly in their original files. The program's default behavior is to revert refactored code to its original state after refactoring is complete, but this option disables that behavior. Note that if this option is enabled, compilation errors caused by a refactoring will likely affect the execution results (but not the actual refactorings) of other tests in the same file. Also, if multiple tests perform a refactoring on the same helper function, the final state of the code will depend solely on the last refactoring attempt that affected the helper. Additionally, if you plan to run the analyzer multiple times on the same project using this option, you must restore the original files before each run to ensure consistent results. To restore the original files, you can use Git to revert the changes or back up the original files before running the analyzer.
 
-The `analyze-loops` option enables a more comprehensive static analysis of all loops found within each test case and the helper functions it calls. When enabled, the generated JSON files for each test case will contain a `LoopAnalysis` object that describes the classification of each detected loop and includes information about various metadata features. In particular, it describes whether a loop is indicative of a table-driven test, and whether the loop delegates any of its features to external helper functions.
+The `--analyze-loops` option enables a more comprehensive static analysis of all loops found within each test case and the helper functions it calls. When enabled, the generated JSON files for each test case will contain a `LoopAnalysis` object that describes the classification of each detected loop and includes information about various metadata features. In particular, it describes whether a loop is indicative of a table-driven test, and whether the loop delegates any of its features to external helper functions.
 
-The `analyze-conditionals` option enables a comprehensive static analysis of all if/else chains found within each table-driven test's scenario runner loop. When enabled, the generated JSON files for each test case will contain an `IfElseAnalysis` object that describes the structure and characteristics of each detected conditional. In particular, it characterizes the variables used in each condition check, tracks metadata features through chained and nested conditionals, and counts the length of each clause.
+The `--analyze-conditionals` option enables a comprehensive static analysis of all if/else chains found within each table-driven test's scenario runner loop. When enabled, the generated JSON files for each test case will contain an `IfElseAnalysis` object that describes the structure and characteristics of each detected conditional. In particular, it characterizes the variables used in each condition check, tracks metadata features through chained and nested conditionals, and counts the length of each clause.
 
-The `analyze-control-flow` option enables a comprehensive static analysis of all control flow statements (both loops and if/else chains together) found within each table-driven test's scenario runner loop. When enabled, the generated JSON files for each test case will contain a `ControlFlowStatements` array that describes each of the detected control flow statements using the same format as the individual loop and conditional analyses. Even though this performs the same underlying analysis as the individual loop and conditional analyses, this option is completely independent from the others.
+The `--analyze-control-flow` option enables a comprehensive static analysis of all control flow statements (both loops and if/else chains together) found within each table-driven test's scenario runner loop. When enabled, the generated JSON files for each test case will contain a `ControlFlowStatements` array that describes each of the detected control flow statements using the same format as the individual loop and conditional analyses. Even though this performs the same underlying analysis as the individual loop and conditional analyses, this option is completely independent from the others.
 
-The `calculate-complexity` option estimates the complexity of all detected table-driven tests based on a set of predefined metrics, with a focus on detecting conditional logic inside the scenario runner loop. These tests are then sorted by overall complexity and saved to a separate file named `<project>-complexity-scores.csv` (in the same directory as the main output report) to allow for easier identification of the most complex tests based on each metric. Enabling this option automatically enables the `--analyze-control-flow` option.
+The `--calculate-complexity` option estimates the complexity of all detected table-driven tests based on a set of predefined metrics, with a focus on detecting conditional logic inside the scenario runner loop. These tests are then sorted by overall complexity and saved to a separate file named `<project>-complexity-scores.csv` (in the same directory as the main output report) to allow for easier identification of the most complex tests based on each metric. Enabling this option automatically enables the `--analyze-control-flow` option.
 
 #### Complexity Calculation
 

@@ -239,6 +239,31 @@
         }
       ],
       "stmt": "// Same-package function with nested calls should be expanded recursively\nrunScenarios(t, tests)"
+    },
+    {
+      "stmt": "// Function literals that aren't directly assigned to identifiers (\"regular\" variables) are\n// intentionally NOT expanded (for now) because it isn't obvious where the functions are actually\n// used, to an even greater extent than when they're assigned to regular variables.\ntype funcContainer struct {\n\tcallback func(int) int\n}"
+    },
+    {
+      "stmt": "container := \u0026funcContainer{\n\tcallback: func(x int) int {\n\t\treturn x + 1\n\t},\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "container.callback(1)"
+        }
+      ],
+      "stmt": "_ = container.callback(1)"
+    },
+    {
+      "stmt": "container.callback = func(x int) int {\n\treturn x + 2\n}"
+    },
+    {
+      "children": [
+        {
+          "stmt": "container.callback(2)"
+        }
+      ],
+      "stmt": "_ = container.callback(2)"
     }
   ],
   "RefactorResult": {
@@ -266,7 +291,7 @@
   },
   "TestCase": {
     "filePath": "",
-    "funcDecl": "// TestExpandedStatements calls multiple local, external, and production functions to verify their expansion behavior.\nfunc TestExpandedStatements(t *testing.T) {\n\ttests := []scenario{\n\t\t{name: \"positive\", input: 2, want: 4},\n\t}\n\tlocalFunc := func(tc scenario) {\n\t\t// Production function should NOT be expanded\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tif got := Double(tc.input); got != tc.want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t\t}\n\t\t})\n\t\t// External function should NOT be expanded\n\t\ttesthelper.AssertScenarioExternal(t, testhelper.Scenario{Name: tc.name, Input: tc.input, Want: tc.want})\n\t}\n\tfor _, tc := range tests {\n\t\t// Local function literal should be expanded\n\t\tlocalFunc(tc)\n\t\t// Same-package function should be expanded\n\t\thelperLoop()\n\t\t// Repeated control flow statements with the same parent should not be analyzed twice\n\t\thelperLoop()\n\t}\n\t// Functions called in the loop header should be expanded\n\tstartFunc := func() int { return 0 }\n\tcondFunc := func(i int) bool {\n\t\tfor range -1 {\n\t\t}\n\t\treturn i \u003c 5\n\t}\n\tfor i := startFunc(); condFunc(i); i += func() int { return 1 }() {\n\t}\n\t// Same-package function with nested calls should be expanded recursively\n\trunScenarios(t, tests)\n}",
+    "funcDecl": "// TestExpandedStatements calls multiple local, external, and production functions to verify their expansion behavior.\nfunc TestExpandedStatements(t *testing.T) {\n\ttests := []scenario{\n\t\t{name: \"positive\", input: 2, want: 4},\n\t}\n\tlocalFunc := func(tc scenario) {\n\t\t// Production function should NOT be expanded\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tif got := Double(tc.input); got != tc.want {\n\t\t\t\tt.Errorf(\"got %d, want %d\", got, tc.want)\n\t\t\t}\n\t\t})\n\t\t// External function should NOT be expanded\n\t\ttesthelper.AssertScenarioExternal(t, testhelper.Scenario{Name: tc.name, Input: tc.input, Want: tc.want})\n\t}\n\tfor _, tc := range tests {\n\t\t// Local function literal should be expanded\n\t\tlocalFunc(tc)\n\t\t// Same-package function should be expanded\n\t\thelperLoop()\n\t\t// Repeated control flow statements with the same parent should not be analyzed twice\n\t\thelperLoop()\n\t}\n\t// Functions called in the loop header should be expanded\n\tstartFunc := func() int { return 0 }\n\tcondFunc := func(i int) bool {\n\t\tfor range -1 {\n\t\t}\n\t\treturn i \u003c 5\n\t}\n\tfor i := startFunc(); condFunc(i); i += func() int { return 1 }() {\n\t}\n\t// Same-package function with nested calls should be expanded recursively\n\trunScenarios(t, tests)\n\n\t// Function literals that aren't directly assigned to identifiers (\"regular\" variables) are\n\t// intentionally NOT expanded (for now) because it isn't obvious where the functions are actually\n\t// used, to an even greater extent than when they're assigned to regular variables.\n\ttype funcContainer struct {\n\t\tcallback func(int) int\n\t}\n\tcontainer := \u0026funcContainer{\n\t\tcallback: func(x int) int {\n\t\t\treturn x + 1\n\t\t},\n\t}\n\t_ = container.callback(1)\n\tcontainer.callback = func(x int) int {\n\t\treturn x + 2\n\t}\n\t_ = container.callback(2)\n}",
     "importPath": "",
     "name": "TestExpandedStatements",
     "package": "sampleproj",

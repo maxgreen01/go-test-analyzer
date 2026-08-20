@@ -85,8 +85,11 @@ func expandStatementWithStack(stmt dst.Stmt, tc *TestCase, testOnly bool, callSt
 		}
 
 		// If we encounter a function literal as part of a larger expression, we should only expand its statements if it's the root statement being expanded.
-		// There isn't any need to expand a statement like `x := func() {...}`  until the function is called, which is handled as a CallExpr.
 		// If a FuncLit is specifically being expanded, it should already be wrapped in an ExprStmt as the root to act as a new layer of nesting.
+		//
+		// For the most part, function literals like `x := func() {...}` shouldn't be expanded until the function is called, which would be handled when the
+		// corresponding CallExpr is found. If we decide that a function literal inside a larger node *should* be expanded for any reason, it should've already
+		// be handled when the parent was detected, so should therefore still be skipped here.
 		if funcLit, ok := n.(*dst.FuncLit); ok {
 			if exprStmt, ok := root.Stmt.(*dst.ExprStmt); ok && exprStmt.X == funcLit {
 				if funcLit.Body != nil {
@@ -352,19 +355,19 @@ func FindDefinition(expr dst.Expr, tc *TestCase, testOnly bool) (*ExpressionDefi
 // For example, returns the function literal from `x := func() {...}` if `identName` is "x".
 // Returns the original node if the node is not an assignment or declaration, or if no matching function literal is found.
 func extractFuncLitFromAssignment(node dst.Node, identName string) dst.Node {
-	switch assign := node.(type) {
+	switch n := node.(type) {
 	case *dst.AssignStmt:
-		for i, lhs := range assign.Lhs {
-			if id, ok := lhs.(*dst.Ident); ok && id.Name == identName && i < len(assign.Rhs) {
-				if funcLit, ok := assign.Rhs[i].(*dst.FuncLit); ok {
+		for i, lhs := range n.Lhs {
+			if id, ok := lhs.(*dst.Ident); ok && id.Name == identName && i < len(n.Rhs) {
+				if funcLit, ok := asttools.Unparen(n.Rhs[i]).(*dst.FuncLit); ok {
 					return funcLit
 				}
 			}
 		}
 	case *dst.ValueSpec:
-		for i, name := range assign.Names {
-			if name.Name == identName && i < len(assign.Values) {
-				if funcLit, ok := assign.Values[i].(*dst.FuncLit); ok {
+		for i, name := range n.Names {
+			if name.Name == identName && i < len(n.Values) {
+				if funcLit, ok := asttools.Unparen(n.Values[i]).(*dst.FuncLit); ok {
 					return funcLit
 				}
 			}

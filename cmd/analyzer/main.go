@@ -130,17 +130,31 @@ func applyGlobals(opts *config.GlobalOptions) {
 	}
 	opts.ProjectDir = absProjectPath
 
-	// Validate and resolve the output path, if provided. This ensures that any provided path that includes a directory is resolved relative
-	// to the current working directory instead of the default output path. Additional validation and processing is done by FileWriter.
-	// The default value may be set within each command to ensure proper functionality with `split-by-dir`.
+	// Validate and resolve the output path, if provided. If the provided path is relative, it is resolved now (starting from the current working
+	// directory) instead of later (starting from the default output path). If the provided path is a directory, it is stored in `OutputDir`,
+	// and `OutputPath` is cleared to indicate that a FILE path was not specified (i.e. to indicate that the default file name be used).
+	// The default output path (to a file) should be set by each individual command to ensure proper functionality with `split-by-dir`.
+	// Additional validation and processing is performed by FileWriter when the command's output file handle is actually initialized.
 	opts.OutputPath = strings.Trim(opts.OutputPath, "\t\n\v\f\r \"") // Trim whitespace and quotes
-	if opts.OutputPath != "" && strings.HasPrefix(opts.OutputPath, ".") {
-		absOutputPath, err := filepath.Abs(opts.OutputPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error resolving absolute path for output file %q: %v\n", opts.OutputPath, err)
-			os.Exit(1)
+	if opts.OutputPath != "" {
+		// Check if the provided output path is a directory, or if it doesn't exist and ends with a slash
+		info, err := os.Stat(opts.OutputPath)
+		isDir := (err == nil && info.IsDir()) || (os.IsNotExist(err) && (strings.HasSuffix(opts.OutputPath, "/") || strings.HasSuffix(opts.OutputPath, "\\")))
+
+		// Resolve relative paths or directories
+		if isDir || strings.HasPrefix(opts.OutputPath, ".") {
+			absOutputPath, err := filepath.Abs(opts.OutputPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error resolving absolute path for output %q: %v\n", opts.OutputPath, err)
+				os.Exit(1)
+			}
+			opts.OutputPath = absOutputPath
+
+			if isDir {
+				opts.OutputDir = absOutputPath
+				opts.OutputPath = ""
+			}
 		}
-		opts.OutputPath = absOutputPath
 	}
 
 	// In the specific case where `split-by-dir` is enabled, a specific output file is provided, and `append` is disabled, we need to truncate the file originally
